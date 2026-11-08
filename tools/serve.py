@@ -1,6 +1,6 @@
 # serve.py - serves the vc64web browser emulator and the game build from one local address
 #   http://127.0.0.1:8000/            the emulator (tools/vc64web, fetched by "make emu")
-#   http://127.0.0.1:8000/game/       the build folder, so /game/sandbox.prg is the newest build
+#   http://127.0.0.1:8000/game/       the build folder, so /game/websidtracker.prg is the newest build
 # Emulator and game come from the same address, so the browser needs no cross-site permission.
 # Usage: python3 tools/serve.py [port]   (the Makefile runs this: make serve, make test)
 import os
@@ -23,8 +23,8 @@ LOADER = b"""<script>
     if (tries < 8) return;                                             // let the emulator's own load go first
     clearInterval(timer);
     if (typeof file_slot_file_name !== 'undefined' && file_slot_file_name) return;           // it already loaded a game
-    fetch('/game/sandbox.prg', {cache: 'no-store'}).then(function (r) { return r.arrayBuffer(); }).then(function (b) {
-      file_slot_file_name = 'sandbox.prg';
+    fetch('/game/websidtracker.prg', {cache: 'no-store'}).then(function (r) { return r.arrayBuffer(); }).then(function (b) {
+      file_slot_file_name = 'websidtracker.prg';
       file_slot_file = new Uint8Array(b);
       $('#button_eject_zip').click();
       configure_file_dialog(false);
