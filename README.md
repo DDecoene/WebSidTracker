@@ -2,7 +2,7 @@
 
 A SID music tracker for the browser, built clean-room, with a small player you can drop into your own Commodore 64 game.
 
-> **Status: design.** The web app and the player do not exist yet. What is here is the plan: the [concept](docs/concept-hubbard-inspired-player.md), the [player data format and timing](docs/design-player-format-and-timing.md), the [web tracker architecture](docs/design-web-tracker-architecture.md), and an empty C64 project to build the player in.
+> **Status: early.** The first piece of the web app exists: a page that makes SID sound with reSIDfp in the browser (see [`web/`](web/README.md)). The player and the tracker do not exist yet. The rest is the plan: the [concept](docs/concept-hubbard-inspired-player.md), the [player data format and timing](docs/design-player-format-and-timing.md), the [web tracker architecture](docs/design-web-tracker-architecture.md), and an empty C64 project to build the player in.
 
 ## Why
 
@@ -31,6 +31,8 @@ The full story (what made that approach special, what such a player contains, wh
 | `docs/concept-hubbard-inspired-player.md` | the concept: the approach, the player's ingredients, the tracker, distribution |
 | `docs/design-player-format-and-timing.md` | the player: song and instrument data, ticks and frames, clean note starts |
 | `docs/design-web-tracker-architecture.md` | the browser tracker: own 6502 emulator, reSIDfp, live editing, export |
+| `web/` | the browser app (GPL): for now a sound test, reSIDfp as WebAssembly played through an AudioWorklet |
+| `web/sid/` | reSIDfp build script, C wrapper, loader and a Node test |
 | `src/main.asm` | the C64 project: an empty program (a BASIC stub that jumps to `start`) |
 | `src/hardware.asm` | names for the VIC-II, SID and CIA registers, no code |
 | `Makefile`, `project-config.json`, `.vscode/` | build and run |
@@ -45,6 +47,16 @@ make vice     # builds and runs in VICE (x64sc, the accurate emulator: use it to
 make test     # builds and runs in the vc64web browser emulator (fetched on first use)
 ```
 
+## Running the web app
+
+The sound test needs only a browser and a local web server (an AudioWorklet does not load from `file://`):
+
+```
+python3 -m http.server 8010 --directory web
+```
+
+Then open <http://127.0.0.1:8010/> and press Play. `node web/sid/test.mjs` checks the SID without a browser. `web/sid/sid.wasm` is committed; to rebuild it you need [Emscripten](https://emscripten.org/) (`brew install emscripten`) and `sh web/sid/build.sh`.
+
 ## Roadmap
 
 - [x] Choose the data format and the tick/timing model ([design](docs/design-player-format-and-timing.md))
@@ -54,7 +66,7 @@ make test     # builds and runs in the vc64web browser emulator (fetched on firs
 - [ ] Add per-frame effects one by one: pulse sweep, vibrato, arpeggio, drum, checked by ear in VICE
 - [ ] Voice state block at fixed addresses, so a tracker can follow the playhead
 - [ ] Browser: a small 6502 emulator in JavaScript, tested against a public 6502 test
-- [ ] Browser: reSIDfp as WebAssembly, played through an AudioWorklet
+- [x] Browser: reSIDfp as WebAssembly, played through an AudioWorklet ([sound test](web/index.html))
 - [ ] Browser: song model, serialiser and live editing
 - [ ] Browser: the tracker grid and the instrument editor
 - [ ] Export to assembler source and `.prg`
