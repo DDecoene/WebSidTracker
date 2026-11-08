@@ -2,7 +2,7 @@
 
 A SID music tracker for the browser, built clean-room, with a small player you can drop into your own Commodore 64 game.
 
-> **Status: concept.** The web app and the player do not exist yet. What is here is the plan ([concept document](docs/concept-hubbard-inspired-player.md)) and an empty C64 project to build the player in.
+> **Status: design.** The web app and the player do not exist yet. What is here is the plan: the [concept](docs/concept-hubbard-inspired-player.md), the [player data format and timing](docs/design-player-format-and-timing.md), the [web tracker architecture](docs/design-web-tracker-architecture.md), and an empty C64 project to build the player in.
 
 ## Why
 
@@ -15,7 +15,7 @@ The full story (what made that approach special, what such a player contains, wh
 ## The plan
 
 1. **A player in 6502 assembly**, original work, about 1 to 2 KB: three voices, patterns and a pattern list per voice, instruments as parameter records, per-frame effects (pulse sweep, vibrato, arpeggio, drums).
-2. **A tracker in the browser**: a grid with three voice columns, an instrument editor, live playback through a SID emulation that sounds like the real chip.
+2. **A tracker in the browser**: a grid with three voice columns, an instrument editor, and live playback where every edit is heard at once. The tracker runs the real 6502 player in its own small emulator and sends the SID writes to a SID emulation that sounds like the real chip (reSIDfp, compiled to WebAssembly).
 3. **Export**: assembler source for song and instruments (drop it next to the player in your game), and a ready-to-run `.prg`. Maybe a `.sid` file later.
 
 ## Rules of this project
@@ -29,6 +29,8 @@ The full story (what made that approach special, what such a player contains, wh
 | Path | What |
 |---|---|
 | `docs/concept-hubbard-inspired-player.md` | the concept: the approach, the player's ingredients, the tracker, distribution |
+| `docs/design-player-format-and-timing.md` | the player: song and instrument data, ticks and frames, clean note starts |
+| `docs/design-web-tracker-architecture.md` | the browser tracker: own 6502 emulator, reSIDfp, live editing, export |
 | `src/main.asm` | the C64 project: an empty program (a BASIC stub that jumps to `start`) |
 | `src/hardware.asm` | names for the VIC-II, SID and CIA registers, no code |
 | `Makefile`, `project-config.json`, `.vscode/` | build and run |
@@ -45,13 +47,17 @@ make test     # builds and runs in the vc64web browser emulator (fetched on firs
 
 ## Roadmap
 
-- [ ] Choose the data format and the tick/timing model (see the open questions in the concept document)
+- [x] Choose the data format and the tick/timing model ([design](docs/design-player-format-and-timing.md))
+- [x] Choose the architecture of the web tracker ([design](docs/design-web-tracker-architecture.md))
+- [x] Choose the licences (MIT for the player and exports, GPL for the web app)
 - [ ] First player: one voice, patterns, instruments, in assembly
-- [ ] Add per-frame effects one by one, checked by ear and by spectrum analysis
-- [ ] Browser: the player logic and a SID emulation
+- [ ] Add per-frame effects one by one: pulse sweep, vibrato, arpeggio, drum, checked by ear in VICE
+- [ ] Voice state block at fixed addresses, so a tracker can follow the playhead
+- [ ] Browser: a small 6502 emulator in JavaScript, tested against a public 6502 test
+- [ ] Browser: reSIDfp as WebAssembly, played through an AudioWorklet
+- [ ] Browser: song model, serialiser and live editing
 - [ ] Browser: the tracker grid and the instrument editor
 - [ ] Export to assembler source and `.prg`
-- [x] Choose a licence (MIT)
 
 ## Licence
 
