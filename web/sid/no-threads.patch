@@ -1,0 +1,56 @@
+Run jobs in the calling thread instead of starting std::thread.
+(WebSidTracker: WebAssembly in a browser page has no threads without SharedArrayBuffer.)
+Apply with: patch -p1 < no-threads.patch   (from the libresidfp source root)
+
+--- a/src/FilterModelConfig6581.cpp
++++ b/src/FilterModelConfig6581.cpp
+@@ -28,6 +28,7 @@
+ #include <algorithm>
+ #include <mutex>
+ #include <thread>
++#include <functional>
+ #include <cmath>
+ #include <cstdint>
+ 
+@@ -278,7 +279,14 @@
+ #ifdef HAVE_JTHREADS
+     using sidThread = std::jthread;
+ #else
+-    using sidThread = std::thread;
++    // WebSidTracker: a browser page cannot start threads without special HTTP headers,
++    // so this stand-in runs each job at once, in the calling thread. The jobs are
++    // independent and were joined straight away, so the result is the same.
++    struct sidThread
++    {
++        explicit sidThread(const std::function<void()>& job) { job(); }
++        void join() {}
++    };
+ #endif
+ 
+     sidThread thdSummer(filterSummer);
+--- a/src/FilterModelConfig8580.cpp
++++ b/src/FilterModelConfig8580.cpp
+@@ -27,6 +27,7 @@
+ 
+ #include <mutex>
+ #include <thread>
++#include <functional>
+ 
+ #if defined(HAVE_CXX20) && defined(__cpp_lib_jthread)
+ #  define HAVE_JTHREADS
+@@ -196,7 +197,14 @@
+ #ifdef HAVE_JTHREADS
+     using sidThread = std::jthread;
+ #else
+-    using sidThread = std::thread;
++    // WebSidTracker: a browser page cannot start threads without special HTTP headers,
++    // so this stand-in runs each job at once, in the calling thread. The jobs are
++    // independent and were joined straight away, so the result is the same.
++    struct sidThread
++    {
++        explicit sidThread(const std::function<void()>& job) { job(); }
++        void join() {}
++    };
+ #endif
+ 
+     sidThread thdSummer(filterSummer);
