@@ -42,6 +42,8 @@ Interface (the contract between game and player):
 - `music_stop`: silences the three voices and stops.
 - `instruments.asm` must define the field tables listed in 5. The player refers to them by label.
 
+State block: all per-voice state (order position, pattern position, ticks left, current instrument, pitch, counters) lives at fixed, documented addresses, one array per field, and `music.asm` exports their symbols. The tracker reads and adjusts them while the song plays.
+
 Zero page: a handful of pointer bytes, chosen in `main.asm` or `hardware.asm` (the exact addresses are fixed in the source and documented there).
 
 ## 4. Song data (`song_<name>.asm`)
@@ -174,7 +176,7 @@ The order of the SID writes within a frame is fixed once and the same for every 
 ## 7. The tracker side
 
 - The tracker holds the song and instrument set, shows note-with-length as a grid with one row per tick, and exports the three file kinds above. The grid is only a view; the stored data is the stream of 4.4.
-- The tracker plays the song with a JavaScript port of the player. The two players are required to be **behaviour-identical**. This is how we prove it: both, given the same song, must produce the same list of SID register writes per frame. A test compares the lists.
+- The tracker plays the song by running the real 6502 player in its own small emulator, so what you hear is what the game gets. There is no second implementation of the player. See [the architecture document](design-web-tracker-architecture.md).
 - Instrument numbers in the set are stable. Deleting or reordering must not break a song that uses them (the tracker warns instead).
 - The tracker shows the byte size of the set and of each song.
 
@@ -208,4 +210,4 @@ Choices that are made but can still change while the first player is built (feed
 - Songs started by passing a header address, no song-number table.
 - Pitch range 96 notes, PAL only.
 - Pulse limits in units of 16, vibrato depth in 1/16ths, drum fall in frequency register units.
-- A behaviour test between the 6502 player and the JavaScript port by comparing SID write lists.
+- The voice state lives in a state block at fixed addresses, so the tracker can follow and adjust the playhead while it edits.
