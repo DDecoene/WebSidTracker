@@ -1,0 +1,11 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "6502",
+            "request": "launch",
+            "name": "Launch 6502",
+            "preLaunchTask": "${defaultBuildTask}"
+        }
+    ]
+}

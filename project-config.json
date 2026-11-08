@@ -1,0 +1,11 @@
+{
+    "name": "websidtracker",
+    "description": "The C64 side of WebSidTracker: the player and test programs in 6502 assembly",
+    "toolkit": "acme",
+    "main": "src/main.asm",
+    "build": "debug",
+    "definitions": [],
+    "includes": [],
+    "args": [],
+    "compiler": ""
+}

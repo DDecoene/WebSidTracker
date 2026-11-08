@@ -1,0 +1,29 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "type": "vs64",
+            "action": "build",
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "label": "build project"
+        },
+        {
+            "label": "test in browser",
+            "type": "shell",
+            "command": "make test",
+            "options": {
+                "env": {
+                    "PATH": "/opt/homebrew/bin:${env:PATH}"
+                }
+            },
+            "group": {
+                "kind": "test",
+                "isDefault": true
+            },
+            "problemMatcher": []
+        }
+    ]
+}
