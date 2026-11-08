@@ -61,8 +61,15 @@ make test     # builds and runs in the vc64web browser emulator (fetched on firs
 
 ## Licence
 
-[MIT](LICENSE). Use it for anything, in free or commercial games and demos, as long as the copyright notice and the licence text stay with the parts of this project you use.
+This project has two licences, split by what you use in your game.
 
-- Your game or demo is your own work and can have any licence you like. Only the WebSidTracker parts you include (the player, the tracker) keep the MIT terms.
+**The player and everything the tracker exports: [MIT](LICENSE).** That is `src/` (the player and its tables), `docs/`, and the files you take from the tracker: `music.asm`, `instruments.asm`, `song_<name>.asm` and the `.prg`. Use it for anything, in free or commercial games and demos, as long as the copyright notice and the licence text stay with the parts of this project you use.
+
+- Your game or demo is your own work and can have any licence you like. Only the WebSidTracker parts you include (the player) keep the MIT terms.
 - In practice that means a line in your credits or readme, for example: *Music player by Dennis Decoene (WebSidTracker, MIT licence)*.
 - The songs and instruments you make with the tracker are yours. The exported files contain the player, so the line above applies to that part.
+- The exported files contain no GPL code.
+
+**The web app (the tracker in the browser): GPL.** It will live in `web/` and carries its own licence file there. It contains a SID emulation (reSIDfp) that is GPL, so the web app as a whole is GPL. This only concerns the tracker itself. It does not affect your game or the files you export from it.
+
+Until `web/` exists, everything in this repository is MIT.
