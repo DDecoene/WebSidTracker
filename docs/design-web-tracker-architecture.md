@@ -1,6 +1,6 @@
 # Web tracker architecture, version 1
 
-Status: draft for review. Nothing is built yet.
+Status: draft for review. The SID part (section 7) is built and tested, see [`web/`](../web/README.md); the rest is not built yet.
 Companion to [the player format and timing model](design-player-format-and-timing.md) and [the concept document](concept-hubbard-inspired-player.md).
 
 ## 1. Intent
@@ -52,13 +52,13 @@ Non-goals for version 1
 
 - 64 KB RAM as a plain byte array. The player code and the tables sit at fixed addresses chosen in the build; the tracker's serialised song and instruments sit at fixed addresses behind them.
 - The emulator needs no interrupt hardware. It plays the role of the raster interrupt itself: once per frame it calls `music_play` and runs until the routine returns, counting cycles.
-- **PAL timing:** 985,248 cycles per second, 19,656 cycles per frame, 50 frames per second. The 6502 core counts cycles per instruction exactly as the documented timing says, including page-crossing penalties, because the cycle stamps on the SID writes are what the SID emulation hears.
+- **PAL timing:** 985,248 cycles per second, 19,656 cycles per frame. That makes 50.125 frames per second (985,248 / 19,656), not exactly 50. The 6502 core counts cycles per instruction exactly as the documented timing says, including page-crossing penalties, because the cycle stamps on the SID writes are what the SID emulation hears.
 - Writes to $D400 to $D418 are passed on to the SID emulation with the cycle at which they happened. The rest of the frame is clocked silently to the end of the frame.
 
 ## 5. Audio and the thread model
 
 - The emulator and the SID emulation run **inside an `AudioWorklet`**, so audio is never starved by the page.
-- One frame of output is about 960 samples at 48 kHz. The worklet produces one frame at a time when its buffer runs low, then hands out samples in its normal 128-sample steps.
+- One frame of output is about 958 samples at 48 kHz. The worklet produces one frame at a time when its buffer runs low, then hands out samples in its normal 128-sample steps.
 - The main thread (editor) sends messages to the worklet: "write these bytes at this address", "start song at this position", "mute voice", "stop". The worklet applies them **between two frames**, so an edit can never be half-applied.
 - No `SharedArrayBuffer`: that needs special HTTP headers that static hosts such as GitHub Pages do not offer. Messages are enough because edits are small.
 
@@ -90,10 +90,11 @@ The player keeps all per-voice state (order position, pattern position, ticks le
 
 ## 7. SID emulation and build
 
-- **Engine:** reSIDfp, the accurate fork of reSID, compiled to WebAssembly with Emscripten. Sound is judged in VICE's accurate mode as the reference (see 11).
+- **Engine:** reSIDfp, the accurate fork of reSID, compiled to WebAssembly with Emscripten. It is now developed as its own library, `libresidfp`; we build version 1.2.3. Sound is judged in VICE's accurate mode as the reference (see 11).
 - Both 6581 and 8580 models are available. The default model is an open choice (see 12).
 - **Build step:** only for the WebAssembly module. A script builds it with Emscripten and the result (a `.wasm` file plus a small JavaScript wrapper) is committed, so nobody needs Emscripten to work on the editor or the player. The rest of the web app is plain ES modules with no bundler.
 - Settings that reSIDfp keeps globally are set once at start-up, not per instance.
+- **Built and measured.** reSIDfp starts threads to compute its filter tables, which a browser page cannot do without `SharedArrayBuffer` (see 5). A small patch makes it run those jobs one after the other; the result is the same. Building needs 32 MB of memory. Creating a chip takes about 0.3 s per model the first time, so the worklet creates both models up front. `web/` has a sound test and a Node test that measures the pitch of a tone; `web/README.md` explains the pieces.
 
 ## 8. Export
 
