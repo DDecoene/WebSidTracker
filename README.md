@@ -51,8 +51,12 @@ make test     # builds and runs in the vc64web browser emulator (fetched on firs
 - [ ] Browser: the player logic and a SID emulation
 - [ ] Browser: the tracker grid and the instrument editor
 - [ ] Export to assembler source and `.prg`
-- [ ] Choose a licence
+- [x] Choose a licence (MIT)
 
 ## Licence
 
-Not chosen yet. Until one is added, all rights are reserved.
+[MIT](LICENSE). Use it for anything, in free or commercial games and demos, as long as the copyright notice and the licence text stay with the parts of this project you use.
+
+- Your game or demo is your own work and can have any licence you like. Only the WebSidTracker parts you include (the player, the tracker) keep the MIT terms.
+- In practice that means a line in your credits or readme, for example: *Music player by Dennis Decoene (WebSidTracker, MIT licence)*.
+- The songs and instruments you make with the tracker are yours. The exported files contain the player, so the line above applies to that part.
