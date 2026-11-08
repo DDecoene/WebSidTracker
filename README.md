@@ -70,6 +70,6 @@ This project has two licences, split by what you use in your game.
 - The songs and instruments you make with the tracker are yours. The exported files contain the player, so the line above applies to that part.
 - The exported files contain no GPL code.
 
-**The web app (the tracker in the browser): GPL.** It will live in `web/` and carries its own licence file there. It contains a SID emulation (reSIDfp) that is GPL, so the web app as a whole is GPL. This only concerns the tracker itself. It does not affect your game or the files you export from it.
+**The web app (the tracker in the browser): GPL.** It lives in `web/` and carries its own licence file there (`web/LICENSE`, GPL version 3 or later). It contains a SID emulation (reSIDfp) that is GPL, so the web app as a whole is GPL. This only concerns the tracker itself. It does not affect your game or the files you export from it.
 
-Until `web/` exists, everything in this repository is MIT.
+Everything outside `web/` is MIT.
