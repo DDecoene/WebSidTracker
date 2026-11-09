@@ -186,6 +186,10 @@ export class Cpu6502 {
     this.cycles = 0; // total cycles run so far
     this.crossed = false; // did the last address calculation cross a page?
     this.extra = 0; // extra cycles the instruction itself asked for (branches)
+    // Base cycle count of the instruction being run. A write callback can add it to
+    // `cycles` to learn the cycle the instruction ends on (stores and read-modify-write
+    // instructions never pay extra cycles, and they write on their last cycle).
+    this.opCycles = 0;
   }
 
   // --- small helpers ----------------------------------------------------
@@ -300,6 +304,7 @@ export class Cpu6502 {
     }
 
     this.extra = 0;
+    this.opCycles = entry.cycles;
     if (entry.mode === 'imp') {
       this.implied(entry.name);
     } else {
