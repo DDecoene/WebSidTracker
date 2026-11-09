@@ -2,13 +2,17 @@ NAME   = websidtracker
 SRC    = src/main.asm
 OUT    = build/$(NAME).prg
 
-.PHONY: all clean emu serve test stop vice
+.PHONY: all clean emu player serve test stop vice
 
 all: $(OUT)
 
 $(OUT): $(wildcard src/*.asm)
 	@mkdir -p build
-	acme -f cbm --cpu 6510 -l build/$(NAME).lbl -r build/$(NAME).rpt -o $@ $(SRC)
+	acme -f cbm --cpu 6510 -I src -l build/$(NAME).lbl -r build/$(NAME).rpt -o $@ $(SRC)
+
+# the player image for the browser tracker: web/player/player.prg and symbols.json (both are committed)
+player:
+	tools/build-player.sh
 
 # the vc64web browser emulator, fetched once into tools/vc64web (about 26 MB, not part of the repo)
 tools/vc64web:
