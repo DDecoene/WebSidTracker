@@ -13,7 +13,7 @@
 //
 // Part of the WebSidTracker web app, GPL version 3 or later (see ../LICENSE).
 
-import { measureSong } from './serialise.js';
+import { MAX_ORDER_ENTRIES, MAX_PATTERN_BYTES, measureSong, orderListLength, patternBytes } from './serialise.js';
 
 export const LIMITS = {
   maxInstruments: 256,
@@ -23,12 +23,15 @@ export const LIMITS = {
   minSpeed: 1,
   maxSpeed: 255,
   maxTranspose: 96,
-  maxEntries: 256,           // a loop target is one byte
+  maxEntries: MAX_ORDER_ENTRIES,        // per voice, an added STOP included; loop targets are 0..127
+  maxPatternBytes: MAX_PATTERN_BYTES,   // events plus the $FF end marker
   instrumentBase: 0x2000,    // 15 tables x 256 bytes
   songBase: 0x3000,
   songEnd: 0xC000,           // the song must end below this address
   scratchBase: 0xC000,       // note auditions
 };
+
+const RELEASE_MAX = 32;   // the player treats a larger inst_release as 32
 
 const NOTE_NAMES = ['C-', 'C#', 'D-', 'D#', 'E-', 'F-', 'F#', 'G-', 'G#', 'A-', 'A#', 'B-'];
 
@@ -109,6 +112,10 @@ export function validate(project) {
 
   song.patterns.forEach((pattern, n) => {
     if (!pattern || !Array.isArray(pattern.events)) { problems.push(`pattern ${n} has no event list`); return; }
+    const size = patternBytes(pattern);
+    if (size > LIMITS.maxPatternBytes) {
+      problems.push(`pattern ${n} is ${size} bytes, the player allows ${LIMITS.maxPatternBytes} (the end marker included): split it into two patterns`);
+    }
     pattern.events.forEach((ev, i) => {
       const where = `pattern ${n} event ${i}`;
       switch (ev && ev.type) {
@@ -133,13 +140,16 @@ export function validate(project) {
 
   const ticks = (n) => song.patterns[n].events.reduce((sum, ev) => sum + (ev.type === 'note' || ev.type === 'rest' ? ev.length : 0), 0);
   song.orders.forEach((entries, v) => {
-    if (entries.length > LIMITS.maxEntries) problems.push(`voice ${v + 1}: more than ${LIMITS.maxEntries} order entries`);
+    if (orderListLength(entries) > LIMITS.maxEntries) {
+      problems.push(`voice ${v + 1}: ${orderListLength(entries)} order entries (a STOP is added when the list does not end in STOP or LOOP), the player allows ${LIMITS.maxEntries}`);
+    }
     entries.forEach((entry, i) => {
       const where = `voice ${v + 1} entry ${i}`;
       if (entry && entry.stop) return;
       if (entry && entry.loop !== undefined) {
         if (!isInt(entry.loop, 0, entries.length - 1)) { problems.push(`${where}: loop target ${entry.loop} does not exist`); return; }
-        // A loop that plays no ticks would make the player spin forever inside one music_play call.
+        if (entry.loop >= LIMITS.maxEntries) { problems.push(`${where}: loop target ${entry.loop} is above ${LIMITS.maxEntries - 1}, the highest entry the player can reach`); return; }
+        // A loop that plays no ticks: the player gives up after 16 entries without a note and stops the voice.
         let total = 0;
         let leaves = false;
         for (let j = entry.loop; j < i && !leaves; j++) {
@@ -147,7 +157,7 @@ export function validate(project) {
           if (e.stop || e.loop !== undefined) leaves = true;
           else if (song.patterns[e.pattern]) total += ticks(e.pattern);
         }
-        if (!leaves && total === 0) problems.push(`${where}: the loop plays no notes or rests (the player would hang)`);
+        if (!leaves && total === 0) problems.push(`${where}: the loop plays no notes or rests (the player stops the voice after 16 empty entries)`);
         return;
       }
       if (!entry || !isInt(entry.pattern, 0, 253)) problems.push(`${where}: pattern number must be 0 to 253`);
@@ -161,6 +171,74 @@ export function validate(project) {
     if (!info.fits) problems.push(`song is ${info.songBytes} bytes, only ${info.capacity} fit below $${LIMITS.songEnd.toString(16).toUpperCase()}`);
   }
   return problems;
+}
+
+// ---------------------------------------------------------------- warnings
+
+// Things the player accepts but handles differently from what the fields say (docs/player.md,
+// sections 5 and 6). validate() lists what is wrong; lint() lists what is merely surprising.
+// Returns an array of strings (empty = nothing to note).
+export function lint(project) {
+  const warnings = [];
+  if (validate(project).length) return warnings;   // the structure must be sound before we can look at it
+  const { instruments, song } = project;
+
+  instruments.forEach((inst, n) => {
+    if (!inst) return;
+    const w = (text) => warnings.push(`instrument ${n} (${inst.name}): ${text}`);
+    if (inst.wave & 0x09) w('the gate bit (bit 0) and test bit (bit 3) of wave are cleared by the player, they are ignored');
+    if (!(inst.wave & 0xF0) && !inst.drumNoise) w('no waveform bit (triangle, saw, pulse or noise) is set: the voice is silent');
+    if (inst.release === 0) w('release 0 is played as 1: the gate must go down at least once between two notes');
+    if (inst.release > RELEASE_MAX) w(`release above ${RELEASE_MAX} is played as ${RELEASE_MAX}`);
+    if (inst.vibDepth > 127) w('vibrato depth above 127 is played as 127');
+    if (inst.vibDepth && (inst.vibSpeed < 2 || inst.vibSpeed % 2)) w(`vibrato speed ${inst.vibSpeed} is played as ${Math.max(2, inst.vibSpeed & 0xFE)} (even numbers from 2)`);
+    if (inst.drumNoise && (inst.vibDepth || inst.arp)) w('vibrato and arpeggio are not applied to a drum (drum noise is above 0)');
+    if (inst.pwStep && inst.pwMin > inst.pwMax) w('pulse sweep minimum is above the maximum');
+  });
+
+  song.patterns.forEach((pattern, n) => {
+    pattern.events.forEach((ev, i) => {
+      if (ev.type !== 'legato') return;
+      const before = pattern.events[i - 1];
+      const after = pattern.events[i + 1];
+      if (!before || before.type !== 'note') {
+        warnings.push(`pattern ${n} event ${i}: legato must directly follow the note it extends, in the same pattern; here it only makes the next note skip its restart`);
+      }
+      if (!after) warnings.push(`pattern ${n} event ${i}: legato is the last event; the next pattern starts with a new note`);
+      else if (after.type === 'legato') warnings.push(`pattern ${n} event ${i}: two legato markers in a row, the second does nothing`);
+    });
+  });
+
+  // Walk each voice's order list once (up to its first LOOP or STOP) to know the instrument and
+  // the transpose in effect for each note.
+  const seen = new Set();
+  song.orders.forEach((entries, v) => {
+    let instrument = 0;       // the player starts every voice on instrument 0
+    for (let i = 0; i < entries.length; i++) {
+      const entry = entries[i];
+      if (entry.stop || entry.loop !== undefined) break;
+      const pattern = song.patterns[entry.pattern];
+      const lo = Math.min(...pattern.events.filter((e) => e.type === 'note').map((e) => e.pitch));
+      const hi = Math.max(...pattern.events.filter((e) => e.type === 'note').map((e) => e.pitch));
+      if (lo + entry.transpose < 0 || hi + entry.transpose > LIMITS.maxPitch) {
+        warnings.push(`voice ${v + 1} entry ${i}: transpose ${entry.transpose} pushes notes of pattern ${entry.pattern} out of the range 0 to ${LIMITS.maxPitch}; they play at the limit`);
+      }
+      pattern.events.forEach((ev, k) => {
+        if (ev.type === 'inst') { instrument = ev.instrument; return; }
+        if (ev.type !== 'note') return;
+        const inst = instruments[instrument];
+        const next = pattern.events[k + 1];
+        if (!inst || (next && next.type === 'legato')) return;   // a legato note keeps its gate open
+        const release = Math.min(RELEASE_MAX, Math.max(1, inst.release));
+        const key = `${entry.pattern}/${k}/${instrument}`;
+        if (release >= ev.length * song.speed && !seen.has(key)) {
+          seen.add(key);
+          warnings.push(`pattern ${entry.pattern} event ${k}: a note of ${ev.length * song.speed} frames with instrument ${instrument} (release ${release}) sounds for its first frame only`);
+        }
+      });
+    }
+  });
+  return warnings;
 }
 
 // ---------------------------------------------------------------- sizes
@@ -217,7 +295,7 @@ export function demoProject() {
     },
     { // 1 lead: pulse, slower attack, vibrato that starts late
       ...defaultInstrument(), name: 'Lead', wave: 0x40, ad: 0x28, sr: 0xA6, pw: 0x0600,
-      pwStep: 6, pwMin: 0x30, pwMax: 0xC0, vibDelay: 10, vibDepth: 6, vibSpeed: 3, release: 2,
+      pwStep: 6, pwMin: 0x30, pwMax: 0xC0, vibDelay: 10, vibDepth: 6, vibSpeed: 4, release: 2,
     },
     { // 2 kick: one frame of noise, then a triangle that falls fast
       ...defaultInstrument(), name: 'Kick', wave: 0x10, ad: 0x05, sr: 0x00, pw: 0x0800,

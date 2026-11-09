@@ -87,7 +87,7 @@ test('demo project is valid and round-trips through bytes', () => {
 test('round trip at other base addresses and with several patterns', () => {
   const song = defaultSong();
   song.patterns = Array.from({ length: 200 }, (_, i) => ({ name: '', events: [{ type: 'note', pitch: i % 96, length: 1 + (i % 255) }] }));
-  song.orders[0] = song.patterns.map((_, i) => ({ pattern: i, transpose: (i % 7) - 3 })).concat([{ loop: 5 }]);
+  song.orders[0] = song.patterns.slice(0, 126).map((_, i) => ({ pattern: i, transpose: (i % 7) - 3 })).concat([{ loop: 5 }]);
   song.orders[1] = [{ pattern: 199, transpose: -96 }, { stop: true }];
   for (const base of [0, 0x3000, 0xC000]) {
     assert.deepEqual(parseSong(serialiseSong(song, base).bytes, base), stripNames(song));
@@ -147,10 +147,15 @@ test('validate finds problems', () => {
   assert.match(bad((p) => { p.instruments[0].pw = 5000; })[0], /pw/);
   assert.match(bad((p) => { p.song.patterns[0].events.push({ type: 'bogus' }); })[0], /unknown event/);
   assert.match(bad((p) => { p.song.patterns = Array.from({ length: 255 }, () => ({ name: '', events: [] })); })[0], /254 patterns/);
-  // a loop that plays no ticks would hang the player
+  assert.match(bad((p) => { p.song.orders[0] = Array.from({ length: 129 }, () => ({ pattern: 0, transpose: 0 })); })[0], /130 order entries/);
+  assert.match(bad((p) => { p.song.orders[0] = Array.from({ length: 128 }, () => ({ pattern: 0, transpose: 0 })); })[0], /129 order entries/, 'the added STOP counts');
+  assert.deepEqual(bad((p) => { p.song.orders[2] = Array.from({ length: 127 }, () => ({ pattern: 0, transpose: 0 })).concat([{ stop: true }]); }), []);
+  assert.match(bad((p) => { p.song.patterns[0].events = Array.from({ length: 128 }, () => ({ type: 'note', pitch: 1, length: 1 })); })[0], /pattern 0 is 257 bytes, the player allows 255/);
+  assert.deepEqual(bad((p) => { p.song.patterns[0].events = Array.from({ length: 127 }, () => ({ type: 'note', pitch: 1, length: 1 })); }), []);
+  // a loop that plays no ticks: the player stops the voice after 16 empty entries
   const hang = newProject();
   hang.song.orders[0] = [{ pattern: 0, transpose: 0 }, { loop: 0 }];
-  assert.match(validate(hang)[0], /hang/);
+  assert.match(validate(hang)[0], /16 empty entries/);
   assert.deepEqual(validate(newProject()), []);
 });
 
@@ -162,10 +167,10 @@ test('song size limit: info, validate and exportPrg fail clearly', () => {
   assert.equal(info0.songBytes, serialiseSong(project.song, 0x3000).size);
   assert.equal(info0.instrumentBytes, 15);
 
-  // 255-tick notes: each note costs 2 bytes, so ~29,000 events overflow $3000-$BFFF
-  const events = Array.from({ length: 255 }, () => ({ type: 'note', pitch: 1, length: 1 }));
-  project.song.patterns = Array.from({ length: 100 }, () => ({ name: '', events: events.map((e) => ({ ...e })) }));
-  project.song.orders[0] = project.song.patterns.map((_, i) => ({ pattern: i, transpose: 0 })).concat([{ stop: true }]);
+  // 150 patterns of 255 bytes overflow $3000-$BFFF
+  const events = Array.from({ length: 127 }, () => ({ type: 'note', pitch: 1, length: 1 }));
+  project.song.patterns = Array.from({ length: 150 }, () => ({ name: '', events: events.map((e) => ({ ...e })) }));
+  project.song.orders[0] = project.song.patterns.slice(0, 100).map((_, i) => ({ pattern: i, transpose: 0 })).concat([{ stop: true }]);
   const info = songSizeInfo(project);
   assert.equal(info.fits, false);
   assert.ok(info.free < 0);

@@ -14,6 +14,11 @@
 
 export const HEADER_SIZE = 9;
 
+// Limits of the player (docs/player.md, section 7): the pattern position and the order position
+// are one byte each in the player's state block.
+export const MAX_PATTERN_BYTES = 255;   // a pattern, its $FF end marker included
+export const MAX_ORDER_ENTRIES = 128;   // one order list, an added STOP entry included (offset 2*i must fit a byte)
+
 // Names of the 15 instrument tables, in the order of the memory map (table k lives at $2000 + k*$100).
 export const INSTRUMENT_TABLES = [
   'inst_wave', 'inst_ad', 'inst_sr', 'inst_pw_lo', 'inst_pw_hi', 'inst_pw_step', 'inst_pw_min',
@@ -75,7 +80,17 @@ function eventSize(ev) {
   }
 }
 
-function entryNeedsTerminator(entries) {
+// Bytes of one pattern, the $FF end marker included.
+export function patternBytes(pattern) {
+  return pattern.events.reduce((sum, ev) => sum + (ev && ev.type === 'legato' ? 1 : 2), 1);
+}
+
+// Entries of an order list as the player sees it: the serialiser adds a STOP when the list does not end in one.
+export function orderListLength(entries) {
+  return entries.length + (entryNeedsTerminator(entries) ? 1 : 0);
+}
+
+export function entryNeedsTerminator(entries) {
   const last = entries[entries.length - 1];
   return !last || !(last.stop || last.loop !== undefined);
 }
@@ -106,6 +121,13 @@ export function serialiseSong(song, base = 0x3000) {
   if (layout.patterns > 254) throw new RangeError('at most 254 patterns (numbers 0 to 253)');
   if (base + layout.size > 0x10000) throw new RangeError('song does not fit in 64 KB at this address');
   checkInt(song.speed, 1, 255, 'speed');
+  song.patterns.forEach((pattern, n) => {
+    const size = patternBytes(pattern);
+    if (size > MAX_PATTERN_BYTES) throw new RangeError(`pattern ${n} is ${size} bytes, the player allows ${MAX_PATTERN_BYTES} (its end marker included)`);
+  });
+  song.orders.forEach((entries, v) => {
+    if (orderListLength(entries) > MAX_ORDER_ENTRIES) throw new RangeError(`voice ${v + 1} has ${orderListLength(entries)} order entries (a STOP is added when the list does not end in one), the player allows ${MAX_ORDER_ENTRIES}`);
+  });
 
   const bytes = new Uint8Array(layout.size);
   const word = (offset, address) => { bytes[offset] = address & 0xFF; bytes[offset + 1] = address >> 8; };
@@ -127,7 +149,7 @@ export function serialiseSong(song, base = 0x3000) {
         bytes[at] = ORD_STOP;
       } else if (entry.loop !== undefined) {
         bytes[at] = ORD_LOOP;
-        bytes[at + 1] = checkInt(entry.loop, 0, 255, 'loop target');
+        bytes[at + 1] = checkInt(entry.loop, 0, MAX_ORDER_ENTRIES - 1, 'loop target');
       } else {
         bytes[at] = checkInt(entry.pattern, 0, 253, 'order entry pattern');
         if (entry.pattern >= layout.patterns) throw new RangeError(`order entry uses missing pattern ${entry.pattern}`);
