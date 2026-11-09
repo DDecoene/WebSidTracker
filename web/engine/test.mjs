@@ -61,13 +61,16 @@ const symbols = {
 const makeEngine = (extra = {}) => new Engine({ sidModule, playerPrg: prg, symbols, sampleRate: RATE, model: 0, ...extra });
 
 // Record every SID write together with the SID's own cycle count at that moment.
+// The SID hears the writes of a frame while that frame is being rendered, so the frame
+// of a write is the one that started last (framesRun counts started frames).
 function trace(engine) {
   const log = [];
   let cycles = 0;
   const clock = engine.sid.clock, write = engine.sid.write;
   engine.sid.clock = (n) => { cycles += n; return clock(n); };
   engine.sid.write = (reg, value) => {
-    log.push({ frame: engine.framesRun, cycle: cycles - engine.framesRun * FRAME_CYCLES, reg, value });
+    const frame = engine.framesRun - 1;
+    log.push({ frame, cycle: cycles - frame * FRAME_CYCLES, reg, value });
     write(reg, value);
   };
   return log;
@@ -105,7 +108,9 @@ test('render(n) returns n samples for any n and frames add up to whole PAL frame
   }
   // 19656 cycles at 985248 Hz is 957.6 samples at 48 kHz.
   const perFrame = FRAME_CYCLES * RATE / 985248;
-  assert.ok(Math.abs(engine.samplesMade / engine.framesRun - perFrame) < 1, `${engine.samplesMade} samples in ${engine.framesRun} frames`);
+  // The SID is clocked only as far as samples are asked for, so the last frame may be unfinished.
+  const made = engine.samplesMade;
+  assert.ok(made > (engine.framesRun - 1) * perFrame - 1 && made < engine.framesRun * perFrame + 1, `${made} samples in ${engine.framesRun} frames`);
   assert.ok(engine.samplesMade >= total && engine.samplesMade - total < 960, 'only the unused rest of one frame is left over');
   // One second of output is 50.125 frames.
   const second = makeEngine();
@@ -306,4 +311,20 @@ test('the real player plays the demo song', { skip: !existsSync(new URL('../play
     console.log(`# ${name}: peak ${peak}, order positions ${state.voices.map((v) => v.orderPos)}`);
     if (out) writeFileSync(`${out}/engine-${name}.wav`, wav(samples));
   }
+});
+
+test('the SID is clocked a little at a time: a 128-sample block never needs a whole frame of SID work', () => {
+  const engine = makeEngine();
+  engine.start(0x3000);
+  let cycles = 0;
+  const clock = engine.sid.clock;
+  engine.sid.clock = (n) => { cycles += n; return clock(n); };
+  let worst = 0;
+  for (let i = 0; i < 400; i++) {
+    cycles = 0;
+    engine.render(128);
+    worst = Math.max(worst, cycles);
+  }
+  // 128 samples at 48 kHz are 2627 cycles; allow one extra step for the chunk boundaries.
+  assert.ok(worst <= 2627 + 2400, `one block clocked ${worst} cycles`);
 });

@@ -31,6 +31,9 @@ const SID_BASE = 0xD400;
 const SID_LAST = 0xD418;
 const MAX_WRITES = 8192;                    // per frame; a store takes 3+ cycles, so 6552 at most
 const FRAME_BUFFER = 4096;                  // samples; a frame is about 958 at 48 kHz
+const IDLE_VOLUME = 0x0F;                   // the volume the player sets; the engine keeps it, see parkSid
+const SETTLE_CYCLES = 160000;               // 0.16 s: long enough for a DC step to die away, see parkSid
+const SID_STEP = 2400;                      // most cycles the SID is clocked in one go: about 117 samples at 48 kHz
 
 export class Engine {
   // sidModule: compiled sid.wasm. playerPrg: bytes of player.prg (2 byte load address
@@ -64,6 +67,8 @@ export class Engine {
     this.writeValue = new Uint8Array(MAX_WRITES);
     this.writeCount = 0;
     this.frameBase = 0;                     // cpu.cycles at the start of the frame
+    this.clocked = FRAME_CYCLES;            // how far into the frame the SID has been clocked
+    this.nextWrite = 0;                     // the first write of the frame that the SID has not heard yet
     this.inOperation = false;               // true while init/stop run: their writes all happen at cycle 0
 
     // The samples of the frame that was made last, and how many of them are handed out.
@@ -71,6 +76,8 @@ export class Engine {
     this.frameLength = 0;
     this.framePos = 0;
     this.output = new Int16Array(4096);     // what render() returns a view of; grows if asked for more
+
+    this.parkSid();
 
     this.editsApplied = 0;                  // how many edits were applied: told to the page in readState
     this.queue = [];                        // changes waiting for the next frame boundary
@@ -81,6 +88,17 @@ export class Engine {
     this.endedFlag = false;
     this.framesRun = 0;                     // statistics, used by the tests
     this.samplesMade = 0;
+  }
+
+  // The volume register adds a DC level to the output (a lot on the 8580: a click of about
+  // half of full scale, followed by a slow fade). music_init and music_stop write volume 0 and
+  // then 15, so playing and stopping would click. The engine sets the volume once, at the start,
+  // and gives the click time to die away before any sound is asked for; after that it keeps the
+  // volume at 15 whenever the player clears the chip (the writes of init and stop all happen
+  // at cycle 0, so the chip never hears the 0 and nothing steps).
+  parkSid() {
+    this.sid.write(24, IDLE_VOLUME);
+    for (let done = 0; done < SETTLE_CYCLES; done += 40000) this.sid.clock(40000);
   }
 
   // --- bus ---------------------------------------------------------------
@@ -183,25 +201,43 @@ export class Engine {
   // --- making samples ------------------------------------------------------
 
   // Returns a view on n new samples (16-bit, mono). The view is only valid until the
-  // next call. n can be anything; frames are made as needed and leftovers carry over.
+  // next call. n can be anything; leftovers carry over.
+  //
+  // The 6502 runs a whole frame at once (it is quick), but the SID is clocked only as far as
+  // the samples are needed, in steps of at most SID_STEP cycles. The SID is the expensive part,
+  // and an audio callback may only take a few milliseconds: clocking a whole frame (20 ms of
+  // sound) inside one 128-sample callback would make every eighth callback several times slower
+  // than the others. The samples are exactly the same as if the whole frame was clocked at once.
   render(n) {
     if (this.output.length < n) this.output = new Int16Array(n);
     const out = this.output;
     let filled = 0;
     while (filled < n) {
-      if (this.framePos >= this.frameLength) this.runFrame();
-      const take = Math.min(n - filled, this.frameLength - this.framePos);
-      const from = this.framePos;
-      for (let i = 0; i < take; i++) out[filled + i] = this.frameSamples[from + i];
-      filled += take;
-      this.framePos += take;
+      if (this.framePos < this.frameLength) {
+        const take = Math.min(n - filled, this.frameLength - this.framePos);
+        const from = this.framePos;
+        for (let i = 0; i < take; i++) out[filled + i] = this.frameSamples[from + i];
+        filled += take;
+        this.framePos += take;
+      } else if (this.frameDone()) {
+        this.startFrame();
+      } else {
+        this.clockSid();
+      }
     }
     return out.subarray(0, n);
   }
 
-  // Run one video frame: queued changes, then the player, then the SID with the
-  // writes in their right places.
+  // Run one whole video frame, SID included (tests and offline rendering use this; render()
+  // spreads the SID work out instead).
   runFrame() {
+    this.startFrame();
+    while (!this.frameDone()) this.clockSid();
+  }
+
+  // Start a video frame on the 6502: queued changes, then the player. This only collects
+  // the SID writes of the frame; clockSid hands them to the chip as the samples are needed.
+  startFrame() {
     this.writeCount = 0;
     try {
       this.inOperation = true;
@@ -212,7 +248,10 @@ export class Engine {
       this.fail(error);
     }
     this.inOperation = false;
-    this.flushToSid();
+    this.frameLength = 0;
+    this.framePos = 0;
+    this.clocked = 0;
+    this.nextWrite = 0;
     this.framesRun++;
   }
 
@@ -247,6 +286,7 @@ export class Engine {
       case 'stop':
         this.running = false;
         this.cpu.call(this.symbols.music_stop, OPERATION_LIMIT);
+        this.busWriteDirect(24, IDLE_VOLUME);       // music_stop clears the volume: put it back (see parkSid)
         break;
       case 'model':
         this.model = op.model;
@@ -318,24 +358,28 @@ export class Engine {
     for (let v = 0; v < 3; v++) this.busWriteDirect(v * 7 + 4, 0);
   }
 
-  // Hand the frame's writes to the SID, clocking it up to each write's cycle first,
-  // and collect the samples it makes into frameSamples.
-  flushToSid() {
-    // Writes made by the 6502 during an operation (init, stop) were stamped 0; the
-    // player's writes carry their cycle relative to frameBase. Both are in order.
-    const sid = this.sid;
-    this.frameLength = 0;
-    this.framePos = 0;
-    let now = 0;
-    for (let i = 0; i < this.writeCount; i++) {
-      const at = this.writeCycle[i];
-      if (at > now) {
-        this.collect(sid.clock(at - now));
-        now = at;
-      }
-      sid.write(this.writeReg[i], this.writeValue[i]);
+  // True when the SID has been clocked to the end of the frame and heard all its writes.
+  frameDone() {
+    return this.clocked >= FRAME_CYCLES && this.nextWrite >= this.writeCount;
+  }
+
+  // Clock the SID a bit further into the frame (never past the next write, and at most SID_STEP
+  // cycles), then give it the writes that are due. The samples go to the frame buffer.
+  // Writes made by the 6502 during an operation (init, stop) were stamped 0; the player's
+  // writes carry their cycle relative to frameBase. Both are in order.
+  clockSid() {
+    let until = Math.min(FRAME_CYCLES, this.clocked + SID_STEP);
+    if (this.nextWrite < this.writeCount && this.writeCycle[this.nextWrite] < until) {
+      until = this.writeCycle[this.nextWrite];
     }
-    if (now < FRAME_CYCLES) this.collect(sid.clock(FRAME_CYCLES - now));
+    if (until > this.clocked) {
+      this.collect(this.sid.clock(until - this.clocked));
+      this.clocked = until;
+    }
+    while (this.nextWrite < this.writeCount && this.writeCycle[this.nextWrite] <= this.clocked) {
+      const i = this.nextWrite++;
+      this.sid.write(this.writeReg[i], this.writeValue[i]);
+    }
   }
 
   // Copy the samples the SID just made into the frame buffer.
