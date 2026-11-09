@@ -6,7 +6,9 @@
 
 import { createStore } from './store.js';
 import { createSession } from './session.js';
-import { createMessages, renderHelp, renderExport } from './panels.js';
+import { createMessages, createManualDialog, renderExport } from './panels.js';
+import { SECTIONS, loadKeySources } from './manual.js';
+import { parseDeepLink } from './deeplink.js';
 import { slug, readText, download } from './files.js';
 import * as projectModel from '../model/project.js';
 import * as serialiser from '../model/serialise.js';
@@ -15,6 +17,7 @@ import { DEMOS, findDemo, demoLabel } from '../model/demos/index.js';
 import { createEngineClient } from '../engine/client.js';
 
 const AUTOSAVE_KEY = 'websidtracker.autosave.v1';
+const WELCOME_KEY = 'websidtracker.welcome.dismissed';
 const FIRST_START_DEMO = 'ode-to-joy';   // what a new visitor hears when they press Play
 const PAL_FRAMES_PER_SECOND = 985248 / 19656;
 
@@ -40,6 +43,22 @@ function saveAutosave(project) {
   }
 }
 
+function welcomeDismissed() {
+  try {
+    return localStorage.getItem(WELCOME_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+function rememberWelcomeDismissed() {
+  try {
+    localStorage.setItem(WELCOME_KEY, '1');
+  } catch {
+    // blocked storage: the notice comes back next time, which is harmless
+  }
+}
+
 async function fetchJson(relativeUrl) {
   const response = await fetch(new URL(relativeUrl, import.meta.url));
   if (!response.ok) throw new Error(`${relativeUrl}: HTTP ${response.status}`);
@@ -50,7 +69,15 @@ async function fetchJson(relativeUrl) {
 
 async function main() {
   const messages = createMessages($('messages'));
-  const project = loadAutosave() ?? findDemo(FIRST_START_DEMO).build();
+  // Start: a demo asked for in the address (?demo=id), else the autosave, else the first-start demo.
+  const link = parseDeepLink(location.search);
+  const saved = loadAutosave();
+  const linkedDemo = link.demo ? findDemo(link.demo) : null;
+  const project = linkedDemo ? linkedDemo.build() : saved ?? findDemo(FIRST_START_DEMO).build();
+  // A demo link must not overwrite the project this browser has saved: nothing is autosaved until
+  // the person changes something (or opens, creates or loads something themselves).
+  let autosaveHeld = Boolean(linkedDemo && saved);
+  const persist = (current) => { if (!autosaveHeld) saveAutosave(current); };
   const store = createStore(project);
   let savedJson = exporter.projectToJson(project);   // what is on disk (or the start), for the "unsaved" check
 
@@ -180,6 +207,7 @@ async function main() {
   function replaceProject(next, notice) {
     store.load(next);
     savedJson = exporter.projectToJson(next);
+    autosaveHeld = false;
     saveAutosave(next);
     if (notice) messages.show('file', 'info', notice, [], { timeoutMs: 4000 });
     messages.clear('demo');
@@ -284,22 +312,18 @@ async function main() {
   onClick('btn-undo', () => store.undo());
   onClick('btn-redo', () => store.redo());
 
-  const shellKeys = [
-    ['Space', 'Play the song from the start / stop'],
-    ['Shift+Space', 'Play from the cursor'],
-    ['Ctrl+Z / Cmd+Z', 'Undo'],
-    ['Ctrl+Shift+Z / Ctrl+Y / Cmd+Shift+Z', 'Redo'],
-    ['Ctrl+S / Cmd+S', 'Save the project as a file'],
-    ['?', 'Show this help'],
-  ];
-
-  const helpSections = [{ title: 'Everywhere', keys: shellKeys }];
-
-  function openHelp() {
-    renderHelp($('help-body'), helpSections);
-    $('help-dialog').showModal();
-  }
-  onClick('btn-help', openHelp);
+  // The manual dialog (the same text as manual.html). The key tables are read from the editor
+  // modules once, in the background, so the dialog opens at once.
+  let keySources = null;
+  const keySourcesReady = loadKeySources().then((sources) => { keySources = sources; return sources; });
+  const manual = createManualDialog({
+    dialog: $('manual-dialog'),
+    sections: SECTIONS,
+    getKeySources: () => (keySources ? Promise.resolve(keySources) : keySourcesReady),
+    fallbackFocus: () => $('editor-pane'),
+  });
+  const openHelp = (sectionId) => manual.open(sectionId);
+  onClick('btn-help', () => openHelp());
 
   // ---- keyboard --------------------------------------------------------------------------
 
@@ -342,21 +366,21 @@ async function main() {
   store.subscribe((change) => {
     if (change.kind === 'playhead' || change.kind === 'select') return;
     syncFields();
+    autosaveHeld = false;
     clearTimeout(saveTimer);
     saveTimer = setTimeout(() => saveAutosave(store.project), 500);
   });
-  window.addEventListener('pagehide', () => saveAutosave(store.project));
+  window.addEventListener('pagehide', () => persist(store.project));
   syncFields();
 
   // ---- the two big parts ------------------------------------------------------------------------
   // Loaded one by one, so that a failure in one of them leaves the rest of the page usable.
 
-  async function mountPart(paneId, path, mountName, keysName, title) {
+  async function mountPart(paneId, path, mountName, title) {
     const pane = $(paneId);
     try {
       const module = await import(path);
       module[mountName](pane, store);
-      if (typeof module[keysName] === 'function') helpSections.push({ title, keys: module[keysName]() });
     } catch (error) {
       console.error(error);
       pane.innerHTML = '';
@@ -368,12 +392,29 @@ async function main() {
   }
 
   await Promise.all([
-    mountPart('editor-pane', '../ui/editor.js', 'mountEditor', 'keyHelp', 'Pattern editor'),
-    mountPart('instrument-pane', '../ui/instruments.js', 'mountInstruments', 'instrumentKeyHelp', 'Instrument editor'),
+    mountPart('editor-pane', '../ui/editor.js', 'mountEditor', 'Pattern editor'),
+    mountPart('instrument-pane', '../ui/instruments.js', 'mountInstruments', 'Instrument editor'),
   ]);
-  // the editor's keys come first after the shell's own, whatever order the modules finished in
-  helpSections.sort((a, b) => ['Everywhere', 'Pattern editor', 'Instrument editor'].indexOf(a.title)
-    - ['Everywhere', 'Pattern editor', 'Instrument editor'].indexOf(b.title));
+
+  // ---- first visit, deep links ---------------------------------------------------------------------
+
+  if (link.demo && !linkedDemo) {
+    messages.show('demo', 'warn', `There is no demo called "${link.demo}".`,
+      [`Showing ${saved ? 'your saved project' : 'the first demo'} instead. The Demos menu lists the demos: ${DEMOS.map((demo) => demo.id).join(', ')}.`]);
+  } else if (linkedDemo) {
+    messages.show('demo', 'info', `Loaded the demo "${linkedDemo.title}". ${linkedDemo.note}`,
+      saved ? ['Your own project is still saved in this browser. It is kept until you change something here.'] : []);
+  }
+
+  if (link.help !== null) {
+    openHelp(link.help);
+  } else if (!saved && !welcomeDismissed()) {
+    messages.show('welcome', 'info', 'Welcome to WebSidTracker.', [
+      'Press Play (or Space) to hear the song, then change notes while it plays.',
+      'Click the pattern grid and play notes on your keyboard like a piano: Z S X D C V G B H N J M is the lower octave, Q 2 W 3 E R 5 T 6 Y 7 U the upper one.',
+      'Your work is kept in this browser automatically. Use Save to keep a file.',
+    ], { onDismiss: rememberWelcomeDismissed, actions: [{ label: 'Open the quick start', primary: true, run: () => openHelp('quick-start') }] });
+  }
 }
 
 main().catch((error) => {

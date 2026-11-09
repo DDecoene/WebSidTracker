@@ -9,6 +9,7 @@
   <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="ui/editor.css">
   <link rel="stylesheet" href="ui/instruments.css">
+  <link rel="stylesheet" href="manual.css">
   <script type="module" src="app/main.js"></script>
 </head>
 <body>
@@ -42,7 +43,7 @@
       <div class="group" role="group" aria-label="History">
         <button id="btn-undo" type="button" title="Undo (Ctrl/Cmd+Z)">Undo</button>
         <button id="btn-redo" type="button" title="Redo (Ctrl/Cmd+Shift+Z or Ctrl+Y)">Redo</button>
-        <button id="btn-help" type="button" title="Keys and help (?)" aria-haspopup="dialog">Help</button>
+        <button id="btn-help" type="button" title="Manual and keys (?)" aria-haspopup="dialog">Help</button>
       </div>
     </div>
 
@@ -101,6 +102,7 @@
     <span id="audio-status">Audio starts when you press Play or a note key.</span>
     <span class="spacer"></span>
     <span>WebSidTracker, free software under the GPL version 3 or later. SID sound by reSIDfp. The player and your exports are MIT.</span>
+    <a href="manual.html" target="_blank" rel="noopener">manual</a>
     <a href="sound-test.html">sound test</a>
   </footer>
 
@@ -113,12 +115,21 @@
     </form>
   </dialog>
 
-  <dialog id="help-dialog" aria-labelledby="help-title">
-    <form method="dialog">
-      <h2 id="help-title">Keys and help</h2>
-      <div id="help-body"></div>
-      <div class="dialog-actions"><button value="close" class="primary">Close</button></div>
-    </form>
+  <dialog id="manual-dialog" class="manual-dialog" aria-labelledby="manual-title">
+    <div class="md-head">
+      <h2 id="manual-title">Manual</h2>
+      <label class="md-search">
+        <span class="sr-only">Search the manual</span>
+        <input id="manual-search" type="search" placeholder="Search the manual" autocomplete="off" spellcheck="false">
+      </label>
+      <span id="manual-status" class="md-status" role="status" aria-live="polite"></span>
+      <a id="manual-full" class="md-full" href="manual.html" target="_blank" rel="noopener">Open the full manual</a>
+      <button id="manual-close" type="button" class="primary">Close</button>
+    </div>
+    <div class="md-body">
+      <nav class="md-nav" aria-label="Manual sections"><ul id="manual-nav"></ul></nav>
+      <div id="manual-content" class="md-content man"></div>
+    </div>
   </dialog>
 
   <noscript><p class="noscript">WebSidTracker needs JavaScript.</p></noscript>
