@@ -1,0 +1,216 @@
+/* instruments.css - the instrument editor panel.
+   Part of the WebSidTracker web app, GPL version 3 or later (see ../LICENSE). */
+
+.inst-panel {
+  --i-bg: #fbfaf7;
+  --i-panel: #f1eee6;
+  --i-line: #d4cfc2;
+  --i-text: #23211c;
+  --i-dim: #6d685b;
+  --i-accent: #1d6f7a;
+  --i-accent-text: #ffffff;
+  --i-warn-bg: #fff1d6;
+  --i-warn-line: #d79b2b;
+  --i-graph: #1d6f7a;
+
+  display: grid;
+  grid-template-columns: 13rem minmax(0, 1fr);
+  gap: 1rem;
+  color: var(--i-text);
+  background: var(--i-bg);
+  font: 14px/1.4 system-ui, sans-serif;
+  padding: 0.75rem;
+  outline: none;
+}
+
+@media (prefers-color-scheme: dark) {
+  .inst-panel {
+    --i-bg: #17181c;
+    --i-panel: #202228;
+    --i-line: #353842;
+    --i-text: #e6e4dc;
+    --i-dim: #9a98a0;
+    --i-accent: #5cc3cf;
+    --i-accent-text: #0c1a1c;
+    --i-warn-bg: #3a2f14;
+    --i-warn-line: #b8862a;
+    --i-graph: #5cc3cf;
+  }
+}
+
+@media (max-width: 720px) {
+  .inst-panel { grid-template-columns: 1fr; }
+}
+
+.inst-panel * { box-sizing: border-box; }
+.inst-panel [hidden] { display: none !important; }
+
+.inst-title { margin: 0 0 0.5rem; font-size: 1rem; }
+
+/* ----- list ----- */
+
+.inst-list-col { min-width: 0; }
+.inst-list-buttons { display: flex; flex-wrap: wrap; gap: 0.3rem; margin-bottom: 0.5rem; }
+.inst-list {
+  max-height: 22rem;
+  overflow-y: auto;
+  border: 1px solid var(--i-line);
+  border-radius: 4px;
+  background: var(--i-panel);
+}
+.inst-item {
+  display: flex;
+  gap: 0.6rem;
+  align-items: baseline;
+  width: 100%;
+  padding: 0.3rem 0.5rem;
+  border: 0;
+  border-bottom: 1px solid var(--i-line);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.inst-item:last-child { border-bottom: 0; }
+.inst-item:hover { background: color-mix(in srgb, var(--i-accent) 12%, transparent); }
+.inst-item[aria-selected="true"] { background: var(--i-accent); color: var(--i-accent-text); }
+.inst-num { font-family: ui-monospace, Menlo, Consolas, monospace; opacity: 0.8; }
+.inst-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.inst-empty { margin: 0.5rem; color: var(--i-dim); }
+
+.inst-msg {
+  margin-top: 0.6rem;
+  padding: 0.5rem;
+  border: 1px solid var(--i-line);
+  border-radius: 4px;
+  background: var(--i-panel);
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  align-items: flex-start;
+}
+.inst-msg[data-kind="warn"] { background: var(--i-warn-bg); border-color: var(--i-warn-line); }
+
+/* ----- buttons, inputs ----- */
+
+.inst-btn {
+  padding: 0.25rem 0.65rem;
+  border: 1px solid var(--i-line);
+  border-radius: 4px;
+  background: var(--i-panel);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.inst-btn:hover { border-color: var(--i-accent); }
+.inst-danger:hover { border-color: #c0392b; color: #c0392b; }
+.inst-panel :focus-visible { outline: 2px solid var(--i-accent); outline-offset: 2px; }
+
+.inst-panel input[type="text"],
+.inst-panel input[type="number"] {
+  padding: 0.2rem 0.35rem;
+  border: 1px solid var(--i-line);
+  border-radius: 4px;
+  background: var(--i-bg);
+  color: inherit;
+  font: inherit;
+}
+.inst-panel input[type="range"] { accent-color: var(--i-accent); width: 100%; min-width: 0; }
+
+/* ----- editor ----- */
+
+.inst-edit-col { min-width: 0; }
+.inst-form { display: flex; flex-direction: column; gap: 0.75rem; }
+.inst-head { display: flex; gap: 0.6rem; align-items: center; }
+.inst-badge {
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-size: 1.1rem;
+  padding: 0.1rem 0.5rem;
+  border-radius: 4px;
+  background: var(--i-accent);
+  color: var(--i-accent-text);
+}
+.inst-name-input { flex: 1; font-size: 1.05rem; }
+
+.inst-label-small { font-size: 0.8rem; color: var(--i-dim); text-transform: uppercase; letter-spacing: 0.05em; }
+.inst-presets { display: flex; flex-wrap: wrap; gap: 0.3rem; margin: 0.25rem 0; }
+.inst-hint { margin: 0.1rem 0 0.2rem; color: var(--i-dim); font-size: 0.85rem; }
+
+.inst-section {
+  margin: 0;
+  padding: 0.5rem 0.75rem 0.75rem;
+  border: 1px solid var(--i-line);
+  border-radius: 6px;
+  background: var(--i-panel);
+  min-width: 0;
+}
+.inst-section legend { padding: 0 0.4rem; font-weight: 600; }
+.inst-dim .inst-row, .inst-dim .inst-graph-wrap { opacity: 0.45; }
+.inst-active { border-color: var(--i-accent); }
+.inst-summary { margin: 0.4rem 0 0; font-style: italic; }
+
+.inst-waves { display: grid; grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr)); gap: 0.3rem 0.8rem; }
+.inst-check { display: grid; grid-template-columns: auto 1fr; column-gap: 0.4rem; align-items: baseline; cursor: pointer; }
+.inst-check small { grid-column: 2; color: var(--i-dim); }
+
+.inst-row {
+  display: grid;
+  grid-template-columns: 8rem minmax(6rem, 1fr) 4.5rem 3.2rem 11rem;
+  gap: 0.15rem 0.6rem;
+  align-items: center;
+  padding: 0.3rem 0;
+}
+.inst-row > .inst-hint { grid-column: 2 / -1; margin: 0; }
+.inst-number { width: 100%; }
+.inst-hex { font-family: ui-monospace, Menlo, Consolas, monospace; color: var(--i-dim); }
+.inst-val { font-variant-numeric: tabular-nums; }
+
+@media (max-width: 900px) {
+  .inst-row { grid-template-columns: 6.5rem minmax(5rem, 1fr) 4rem; }
+  .inst-row .inst-hex { display: none; }
+  .inst-row .inst-val { grid-column: 2 / -1; }
+}
+
+.inst-graph-wrap { margin: 0.4rem 0; }
+.inst-graph {
+  display: block;
+  width: 100%;
+  height: 4.5rem;
+  border: 1px solid var(--i-line);
+  border-radius: 4px;
+  background: var(--i-bg);
+}
+.inst-graph-line { stroke: var(--i-graph); stroke-width: 1.8; fill: none; vector-effect: non-scaling-stroke; }
+.inst-graph-fill { fill: color-mix(in srgb, var(--i-graph) 18%, transparent); stroke: none; }
+.inst-graph-band { fill: color-mix(in srgb, var(--i-graph) 16%, transparent); }
+.inst-graph-grid { stroke: var(--i-line); stroke-dasharray: 3 3; vector-effect: non-scaling-stroke; }
+.inst-graph-dot { fill: var(--i-graph); }
+
+/* ----- audition piano ----- */
+
+.inst-octave { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; }
+.inst-octave-label { min-width: 1.5ch; text-align: center; font-family: ui-monospace, Menlo, Consolas, monospace; }
+
+.inst-piano { position: relative; display: flex; height: 6.5rem; user-select: none; touch-action: manipulation; }
+.inst-key {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 0 0 0.2rem;
+  border: 1px solid #555;
+  font: 0.7rem ui-monospace, Menlo, Consolas, monospace;
+  cursor: pointer;
+}
+.inst-white { flex: 1; background: #f4f2ec; color: #555; border-radius: 0 0 4px 4px; }
+.inst-black {
+  position: absolute;
+  top: 0;
+  width: calc(100% / 14 * 0.6);
+  height: 62%;
+  background: #24262b;
+  color: #aaa;
+  border-radius: 0 0 3px 3px;
+  z-index: 1;
+}
+.inst-key.inst-down { background: var(--i-accent); color: var(--i-accent-text); }
