@@ -72,6 +72,7 @@ export class Engine {
     this.framePos = 0;
     this.output = new Int16Array(4096);     // what render() returns a view of; grows if asked for more
 
+    this.editsApplied = 0;                  // how many edits were applied: told to the page in readState
     this.queue = [];                        // changes waiting for the next frame boundary
     this.running = false;                   // is the player being called every frame?
     this.muted = [false, false, false];
@@ -132,12 +133,18 @@ export class Engine {
     this.queue.push({ kind: 'mute', voice, muted: !!muted });
   }
 
-  // edit = { writes: [{address, bytes}], playhead: [{orderPos, patAddr, patPos, ticksLeft?} | null, x3] }
-  // The writes and the new playhead positions are applied together, between two frames.
+  // edit = { writes: [{address, bytes}],
+  //          playhead: [{orderPos, patAddr, patPos, ticksLeft?} | null, x3],
+  //          remap: [[{from: {orderPos, patAddr, patPos}, to: {orderPos, patAddr, patPos}}] | null, x3] }
+  // The writes, the new playhead positions and the remaps are applied together, between two
+  // frames. `playhead` puts a voice at a place. `remap` moves a voice only if it is at the
+  // `from` place of one of the rows (the rows are made from a state that was a few frames old,
+  // so they list every place the voice can have reached since): it then goes to `to`.
   applyEdit(edit) {
     const writes = (edit.writes || []).map((w) => ({ address: w.address, bytes: Uint8Array.from(w.bytes) }));
     const playhead = (edit.playhead || []).map((p) => (p ? { ...p } : null));
-    this.queue.push({ kind: 'edit', writes, playhead });
+    const remap = (edit.remap || []).map((rows) => (rows ? rows.map((r) => ({ from: { ...r.from }, to: { ...r.to } })) : null));
+    this.queue.push({ kind: 'edit', writes, playhead, remap });
   }
 
   // --- reading the player's state block -----------------------------------
@@ -156,7 +163,7 @@ export class Engine {
         pitch: ram[s.st_pitch + v],
       });
     }
-    return { running: this.running, voices, frameInTick: ram[s.st_frame_in_tick] };
+    return { running: this.running, voices, frameInTick: ram[s.st_frame_in_tick], edits: this.editsApplied };
   }
 
   // The message of the last error (a runaway or unsupported instruction), once.
@@ -226,6 +233,8 @@ export class Engine {
       case 'edit':
         for (const w of op.writes) this.poke(w.address, w.bytes);
         for (let v = 0; v < op.playhead.length; v++) this.setPlayhead(v, op.playhead[v]);
+        for (let v = 0; v < op.remap.length; v++) this.remapPlayhead(v, op.remap[v]);
+        this.editsApplied++;
         break;
       case 'start':
         // music_init takes the song address in A (low byte) and X (high byte).
@@ -276,6 +285,17 @@ export class Engine {
     this.ram[s.st_pat_hi + voice] = (p.patAddr >> 8) & 0xFF;
     this.ram[s.st_pat_pos + voice] = p.patPos;
     if (p.ticksLeft !== undefined) this.ram[s.st_ticks_left + voice] = p.ticksLeft;
+  }
+
+  // Move a voice to the `to` of the row whose `from` is where the voice is now, if there is one.
+  remapPlayhead(voice, rows) {
+    if (!rows) return;
+    const s = this.symbols;
+    const orderPos = this.ram[s.st_order_pos + voice];
+    const patAddr = this.ram[s.st_pat_lo + voice] | (this.ram[s.st_pat_hi + voice] << 8);
+    const patPos = this.ram[s.st_pat_pos + voice];
+    const row = rows.find((r) => r.from.orderPos === orderPos && r.from.patAddr === patAddr && r.from.patPos === patPos);
+    if (row) this.setPlayhead(voice, row.to);
   }
 
   // One raster interrupt: call music_play and see whether the song ended by itself.

@@ -22,6 +22,9 @@ class SidTracker extends AudioWorkletProcessor {
     this.samplesSinceState = 0;
     this.sendFinalState = false;
     this.port.onmessage = (event) => this.onMessage(event.data);
+    // A message that cannot be read (some browsers refuse to clone certain objects): say so,
+    // instead of leaving the page waiting for an answer that never comes.
+    this.port.onmessageerror = () => this.port.postMessage({ type: 'error', message: 'a message to the audio engine could not be read' });
   }
 
   onMessage(msg) {
@@ -29,7 +32,9 @@ class SidTracker extends AudioWorkletProcessor {
       if (msg.type === 'init') {
         const started = Date.now();
         this.engine = new Engine({
-          sidModule: msg.module,
+          // The page sends the .wasm bytes, not a compiled module: cloning a compiled
+          // module into an AudioWorklet is refused by some browsers.
+          sidModule: new WebAssembly.Module(msg.wasmBytes),
           playerPrg: msg.playerPrg,
           symbols: msg.symbols,
           sampleRate,                 // a global of the AudioWorklet scope

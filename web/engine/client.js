@@ -3,6 +3,7 @@
 //   const engine = await createEngineClient({ model: 0 });   // after a click or key press
 //   engine.load([{ address: 0x2000, bytes }]);
 //   engine.start(0x3000);
+//   engine.resume();            // at every play: the browser may have suspended the audio
 //
 // It creates the AudioContext, fetches and compiles the SID, loads the worklet and
 // waits until the worklet says it is ready. After that everything is a message that
@@ -22,7 +23,6 @@ export async function createEngineClient({ model = 0 } = {}) {
       fetchOk(url('../player/symbols.json')).then((r) => r.json()),
       context.audioWorklet.addModule(url('./worklet.js')),
     ]);
-    const module = await WebAssembly.compile(wasmBytes);
 
     const node = new AudioWorkletNode(context, 'sid-tracker', {
       numberOfInputs: 0,
@@ -41,10 +41,11 @@ export async function createEngineClient({ model = 0 } = {}) {
       },
       start(address) { node.port.postMessage({ type: 'start', address }); },
       stop() { node.port.postMessage({ type: 'stop' }); },
-      edit(edit) { node.port.postMessage({ type: 'edit', writes: edit.writes, playhead: edit.playhead }); },
+      edit(edit) { node.port.postMessage({ type: 'edit', writes: edit.writes, playhead: edit.playhead, remap: edit.remap }); },
       setModel(m) { node.port.postMessage({ type: 'model', model: m }); },
       setMuted(voice, muted) { node.port.postMessage({ type: 'mute', voice, muted }); },
       setVolume(value) { node.port.postMessage({ type: 'volume', value }); },
+      resume() { return context.state === 'running' ? Promise.resolve() : context.resume(); },
       close() {
         node.port.onmessage = null;
         node.disconnect();
@@ -64,10 +65,13 @@ export async function createEngineClient({ model = 0 } = {}) {
           reject(new Error(msg.message));
         }
       };
-      node.port.postMessage({ type: 'init', module, playerPrg: new Uint8Array(playerPrg), symbols, model });
+      node.port.postMessage({ type: 'init', wasmBytes, playerPrg: new Uint8Array(playerPrg), symbols, model });
+      setTimeout(() => reject(new Error('the audio engine did not answer within 10 seconds')), 10000);
     });
 
-    if (context.state === 'suspended') await context.resume();
+    // Normally running already: the client is made inside a click or key press. If the browser
+    // still holds the context back, do not wait for it here: play() asks again at every press.
+    if (context.state === 'suspended') await Promise.race([context.resume(), new Promise((r) => setTimeout(r, 1500))]);
     return client;
   } catch (error) {
     context.close().catch(() => {});

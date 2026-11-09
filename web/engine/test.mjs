@@ -210,6 +210,25 @@ test('applyEdit writes the playhead into the state block with the data', () => {
   assert.deepEqual([state.voices[2].orderPos, state.voices[2].patAddr, state.voices[2].patPos, state.voices[2].ticksLeft], [6, 0x30FF, 1, 0]);
 });
 
+test('applyEdit remap moves a voice only if it is at the place of one of the rows', () => {
+  const engine = makeEngine();
+  const place = (voice, orderPos, patAddr, patPos) => {
+    engine.applyEdit({ playhead: Array.from({ length: 3 }, (_, v) => (v === voice ? { orderPos, patAddr, patPos } : null)) });
+  };
+  place(0, 2, 0x3100, 6);
+  place(1, 0, 0x3200, 4);
+  const row = (from, to) => ({ from: { orderPos: from[0], patAddr: from[1], patPos: from[2] }, to: { orderPos: to[0], patAddr: to[1], patPos: to[2] } });
+  engine.applyEdit({ remap: [
+    [row([2, 0x3100, 4], [2, 0x3110, 6]), row([2, 0x3100, 6], [2, 0x3110, 8])],   // voice 0 is at the second row
+    [row([0, 0x3200, 6], [0, 0x3210, 8])],                                       // voice 1 is at none of them
+    null,
+  ] });
+  engine.render(1);
+  const state = engine.readState();
+  assert.deepEqual([state.voices[0].orderPos, state.voices[0].patAddr, state.voices[0].patPos], [2, 0x3110, 8]);
+  assert.deepEqual([state.voices[1].orderPos, state.voices[1].patAddr, state.voices[1].patPos], [0, 0x3200, 4]);
+});
+
 test('muting a voice removes its gate, unmuting gives it back', () => {
   const engine = makeEngine();
   engine.start(0x3000);
