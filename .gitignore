@@ -3,3 +3,4 @@ build/
 .vscode/c_cpp_properties.json
 tools/vc64web/
 web/sid/.cache/
+.playwright-mcp/
