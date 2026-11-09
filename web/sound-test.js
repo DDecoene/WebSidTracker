@@ -1,4 +1,4 @@
-// main.js - the page: one button, a chip model choice and a status line.
+// sound-test.js - the page: one button, a chip model choice and a status line.
 //
 // Part of the WebSidTracker web app, GPL version 3 or later (see ./LICENSE).
 
@@ -30,7 +30,7 @@ async function start() {
   // sends the compiled module to the worklet in a message.
   const [wasm] = await Promise.all([
     fetch('sid/sid.wasm').then((r) => WebAssembly.compileStreaming(r)),
-    context.audioWorklet.addModule('worklet.js'),
+    context.audioWorklet.addModule('sound-test-worklet.js'),
   ]);
 
   node = new AudioWorkletNode(context, 'sid-tone', {

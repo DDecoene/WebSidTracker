@@ -1,4 +1,4 @@
-// worklet.js - runs inside the browser's audio thread (an AudioWorklet).
+// sound-test-worklet.js - runs inside the browser's audio thread (an AudioWorklet).
 //
 // The browser calls process() about 375 times a second (48 kHz / 128 samples) and
 // expects 128 new samples each time. We ask the SID for exactly that many and hand

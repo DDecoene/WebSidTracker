@@ -66,7 +66,7 @@ Then open <http://127.0.0.1:8010/> and press Play. `node web/sid/test.mjs` check
 - [ ] Add per-frame effects one by one: pulse sweep, vibrato, arpeggio, drum, checked by ear in VICE
 - [ ] Voice state block at fixed addresses, so a tracker can follow the playhead
 - [x] Browser: a small 6502 emulator in JavaScript, tested against a public 6502 test ([web/cpu](web/cpu/cpu6502.js))
-- [x] Browser: reSIDfp as WebAssembly, played through an AudioWorklet ([sound test](web/index.html))
+- [x] Browser: reSIDfp as WebAssembly, played through an AudioWorklet ([sound test](web/sound-test.html))
 - [ ] Browser: song model, serialiser and live editing
 - [ ] Browser: the tracker grid and the instrument editor
 - [ ] Export to assembler source and `.prg`

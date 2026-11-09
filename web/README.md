@@ -25,10 +25,10 @@ It plays the same tone, measures its pitch, and checks both chip models and the 
 ## How it fits together
 
 ```
- index.html + main.js        the page: button, status text
+ sound-test.html + .js     the page: button, status text
         |  fetches sid.wasm, compiles it, sends it in a message
         v
- worklet.js                  runs in the browser's audio thread
+ sound-test-worklet.js      runs in the browser's audio thread
         |  asks for 128 samples, 375 times a second
         v
  sid/sid.js                  loads sid.wasm, wraps its functions
@@ -48,8 +48,8 @@ Two things worth knowing:
 
 | Path | What |
 |---|---|
-| `index.html`, `main.js` | the sound test page |
-| `worklet.js` | the audio thread: asks the SID for samples |
+| `sound-test.html`, `sound-test.js` | the sound test page |
+| `sound-test-worklet.js` | the audio thread: asks the SID for samples |
 | `tone.js` | the demo tone, as SID register writes |
 | `sid/sid.js` | loads `sid.wasm` and wraps it in a small JavaScript object |
 | `sid/sid.wasm` | the built SID emulation (committed, so you do not need Emscripten to work on the rest) |
