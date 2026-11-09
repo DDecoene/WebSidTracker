@@ -69,7 +69,7 @@
   padding: 6px 10px; background: var(--ed-panel); border-bottom: 1px solid var(--ed-line);
   font-size: 12px;
 }
-.ed-status { white-space: pre; color: var(--ed-text); }
+.ed-status { white-space: pre-wrap; color: var(--ed-text); }
 .ed-follow, .ed-name { display: inline-flex; align-items: center; gap: 4px; color: var(--ed-dim); }
 .ed-name input { font: inherit; padding: 1px 4px; background: var(--ed-bg); color: var(--ed-text); border: 1px solid var(--ed-line); border-radius: 3px; }
 .ed-buttons { display: inline-flex; gap: 4px; flex-wrap: wrap; }

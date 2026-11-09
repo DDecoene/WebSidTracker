@@ -38,10 +38,6 @@
   }
 }
 
-@media (max-width: 720px) {
-  .inst-panel { grid-template-columns: 1fr; }
-}
-
 .inst-panel * { box-sizing: border-box; }
 .inst-panel [hidden] { display: none !important; }
 
@@ -131,7 +127,7 @@
   background: var(--i-accent);
   color: var(--i-accent-text);
 }
-.inst-name-input { flex: 1; font-size: 1.05rem; }
+.inst-name-input { flex: 1; min-width: 0; font-size: 1.05rem; }
 
 .inst-label-small { font-size: 0.8rem; color: var(--i-dim); text-transform: uppercase; letter-spacing: 0.05em; }
 .inst-presets { display: flex; flex-wrap: wrap; gap: 0.3rem; margin: 0.25rem 0; }
@@ -166,10 +162,26 @@
 .inst-hex { font-family: ui-monospace, Menlo, Consolas, monospace; color: var(--i-dim); }
 .inst-val { font-variant-numeric: tabular-nums; }
 
-@media (max-width: 900px) {
-  .inst-row { grid-template-columns: 6.5rem minmax(5rem, 1fr) 4rem; }
+/* The panel adapts to the room it is given, not to the window: the page puts it in a pane
+   that is only a third of the window wide. The pane is a size container called "inst"
+   (see style.css). Narrower and narrower: list above the editor, a shorter row, a stacked row. */
+@container inst (max-width: 700px) {
+  .inst-panel { grid-template-columns: minmax(0, 1fr); }
+  .inst-list { max-height: 10rem; }
+}
+
+@container inst (max-width: 560px) {
+  .inst-row { grid-template-columns: 6rem minmax(4rem, 1fr) 4rem; }
   .inst-row .inst-hex { display: none; }
   .inst-row .inst-val { grid-column: 2 / -1; }
+}
+
+@container inst (max-width: 450px) {
+  .inst-panel { padding: 0.5rem; gap: 0.6rem; }
+  .inst-row { grid-template-columns: minmax(0, 1fr) 4rem; }
+  .inst-row > label { grid-column: 1 / -1; }
+  .inst-row .inst-val, .inst-row > .inst-hint { grid-column: 1 / -1; }
+  .inst-name-input { min-width: 0; }
 }
 
 .inst-graph-wrap { margin: 0.4rem 0; }

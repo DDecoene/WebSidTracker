@@ -179,6 +179,9 @@ input[type="range"] { width: 5.5rem; accent-color: var(--accent); }
 
 .pane-failed { padding: 16px; color: var(--bad); }
 
+/* The instrument panel lays itself out by the width of this pane (see ui/instruments.css). */
+#instrument-pane { container: inst / inline-size; }
+
 /* ---- footer -------------------------------------------------------------- */
 
 .footer {
@@ -225,9 +228,13 @@ dialog h3 { margin: 18px 0 6px; font-size: 13px; text-transform: uppercase; lett
   .workspace { grid-template-columns: minmax(0, 1fr) 380px; }
 }
 
+/* One column: the page itself scrolls. The pattern editor gets a tall pane of its own, the
+   instrument panel its natural height below it. */
 @media (max-width: 900px) {
-  .workspace { grid-template-columns: minmax(0, 1fr); grid-auto-rows: minmax(320px, 1fr); overflow: auto; }
-  .pane { overflow: auto; }
+  html, body { height: auto; min-height: 100%; }
+  .workspace { flex: none; grid-template-columns: minmax(0, 1fr); grid-auto-rows: auto; }
+  #editor-pane { height: max(440px, 70vh); }
+  #instrument-pane { overflow: visible; }
 }
 
 @media (prefers-reduced-motion: reduce) {
