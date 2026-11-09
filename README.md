@@ -2,7 +2,7 @@
 
 A SID music tracker for the browser, built clean-room, with a small player you can drop into your own Commodore 64 game.
 
-> **Status: early.** The first piece of the web app exists: a page that makes SID sound with reSIDfp in the browser (see [`web/`](web/README.md)). The player and the tracker do not exist yet. The rest is the plan: the [concept](docs/concept-hubbard-inspired-player.md), the [player data format and timing](docs/design-player-format-and-timing.md), the [web tracker architecture](docs/design-web-tracker-architecture.md), and an empty C64 project to build the player in.
+> **Status: working, not finished.** The C64 player is built and measured, the browser tracker runs it live: a 6502 core, reSIDfp as WebAssembly, the song model with export, the pattern and order editor and the instrument editor all exist. Try it at <https://ddecoene.github.io/WebSidTracker/>. What is still open is listed in the [roadmap](#roadmap). How to use the tracker: [docs/tracker-guide.md](docs/tracker-guide.md).
 
 ## Why
 
@@ -14,9 +14,9 @@ The full story (what made that approach special, what such a player contains, wh
 
 ## The plan
 
-1. **A player in 6502 assembly**, original work, about 1 to 2 KB: three voices, patterns and a pattern list per voice, instruments as parameter records, per-frame effects (pulse sweep, vibrato, arpeggio, drums).
-2. **A tracker in the browser**: a grid with three voice columns, an instrument editor, and live playback where every edit is heard at once. The tracker runs the real 6502 player in its own small emulator and sends the SID writes to a SID emulation that sounds like the real chip (reSIDfp, compiled to WebAssembly).
-3. **Export**: assembler source for song and instruments (drop it next to the player in your game), and a ready-to-run `.prg`. Maybe a `.sid` file later.
+1. **A player in 6502 assembly**, original work, about 1.5 KB: three voices, patterns and an order list per voice, instruments as parameter records, per-frame effects (pulse sweep, vibrato, arpeggio, drums). Built, see [docs/player.md](docs/player.md).
+2. **A tracker in the browser**: a grid with three voice columns, an instrument editor, and live playback where every edit is heard at once. The tracker runs the real 6502 player in its own small emulator and sends the SID writes to a SID emulation that sounds like the real chip (reSIDfp, compiled to WebAssembly). Built.
+3. **Export**: assembler source for song and instruments (drop it next to the player in your game), and a ready-to-run `.prg`. Built. Maybe a `.sid` file later.
 
 ## Rules of this project
 
@@ -29,13 +29,38 @@ The full story (what made that approach special, what such a player contains, wh
 | Path | What |
 |---|---|
 | `docs/concept-hubbard-inspired-player.md` | the concept: the approach, the player's ingredients, the tracker, distribution |
-| `docs/design-player-format-and-timing.md` | the player: song and instrument data, ticks and frames, clean note starts |
-| `docs/design-web-tracker-architecture.md` | the browser tracker: own 6502 emulator, reSIDfp, live editing, export |
-| `web/` | the browser app (GPL): for now a sound test, reSIDfp as WebAssembly played through an AudioWorklet |
-| `web/sid/` | reSIDfp build script, C wrapper, loader and a Node test |
-| `src/main.asm` | the C64 project: an empty program (a BASIC stub that jumps to `start`) |
+| `docs/design-player-format-and-timing.md` | the player design: song and instrument data, ticks and frames, clean note starts (with an "As built" section) |
+| `docs/design-web-tracker-architecture.md` | the browser tracker design: own 6502 emulator, reSIDfp, live editing, export (with an "As built" section) |
+| `docs/player.md` | how to call the player, memory map, state block, exact behaviour, limits, measurements |
+| `docs/tracker-guide.md` | user guide of the tracker: concepts, keys, instrument fields, export |
+| `src/music.asm` | the player (MIT) |
+| `src/instruments.asm`, `src/song_demo.asm` | the default instrument set and a demo song |
+| `src/runner.asm`, `src/main.asm` | a complete program: BASIC line, raster interrupt, player, instruments, song (this is the image the tracker exports) |
 | `src/hardware.asm` | names for the VIC-II, SID and CIA registers, no code |
+| `web/` | the browser app (GPL), see [web/README.md](web/README.md) |
+| `web/cpu/` | the 6502 core and its tests |
+| `web/sid/` | reSIDfp build script, C wrapper, loader and a Node test |
+| `web/engine/` | the audio engine: 6502 + SID, the AudioWorklet and its client |
+| `web/model/` | song model, serialiser, exports |
+| `web/app/` | the app shell: store, undo, live editing glue, files, panels |
+| `web/ui/` | the pattern and order editor and the instrument editor |
+| `web/player/` | the built player image (`player.prg`, `symbols.json`) and its tests |
+| `tools/` | the player build script, a label converter, a small server for the browser C64 emulator |
 | `Makefile`, `project-config.json`, `.vscode/` | build and run |
+| `.github/workflows/pages.yml` | publishes `web/` on GitHub Pages |
+
+## Running the tracker
+
+Online: <https://ddecoene.github.io/WebSidTracker/>.
+
+Locally, from a folder with a web server (an AudioWorklet does not load from `file://`):
+
+```
+cd web
+python3 -m http.server 8010
+```
+
+Then open <http://127.0.0.1:8010/>. Audio starts at your first click or key press. There is no build step for the web app; `web/sid/sid.wasm` and `web/player/player.prg` are committed. The older sound test page is at `/sound-test.html`.
 
 ## Building the C64 side
 
@@ -45,31 +70,53 @@ You need [ACME](https://sourceforge.net/projects/acme-crossass/) and, to run it,
 make          # builds build/websidtracker.prg
 make vice     # builds and runs in VICE (x64sc, the accurate emulator: use it to judge sound)
 make test     # builds and runs in the vc64web browser emulator (fetched on first use)
+make player   # rebuilds web/player/player.prg and symbols.json (needs ACME and python3)
 ```
 
-## Running the web app
+Run `make player` after every change in `src/`, and commit the two files it writes.
 
-The sound test needs only a browser and a local web server (an AudioWorklet does not load from `file://`):
+## Running the tests
+
+Node.js 22 or later; no packages to install. From the repository root:
 
 ```
-python3 -m http.server 8010 --directory web
+node --test web/player/test.mjs
+node --test web/model/test.mjs
+node --test web/engine/test.mjs
+node --test web/app/files.test.mjs web/app/live.test.mjs web/app/session.test.mjs web/app/store.test.mjs
+node --test web/ui/editor-logic.test.mjs web/ui/instruments-logic.test.mjs
+node --test web/cpu/test.mjs
+node web/sid/test.mjs
+
+web/cpu/fetch-tests.sh              # once: downloads the public 6502 test material into web/cpu/.cache
+node web/cpu/klaus.mjs              # Klaus Dormann's functional test
+node web/cpu/singlestep.mjs         # Tom Harte's SingleStepTests, instruction results and cycle counts
 ```
 
-Then open <http://127.0.0.1:8010/> and press Play. `node web/sid/test.mjs` checks the SID without a browser. `web/sid/sid.wasm` is committed; to rebuild it you need [Emscripten](https://emscripten.org/) (`brew install emscripten`) and `sh web/sid/build.sh`.
+The player tests need `web/player/player.prg` (committed). Rebuilding `sid.wasm` needs [Emscripten](https://emscripten.org/) (`sh web/sid/build.sh`); you do not need it otherwise.
 
 ## Roadmap
+
+Done:
 
 - [x] Choose the data format and the tick/timing model ([design](docs/design-player-format-and-timing.md))
 - [x] Choose the architecture of the web tracker ([design](docs/design-web-tracker-architecture.md))
 - [x] Choose the licences (MIT for the player and exports, GPL for the web app)
-- [ ] First player: one voice, patterns, instruments, in assembly
-- [ ] Add per-frame effects one by one: pulse sweep, vibrato, arpeggio, drum, checked by ear in VICE
-- [ ] Voice state block at fixed addresses, so a tracker can follow the playhead
-- [x] Browser: a small 6502 emulator in JavaScript, tested against a public 6502 test ([web/cpu](web/cpu/cpu6502.js))
-- [x] Browser: reSIDfp as WebAssembly, played through an AudioWorklet ([sound test](web/sound-test.html))
-- [ ] Browser: song model, serialiser and live editing
-- [ ] Browser: the tracker grid and the instrument editor
-- [ ] Export to assembler source and `.prg`
+- [x] The player in assembly: patterns, order lists, instruments, pulse sweep, vibrato, arpeggio, drums, legato, clean note start and end, state block at fixed addresses ([docs/player.md](docs/player.md))
+- [x] Browser: a 6502 core in JavaScript, tested against public 6502 tests ([web/cpu](web/cpu/cpu6502.js))
+- [x] Browser: reSIDfp as WebAssembly, the audio engine and the AudioWorklet
+- [x] Browser: song model, serialiser, live editing with playhead fix-up, undo, autosave, project files
+- [x] Browser: the pattern and order editor and the instrument editor
+- [x] Export to assembler source and `.prg`
+
+Open:
+
+- [ ] Fine-tuning the sound by ear (instrument defaults, the demo song)
+- [ ] NTSC (frequency table and 60 Hz timing)
+- [ ] Sound effects that borrow a voice
+- [ ] Filter (and other later features: portamento, volume per voice)
+- [ ] Mouse selection and copy/paste in the pattern editor (the mouse only places the cursor now)
+- [ ] `.sid` export
 
 ## Licence
 
