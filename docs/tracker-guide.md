@@ -22,7 +22,7 @@ The sound is the part to check by ear. The numbers on screen say nothing about t
 
 ## 2. Quick start
 
-1. Open the page. It starts with the project you last worked on (kept in your browser) or with a demo tune. **New** starts an empty project.
+1. Open the page. It starts with the project you last worked on (kept in your browser) or, the first time, with the Ode to Joy demo. **New** starts an empty project.
 2. Click the pattern grid and play notes on the computer keyboard like a piano: the row `z s x d c v g b h n j m` is the lower octave, `q 2 w 3 e r 5 t 6 y 7 u` the next one up. Each key press plays the note and enters it at the cursor.
 3. `<` and `>` change the octave. `9` and `0` change the default length of new notes. `;` and `'` change how many rows the cursor moves down after entering a note.
 4. Press `[` and `]` to pick another instrument, or edit the instrument on the right. The piano at the bottom of the instrument panel plays it.
@@ -30,6 +30,8 @@ The sound is the part to check by ear. The numbers on screen say nothing about t
 6. Set the loop: in the order list, `o` moves the keyboard there; `Insert` adds an entry, `l` turns the entry into a loop to entry 00, `s` into a stop.
 7. **Save** downloads the project as a JSON file; **Open** reads one. The tracker also keeps an autosave in your browser, but save to a file for anything you care about.
 8. **Export** gives you the files for your game (section 6).
+
+The header has a **Demos** menu with six songs to listen to and learn from: Ode to Joy, Für Elise, Rondo alla Turca, Toccata in D minor, In the Hall of the Mountain King, and the Original demo tune. A first visit starts with Ode to Joy, so Play gives you something to hear at once. Choosing a demo stops the playback and replaces the current project; if you have unsaved changes the tracker first asks whether to discard them. Hover an entry to read what is in it.
 
 The header also has a SID chip switch (MOS 6581 or CSG 8580), a master volume (for listening only; the game sets its own volume), a mute button for each voice (M1, M2, M3), and a level meter. A line shows how many bytes the song and the instrument tables take and how many are left. The strip below the header lists problems that stop the song from playing or exporting (for example a loop that plays no notes).
 

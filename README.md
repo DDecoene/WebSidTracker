@@ -60,7 +60,9 @@ cd web
 python3 -m http.server 8010
 ```
 
-Then open <http://127.0.0.1:8010/>. Audio starts at your first click or key press. There is no build step for the web app; `web/sid/sid.wasm` and `web/player/player.prg` are committed. The older sound test page is at `/sound-test.html`.
+Then open <http://127.0.0.1:8010/>. Audio starts at your first click or key press.
+
+The **Demos** menu in the header loads one of six songs: Ode to Joy (what a first visit starts with), Für Elise, Rondo alla Turca, Toccata in D minor, In the Hall of the Mountain King, and an original demo tune. Open one, press Play and change things while it plays. There is no build step for the web app; `web/sid/sid.wasm` and `web/player/player.prg` are committed. The older sound test page is at `/sound-test.html`.
 
 ## Building the C64 side
 
