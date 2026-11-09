@@ -6,7 +6,7 @@
 //
 // Part of the WebSidTracker web app, GPL version 3 or later (see ../LICENSE).
 
-import { createLive, SONG_BASE, AUDITION_BASE, sizeInfo } from './live.js';
+import { createLive, SONG_BASE, AUDITION_BASE, sizeInfo, stateAfterEdit } from './live.js';
 
 /**
  * @param {object} deps
@@ -17,7 +17,8 @@ import { createLive, SONG_BASE, AUDITION_BASE, sizeInfo } from './live.js';
  * @param {() => Promise<object>} deps.createEngineClient
  * @param {() => number} [deps.nowMs]  clock in milliseconds (replaced in tests)
  * @param {object} [deps.on]       callbacks: problems(list), sizes(info), mode('idle'|'song'|'audition'),
- *                                 error(message), meter(peak), engine({sampleRate, initMs})
+ *                                 error(message), notice(message: a short hint, not an error), meter(peak),
+ *                                 engine({sampleRate, initMs})
  */
 export function createSession({ store, model, symbols, createEngineClient, on = {}, nowMs = () => performance.now() }) {
   const live = createLive({ model, symbols });
@@ -26,7 +27,8 @@ export function createSession({ store, model, symbols, createEngineClient, on = 
   let client = null;
   let enginePromise = null;
   let mode = 'idle';              // what the engine is playing: nothing, the song, or an audition
-  let lastState = null;           // the latest state message from the engine
+  let lastState = null;           // the latest state message from the engine, brought up to date with the edits sent since
+  let editsSent = 0;              // edits sent to the engine; a state that counts fewer predates our last edit
   let token = 0;                  // bumped by every play/stop/audition, so a slow start can notice it lost
   let startedAt = -Infinity;      // nowMs() of the last start
   let problems = [];
@@ -64,15 +66,26 @@ export function createSession({ store, model, symbols, createEngineClient, on = 
     const edit = syncProject(change.kind);
     if (!client) return;
     if (change.kind === 'load') client.load(live.snapshot());
-    else if (edit) client.edit(edit);
+    else if (edit) sendEdit(edit);
   });
+
+  // States arrive up to ~100 ms after what they describe. Edits sent in the meantime move
+  // the song around in memory, so the state we keep is moved with them (the engine does the
+  // same to the real voices), and states that were made before the engine applied our latest
+  // edit are not used for positions: they speak about the song as it was.
+  function sendEdit(edit) {
+    client.edit(edit);
+    editsSent++;
+    lastState = stateAfterEdit(lastState, edit);
+  }
   syncProject('load');
 
   // ---- the engine --------------------------------------------------------
 
   function handleState(state) {
-    lastState = state;
     say('meter', state.peak ?? 0);
+    if (state.edits !== undefined && state.edits < editsSent) return;
+    lastState = state;
     if (mode === 'song') store.setPlayhead(live.toStorePlayhead(state, store.project));
   }
 
@@ -119,17 +132,17 @@ export function createSession({ store, model, symbols, createEngineClient, on = 
     const mine = ++token;
     const ready = ensureEngine();           // called before any await: still inside the user gesture
     if (problems.length > 0) {
-      say('error', 'Fix the problems listed above before playing.');
+      say('notice', 'Fix the problems listed above before playing.');
       return;
     }
     const engine = await ready;
     if (!engine || mine !== token) return;
+    engine.resume?.();                       // a browser may have suspended the audio since the last time
     engine.load(live.snapshot());            // the bytes the mirror holds are the bytes of the project
     engine.start(SONG_BASE);
     startedAt = nowMs();
     if (fromCursor) {
-      const edit = live.startAt(store.project, store.selection);
-      engine.edit(edit);
+      sendEdit(live.startAt(store.project, store.selection));
     }
     lastState = null;
     setMode('song');
@@ -141,11 +154,16 @@ export function createSession({ store, model, symbols, createEngineClient, on = 
     if (mode !== 'idle') finished();
   }
 
+  // There is one player. An audition would take it away from the song, which then would not come
+  // back, so while the song plays, notes are not auditioned: the editor puts the note in the
+  // pattern and the song plays it when it gets there.
   async function audition(instrument, pitch) {
+    if (mode === 'song') return;
     const mine = ++token;
     const ready = ensureEngine();
     const engine = await ready;
     if (!engine || mine !== token || problems.length > 0) return;
+    engine.resume?.();
     try {
       const preview = model.previewSong(instrument, pitch);
       const song = preview.song || preview;

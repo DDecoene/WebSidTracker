@@ -71,34 +71,99 @@ export function sizeInfo(project, songSize, songBase = SONG_BASE) {
 }
 
 /**
- * Where did old element `index` of `before` go in `after`? Edits are mostly one insert,
- * delete or change, so: the unchanged start and the unchanged end are matched up, and an
- * index inside the changed middle keeps its distance from the start (clamped to the middle).
+ * Where did old position `index` of `before` go in `after`? A position is "the next element
+ * to read": position i waits for before[i]. Edits are mostly one insert, delete or change, so:
+ * the unchanged start and the unchanged end are matched up, and a position inside the changed
+ * middle keeps its distance from the start (clamped to the middle).
+ * A position exactly at an insert stays in front of it, so the new element is read next.
+ * Returns a function, so that several positions of the same pair of lists share the work.
  */
-export function mapIndex(before, after, index) {
+export function indexMapper(before, after) {
   const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
   let head = 0;
   while (head < before.length && head < after.length && same(before[head], after[head])) head++;
   let tail = 0;
   while (tail < before.length - head && tail < after.length - head
     && same(before[before.length - 1 - tail], after[after.length - 1 - tail])) tail++;
-  if (index < head) return index;
-  if (index >= before.length - tail) return index + after.length - before.length;
-  return head + Math.min(index - head, after.length - tail - head);
+  const oldMiddleEnd = before.length - tail;     // first position of the unchanged end
+  return (index) => {
+    if (index < head) return index;
+    if (index === head && oldMiddleEnd === head) return head;       // a pure insert: read it next
+    if (index >= oldMiddleEnd) return index + after.length - before.length;
+    return head + Math.min(index - head, after.length - tail - head);
+  };
 }
 
-// The playhead location `loc` was found in the old project. Give the location of the same
-// order entry and event in the new project.
-function followEdit(oldProject, newProject, loc, voice) {
-  const entry = mapIndex(oldProject.song.orders[voice], newProject.song.orders[voice], loc.entry);
-  const target = newProject.song.orders[voice][entry];
-  const patternIndex = target && target.pattern !== undefined ? target.pattern : loc.patternIndex;
-  const oldEvents = oldProject.song.patterns[loc.patternIndex]?.events ?? [];
-  const newEvents = newProject.song.patterns[patternIndex]?.events ?? [];
-  return { ...loc, entry, patternIndex, eventIndex: mapIndex(oldEvents, newEvents, loc.eventIndex) };
-}
+export const mapIndex = (before, after, index) => indexMapper(before, after)(index);
 
 const samePlace = (a, b) => a.orderPos === b.orderPos && a.patAddr === b.patAddr && a.patPos === b.patPos;
+
+// How many order entries, counted from the one a voice was last seen in, get rows in an edit's
+// remap table: more than a state message can be behind (about 100 ms), fewer than a long song.
+const REMAP_ENTRIES = 12;
+
+/**
+ * Remap table for one voice. The player can only be seen as it was a few frames ago, and
+ * by the time an edit reaches it the voice may have read an event, or moved on to the next
+ * order entry. So the edit does not carry "the voice is here, move it there" but a list of
+ * rows "a voice that is at A goes to B", for every place the voice can be by now. The engine
+ * looks up where the voice really is when it applies the edit.
+ * Only places that move are listed; a voice that is not in the list stays where it is.
+ * @returns {{from: object, to: object}[]}
+ */
+function remapRows(model, previous, next, project, voice, loc) {
+  const oldProject = previous.project;
+  const oldList = oldProject.song.orders[voice];
+  const newList = project.song.orders[voice];
+  const oldMap = previous.song.map;
+  const entryOf = indexMapper(oldList, newList);
+  const eventMappers = new Map();                 // old pattern number -> mapper for its events
+  const rows = [];
+
+  const visited = new Set();
+  let entry = loc.entry;
+  for (let count = 0; count < REMAP_ENTRIES && !visited.has(entry); count++) {
+    visited.add(entry);
+    const item = oldList[entry];
+    if (!item || item.stop) break;
+    if (item.loop !== undefined) { entry = item.loop; continue; }
+
+    const pattern = oldMap.patterns[item.pattern];
+    const oldEvents = oldProject.song.patterns[item.pattern]?.events ?? [];
+    const newEntry = entryOf(entry);
+    const target = newList[newEntry];
+    const newPattern = target && target.pattern !== undefined ? target.pattern : item.pattern;
+    if (!eventMappers.has(item.pattern + ':' + newPattern)) {
+      const newEvents = project.song.patterns[newPattern]?.events ?? [];
+      eventMappers.set(item.pattern + ':' + newPattern, indexMapper(oldEvents, newEvents));
+    }
+    const eventOf = eventMappers.get(item.pattern + ':' + newPattern);
+    for (let k = 0; k <= oldEvents.length; k++) {
+      const from = { orderPos: oldMap.orders[voice][entry].offset, patAddr: pattern.address,
+        patPos: k < oldEvents.length ? pattern.events[k].offset : pattern.endOffset };
+      const to = model.playheadFromLocation(next.song.map, { entry: newEntry, patternIndex: newPattern, eventIndex: eventOf(k) }, voice);
+      if (to && !samePlace(to, from)) rows.push({ from, to });
+    }
+    entry++;
+  }
+  return rows;
+}
+
+/**
+ * The engine state as it will be once `edit` has been applied: a voice that is at the `from`
+ * of a remap row is at its `to`. The page keeps the last state it got, and an edit that is
+ * on its way makes that state wrong; the next edit has to be computed from the corrected one.
+ */
+export function stateAfterEdit(state, edit) {
+  if (!state || !edit || !edit.remap) return state;
+  const voices = state.voices.map((now, voice) => {
+    const rows = edit.remap[voice];
+    const row = now && rows && rows.find((r) => r.from.orderPos === now.orderPos && r.from.patAddr === now.patAddr
+      && r.from.patPos === now.patPos);
+    return row ? { ...now, ...row.to } : now;
+  });
+  return { ...state, voices };
+}
 
 /**
  * @param {{model: object, symbols?: object, songBase?: number}} options
@@ -137,14 +202,15 @@ export function createLive({ model, symbols = {}, songBase = SONG_BASE }) {
     /**
      * The project changed. Compute the edit that updates the engine, and remember the new
      * bytes. `state` is the last engine state if a song is playing (so playheads need a
-     * fix-up), else null. Returns null when the engine already has these bytes.
+     * fix-up, sent as `remap` tables), else null. Returns null when the engine already has
+     * these bytes.
      * May throw if the project cannot be serialised; the mirror is then left alone.
      */
     diff(project, state = null) {
       const previous = mirror;
       const next = serialiseAll(project);
       mirror = next;
-      if (!previous) return { writes: this.snapshot(), playhead: [null, null, null] };
+      if (!previous) return { writes: this.snapshot(), playhead: [null, null, null], remap: [null, null, null] };
 
       const writes = [];
       for (const name of TABLE_NAMES) {
@@ -160,20 +226,20 @@ export function createLive({ model, symbols = {}, songBase = SONG_BASE }) {
         writes.push({ address: symbols.st_speed, bytes: Uint8Array.of(next.speed) });
       }
 
-      const playhead = [null, null, null];
+      // Voices whose place in the song bytes changes (a note inserted above them, a pattern
+      // that now starts at another address) get a remap table, see remapRows.
+      const remap = [null, null, null];
       if (state && state.running && songWrites.length > 0) {
         for (let voice = 0; voice < 3; voice++) {
           const now = state.voices[voice];
           const loc = now && model.locatePlayhead(previous.song.map, now, voice);
           if (!loc) continue;
-          const moved = model.playheadFromLocation(next.song.map, followEdit(previous.project, project, loc, voice), voice);
-          // Only move a voice that really changed place. The state we hold is up to 50 ms
-          // old, so leaving unaffected voices alone avoids pulling them back.
-          if (moved && !samePlace(moved, now)) playhead[voice] = moved;
+          const rows = remapRows(model, previous, next, project, voice, loc);
+          if (rows.length > 0) remap[voice] = rows;
         }
       }
-      if (writes.length === 0 && playhead.every((p) => p === null)) return null;
-      return { writes, playhead };
+      if (writes.length === 0 && remap.every((r) => r === null)) return null;
+      return { writes, playhead: [null, null, null], remap };
     },
 
     /**

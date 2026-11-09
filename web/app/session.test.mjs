@@ -27,7 +27,7 @@ function fakeClient() {
 function setup({ problems = [], createFails = false } = {}) {
   const store = createStore(sampleProject());
   const client = fakeClient();
-  const events = { problems: [], sizes: [], mode: [], error: [], meter: [] };
+  const events = { problems: [], sizes: [], mode: [], error: [], notice: [], meter: [] };
   let clock = 1000;
   const model = {
     ...fakeModel,
@@ -39,7 +39,7 @@ function setup({ problems = [], createFails = false } = {}) {
     createEngineClient: async () => { if (createFails) throw new Error('no audio'); return client; },
     on: {
       problems: (p) => events.problems.push(p), sizes: (s) => events.sizes.push(s), mode: (m) => events.mode.push(m),
-      error: (e) => events.error.push(e), meter: (x) => events.meter.push(x),
+      error: (e) => events.error.push(e), notice: (e) => events.notice.push(e), meter: (x) => events.meter.push(x),
     },
   });
   return { store, client, events, session, tick: (ms) => { clock += ms; } };
@@ -131,12 +131,22 @@ test('audition loads the preview at the scratch address and starts it', async ()
   assert.equal(session.mode, 'audition');
 });
 
+test('a note is not auditioned while the song plays: the song must not be taken over', async () => {
+  const { store, client, session } = setup();
+  await session.play();
+  const before = client.calls.length;
+  store.auditionNote(1, 40);
+  await new Promise((r) => setTimeout(r, 0));
+  assert.equal(client.calls.length, before, 'nothing was sent');
+  assert.equal(session.mode, 'song');
+});
+
 test('a project with problems is not played and not sent', async () => {
   const { store, client, session, events } = setup({ problems: ['pattern 3 is missing'] });
   assert.deepEqual(events.problems[0], ['pattern 3 is missing']);
   await session.play();
   assert.equal(session.mode, 'idle');
-  assert.ok(events.error[0].includes('problems'));
+  assert.ok(events.notice[0].includes('problems'));
   assert.equal(store.engineReady, true, 'the engine itself started fine');
   assert.ok(!names(client).includes('start'));
 });

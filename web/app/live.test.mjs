@@ -95,26 +95,41 @@ test('a speed change also writes the live speed in the state block', () => {
   assert.deepEqual([...live2.bytes], [4]);
 });
 
+// Where does a voice that is at `from` go? (the remap rows of an edit, see live.js)
+const target = (edit, voice, from) => {
+  const row = (edit.remap[voice] || []).find((r) => r.from.orderPos === from.orderPos && r.from.patAddr === from.patAddr
+    && r.from.patPos === from.patPos);
+  return row ? row.to : null;
+};
+
 test('inserting a note before the playhead moves it along', () => {
   const live = createLive({ model: fakeModel, symbols });
   live.rebuild(project());
   const oldMap = live.map;
   // voice 0 plays pattern 0, the next event to read is note 3 (index 2, offset 4)
-  const state = { running: true, frameInTick: 2, voices: [{ orderPos: 0, patAddr: oldMap.patterns[0].address, patPos: 4, ticksLeft: 5 }, null, null] };
+  const here = { orderPos: 0, patAddr: oldMap.patterns[0].address, patPos: 4 };
+  const state = { running: true, frameInTick: 2, voices: [{ ...here, ticksLeft: 5 }, null, null] };
   const edit = live.diff(withProject((p) => { p.song.patterns[0].events.splice(0, 0, note(5)); }), state);
-  assert.equal(edit.playhead[1], null);
-  assert.deepEqual(edit.playhead[0], { orderPos: 0, patAddr: live.map.patterns[0].address, patPos: 6 });
-  assert.equal(edit.playhead[0].ticksLeft, undefined, 'ticks left stay as they are');
+  assert.equal(edit.remap[1], null);
+  assert.deepEqual(target(edit, 0, here), { orderPos: 0, patAddr: live.map.patterns[0].address, patPos: 6 });
+  assert.deepEqual(edit.playhead, [null, null, null], 'ticks left stay as they are: no absolute playhead');
+  // the state is a few frames old: the voice may already be one event further, and must be moved as well
+  const later = { ...here, patPos: 6 };
+  assert.deepEqual(target(edit, 0, later), { orderPos: 0, patAddr: live.map.patterns[0].address, patPos: 8 });
+  // and so may a voice that went on to the next order entry
+  const next = { orderPos: 2, patAddr: oldMap.patterns[1].address, patPos: 2 };
+  assert.deepEqual(target(edit, 0, next), { orderPos: 2, patAddr: live.map.patterns[1].address, patPos: 2 });
 });
 
 test('a longer first pattern moves the second pattern, and a voice inside it follows', () => {
   const live = createLive({ model: fakeModel, symbols });
   live.rebuild(project());
   const oldMap = live.map;
-  const state = { running: true, frameInTick: 0, voices: [null, { orderPos: 0, patAddr: oldMap.patterns[1].address, patPos: 2, ticksLeft: 1 }, null] };
+  const here = { orderPos: 0, patAddr: oldMap.patterns[1].address, patPos: 2 };
+  const state = { running: true, frameInTick: 0, voices: [null, { ...here, ticksLeft: 1 }, null] };
   const edit = live.diff(withProject((p) => { p.song.patterns[0].events.push(note(20), note(21)); }), state);
-  assert.equal(edit.playhead[0], null);
-  assert.deepEqual(edit.playhead[1], { orderPos: 0, patAddr: live.map.patterns[1].address, patPos: 2 });
+  assert.equal(edit.remap[0], null);
+  assert.deepEqual(target(edit, 1, here), { orderPos: 0, patAddr: live.map.patterns[1].address, patPos: 2 });
   assert.equal(live.map.patterns[1].address, oldMap.patterns[1].address + 4);
 });
 
@@ -123,7 +138,7 @@ test('editing a pattern the voice is not in leaves the playhead alone', () => {
   live.rebuild(project());
   const state = { running: true, frameInTick: 0, voices: [{ orderPos: 0, patAddr: live.map.patterns[0].address, patPos: 2, ticksLeft: 1 }, null, null] };
   const edit = live.diff(withProject((p) => { p.song.patterns[0].events[2].pitch = 33; }), state);
-  assert.deepEqual(edit.playhead, [null, null, null]);
+  assert.deepEqual(edit.remap, [null, null, null]);
   assert.equal(edit.writes.length, 1);
 });
 
@@ -131,9 +146,9 @@ test('no playhead fix-up when nothing plays', () => {
   const live = createLive({ model: fakeModel, symbols });
   live.rebuild(project());
   const edit = live.diff(withProject((p) => { p.song.patterns[0].events.splice(0, 0, note(5)); }), null);
-  assert.deepEqual(edit.playhead, [null, null, null]);
+  assert.deepEqual(edit.remap, [null, null, null]);
   const stopped = { running: false, frameInTick: 0, voices: [{ orderPos: 0, patAddr: 0, patPos: 0, ticksLeft: 0 }, null, null] };
-  assert.deepEqual(live.diff(withProject((p) => { p.song.patterns[0].events.splice(0, 1); }), stopped).playhead, [null, null, null]);
+  assert.deepEqual(live.diff(withProject((p) => { p.song.patterns[0].events.splice(0, 1); }), stopped).remap, [null, null, null]);
 });
 
 test('a serialiser that throws leaves the mirror as it was', () => {
@@ -215,14 +230,16 @@ test('with the real serialiser: insert a note, the playhead lands on the same ev
   const live = createLive({ model: real, symbols });
   live.rebuild(base);
   const old = live.map.patterns[0];
-  const state = { running: true, frameInTick: 0, voices: [{ orderPos: 0, patAddr: old.address, patPos: old.events[2].offset, ticksLeft: 1 }, null, null] };
+  const here = { orderPos: 0, patAddr: old.address, patPos: old.events[2].offset };
+  const state = { running: true, frameInTick: 0, voices: [{ ...here, ticksLeft: 1 }, null, null] };
   const edited = structuredClone(base);
   edited.song.patterns[0].events.unshift(note(5, 1));
   const edit = live.diff(edited, state);
   const now = live.map.patterns[0];
-  assert.equal(edit.playhead[0].patPos, now.events[3].offset, 'still waiting for what was the third note');
-  assert.equal(edit.playhead[0].patAddr, now.address);
-  const out = live.toStorePlayhead({ ...state, voices: [{ ...edit.playhead[0], ticksLeft: 1 }, null, null] }, edited);
+  const to = target(edit, 0, here);
+  assert.equal(to.patPos, now.events[3].offset, 'still waiting for what was the third note');
+  assert.equal(to.patAddr, now.address);
+  const out = live.toStorePlayhead({ ...state, voices: [{ ...to, ticksLeft: 1 }, null, null] }, edited);
   assert.equal(out.voices[0].eventIndex, 2, 'the second old note (now index 2) is sounding');
 });
 
@@ -230,7 +247,9 @@ test('mapIndex follows inserts, deletes and changes', () => {
   const before = ['a', 'b', 'c', 'd'];
   assert.equal(mapIndex(before, ['x', 'a', 'b', 'c', 'd'], 2), 3, 'insert at the start');
   assert.equal(mapIndex(before, ['a', 'b', 'x', 'c', 'd'], 1), 1, 'insert after it');
-  assert.equal(mapIndex(before, ['a', 'b', 'x', 'c', 'd'], 2), 3, 'insert before it');
+  assert.equal(mapIndex(before, ['a', 'b', 'x', 'c', 'd'], 2), 2, 'insert at it: the new one is read first');
+  assert.equal(mapIndex(before, ['a', 'x', 'b', 'c', 'd'], 2), 3, 'insert before it');
+  assert.equal(mapIndex(before, ['a', 'b', 'c', 'd', 'x'], 4), 4, 'insert at the end');
   assert.equal(mapIndex(before, ['a', 'c', 'd'], 3), 2, 'delete before it');
   assert.equal(mapIndex(before, ['a', 'd'], 1), 1, 'the deleted one: the next one takes its place');
   assert.equal(mapIndex(before, ['a', 'B', 'c', 'd'], 1), 1, 'changed in place');

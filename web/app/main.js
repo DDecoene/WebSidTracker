@@ -70,6 +70,7 @@ async function main() {
       sizes: showSizes,
       mode: showMode,
       error: (text) => { messages.show('engine', 'error', text); $('audio-status').textContent = text; },
+      notice: (text) => messages.show('notice', 'warn', text, [], { timeoutMs: 4000 }),
       meter: (peak) => { $('meter').style.width = `${Math.min(100, Math.round(peak * 140))}%`; },
       engine: ({ sampleRate }) => {
         messages.clear('engine');
