@@ -1,6 +1,6 @@
 # Web tracker architecture, version 1
 
-Status: draft for review. The SID part (section 7) is built and tested, see [`web/`](../web/README.md); the rest is not built yet.
+Status: implemented, see [`web/`](../web/README.md). The text below is the original draft; the section "As built" at the end lists where the code differs from it.
 Companion to [the player format and timing model](design-player-format-and-timing.md) and [the concept document](concept-hubbard-inspired-player.md).
 
 ## 1. Intent
@@ -132,3 +132,23 @@ The player keeps all per-voice state (order position, pattern position, ticks le
 - One song in memory at a time. A game plays songs one by one; the tracker edits one song at a time.
 - The AudioWorklet thread model above, instead of running the emulator on the main thread.
 - A public 6502 functional test as the first check of the CPU core.
+
+## 13. As built
+
+Parts 1 to 12 describe the plan. The code follows it; these are the differences and the details the draft left open (checked against `web/`):
+
+- **Parts and files.** Song model: `web/model/project.js`. Serialiser (and the reverse parse, and the playhead maps): `web/model/serialise.js`. Exports and project file: `web/model/export.js`. 6502 core: `web/cpu/cpu6502.js`. Engine: `web/engine/engine.js` (no DOM, also used by the tests), `worklet.js` (audio thread), `client.js` (page side). App shell: `web/app/` (store, session, live, panels, files, main). Editors: `web/ui/`. There is no bundler: plain ES modules.
+- **Extra layers between the editor and the engine.** `store.js` holds the project, undo and the selection, and every editor change goes through `store.update`. `session.js` creates the engine on the first click or key press and runs play, stop, mute and note audition. `live.js` keeps a mirror of the bytes the engine holds and sends the smallest set of RAM writes plus the playhead fix-up as one `edit` message.
+- **SID registers.** The engine passes writes to `$D400` to `$D418` to the SID (25 registers), not up to `$D41C` as 4 says. The cycle stamp is the last cycle of the writing instruction.
+- **Frames.** The engine runs one frame at a time: it queues every change (write, start, stop, edit, mute, chip model) and applies the queue at the start of the next frame, as 5 describes. The worklet sends playhead state messages 20 times a second.
+- **Edits.** As 6.1: the whole song is re-serialised, but only the changed bytes are written to RAM. The playhead fix-up (6.3) is built as described, using the state block (`st_order_pos`, `st_pat_lo/hi`, `st_pat_pos`, `st_ticks_left`). Instrument edits (6.2) write single bytes in the tables.
+- **Memory map in the emulated machine.** The player image from `web/player/player.prg` is loaded as it is: program at `$0801`, player at `$1000`, instrument tables at `$2000` to `$2EFF`, the song at `$3000` (it must end below `$C000`). The draft said "one song in memory at a time"; the tracker also keeps a scratch song at `$C000` for note auditions, so a key press on the piano plays a note without touching the song.
+- **The player image is built by `make player`** (`tools/build-player.sh`, ACME) and committed with `symbols.json`, so neither the browser nor Node needs an assembler. This was not in the draft.
+- **Export (8).** `instruments.asm`, `song_<name>.asm` and the `.prg` are made by `export.js`. The `.prg` is the player image with the tables and the song patched in at the same addresses; whatever the image had from `$2000` up (the demo song) is removed. The tracker does not ship `music.asm`; the export dialog tells you to copy it from `src/`. A project file (JSON, format `websidtracker-project`, version 1) is saved and opened separately, and autosaved in the browser's local storage.
+- **Limits that the tracker's validation does not check but the player has.** At most 255 bytes per pattern and 128 order entries per voice (see `docs/player.md`, section 7). The tracker allows 256 entries per voice and does not measure pattern bytes. The release value is a free 0 to 255 field; the player clamps it to 1 to 32.
+- **Editor.** Built as plain DOM, no framework. The mouse only places the cursor; there is no mouse selection and no copy and paste yet. Undo and redo keep 200 steps, edits of the same kind within 1.5 seconds share one step.
+- **SID model.** Default 6581, switch to 8580 in the header. The worklet creates both chips at start, so switching does not stall the audio.
+- **Licences.** As 9: `web/LICENSE` (GPL version 3 or later) and the root `LICENSE` (MIT). The 6502 test material (Klaus Dormann's functional test, Tom Harte's SingleStepTests) is downloaded by `web/cpu/fetch-tests.sh` into `web/cpu/.cache`, which is not committed, and checked by checksum.
+- **Publishing.** `.github/workflows/pages.yml` publishes `web/` on GitHub Pages without a build step.
+- **Verification (11).** The CPU core is tested against both public suites. The serialiser round trip (model, bytes, model) is in `web/model/test.mjs`. Live editing is tested in `web/app/live.test.mjs` and `session.test.mjs` and the engine in `web/engine/test.mjs`. The sound of the player was checked in VICE (x64sc) as described in `docs/player.md`, section 9.
+- **Not built:** NTSC, filter, sound effects, `.sid` export, mouse selection and copy and paste.

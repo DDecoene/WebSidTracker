@@ -1,6 +1,6 @@
 # Player data format and timing model, version 1
 
-Status: draft for review. Nothing is built yet.
+Status: implemented in [`src/music.asm`](../src/music.asm). The text below is the original draft; the section "As built" at the end lists where the code differs from it. Exact behaviour and limits of the code are in [player.md](player.md).
 Companion to [the concept document](concept-hubbard-inspired-player.md), which answers *why*. This document answers *how the bytes look and when things happen*.
 
 Clean-room note: every layout below is our own design. Where the concept document describes an idea (patterns, an order list, instruments as parameter records) the byte layout and structure here were chosen on purpose to differ from any existing player. No third-party code, tables or labels were used. The frequency table is computed from the SID formula, not copied.
@@ -211,3 +211,27 @@ Choices that are made but can still change while the first player is built (feed
 - Pitch range 96 notes, PAL only.
 - Pulse limits in units of 16, vibrato depth in 1/16ths, drum fall in frequency register units.
 - The voice state lives in a state block at fixed addresses, so the tracker can follow and adjust the playhead while it edits.
+
+## 11. As built
+
+The player follows this design. These are the places where the code differs from the draft or settles something the draft left open (each checked against `src/music.asm` and `web/model/`):
+
+- **Pattern numbers.** The draft says "0 up to 255" in 4.1. The code allows 0 to 253 (`$FE` and `$FF` are the stop and loop codes in an order list), so a song has at most 254 patterns. The model (`LIMITS.maxPatterns`) and the serialiser enforce this.
+- **Size limits that come from one-byte positions.** A pattern can be at most 255 bytes including its `$FF`, because `st_pat_pos` is one byte. An order list can have at most 128 entries, because `st_order_pos` is one byte and counts in steps of 2. The draft does not state these. The tracker's validation does not check either limit yet (it allows 256 order entries per voice and does not measure pattern bytes), so a song that breaks them is accepted by the editor but would not play correctly.
+- **Release clamp.** `inst_release` 0 is treated as 1, and any value above 32 as 32 (`RELEASE_MAX`). The editor still lets you enter 0 to 255. The draft only said the value must be clamped so a note sounds at least one frame, which also holds: the first frame of a note always sounds.
+- **Transpose.** The model and the tracker keep -96 to 96; the byte in the order list is a signed byte (-128 to 127). The result is clamped to pitches 0 to 95, and so is the arpeggio offset.
+- **Memory map.** The draft left addresses open. In the built image the program and BASIC line are at `$0801`, `music.asm` at `$1000`, the 15 instrument tables of 256 bytes each at `$2000` to `$2EFF` (in the order of `INSTRUMENT_TABLES`), and the song at `$3000`. The player is 1539 bytes (`music_size`). The tracker keeps a scratch song at `$C000` for note auditions, and a song must end below `$C000`.
+- **Zero page.** The draft says the pointers are chosen in `main.asm` or `hardware.asm`. In the code `music.asm` takes 14 bytes from `zp_music`, default `$E0` to `$ED`, and you can define `zp_music` before including it. `main.asm` only includes `runner.asm`.
+- **Instrument tables may be short.** The tracker's `instruments.asm` export has only as many entries per table as the highest used instrument needs. The default `src/instruments.asm` has the full 256 bytes per table.
+- **Vibrato.** The draft says depth is a fraction of the distance to "the neighbouring semitone". Built: the semitone below the note (for the lowest note, the one above). Speed 1 is treated as 2, an odd speed is rounded down to even, depth above 127 is treated as 127, and the sum stops at `$FFFF` or 0 instead of wrapping. The step is computed once when the vibrato starts.
+- **Drum.** A drum starts at the note's frequency, holds noise for `inst_drum_noise` frames, then plays `inst_wave` from the same frequency and falls from the next frame on. Pulse sweep still applies to a drum.
+- **Arpeggio.** The offset applies on odd frames of a frame counter shared by all voices (`st_frames`), so it flutters at 25 Hz.
+- **Legato.** It must follow its note directly in the same pattern. If nothing sounds at that moment, or at a pattern boundary, the note is a normal one. A legato drum keeps its falling tone.
+- **Edge case in 6.2.** A rest closes the gate at once and writes zero to the envelope registers; the note before it has already done its own clean end.
+- **Broken songs.** The draft does not mention it: a voice may pass at most 16 order entries in a row without finding a note or a rest (`GUARD_ENTRIES`), then it stops, so a song cannot hang the player. The tracker additionally reports a loop that plays no ticks as a problem.
+- **Unknown event bytes** (`$63` to `$FE`) are skipped one byte at a time. They stay reserved.
+- **Speed 0** is treated as 1.
+- **State block.** All fields in section 3 exist as one array of 3 bytes per field, exported by name. Besides the fields the draft names there are `st_song_lo/hi`, `st_speed`, `st_frame_in_tick`, `st_running`, `st_frames`, `st_active`, `st_gate`, `st_hold`, `st_age`, `st_pw_lo/hi/step`, `st_freq_lo/hi`, `st_vib_cnt`, `st_vib_off_lo/hi`, `st_vib_step_lo/hi`, and `out_*` (the seven SID values being written). `web/player/symbols.json` lists their addresses.
+- **Song read through the header.** The player does not copy the song at start. It reads the speed at every tick and the order list and pattern table addresses whenever a pattern ends, which is what makes live editing possible.
+- **Size and time.** The player is about 1.3 KB of code, 1.5 KB with the tables and state, inside the 2 KB goal. `music_play` takes about 1600 cycles on average for the demo song, 3300 at most, 4900 in a deliberate worst case (7900 with `inst_release` 32).
+- **Not built, as planned:** filter, portamento, volume per voice, sound effects, NTSC. The event bytes `$63` to `$7F` stay reserved for them.
