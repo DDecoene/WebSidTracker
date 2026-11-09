@@ -49,6 +49,13 @@ int sid_init(int model, double clockHz, double sampleRate)
         chip = new residfp();
         if (!chip->setChipModel(model == 0 ? MOS6581 : CSG8580)) return 0;
         if (!chip->setSamplingParameters(clockHz, RESAMPLE, sampleRate)) return 0;
+        // The C64's audio output goes through a 10 uF capacitor that blocks DC. How fast it lets a
+        // DC step die away depends on the load: reSIDfp assumes 10 kOhm (1.6 Hz, 0.1 s) by default,
+        // VICE and most players use 1 kOhm (16 Hz, 10 ms). The 6581 voices have a DC level that
+        // depends on the envelope, so every note start and end is a DC step; with 1.6 Hz the steps
+        // linger as a slow, bass-heavy wobble (3 to 8 % of the energy under 40 Hz instead of 1 %).
+        // 1.0 selects 1 kOhm.
+        chip->setDCBRes(1.0);
         chip->reset();
         return 1;
     }
