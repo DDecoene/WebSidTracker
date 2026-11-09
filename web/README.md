@@ -63,7 +63,7 @@ Two things worth knowing:
 
 | Path | What |
 |---|---|
-| `index.html`, `style.css` | the tracker page: header with file, transport and chip controls, the two panes, the export and help dialogs |
+| `tracker.html`, `style.css` | the tracker page: header with file, transport and chip controls, the two panes, the export and help dialogs |
 | `app/main.js` | starts the app: loads the autosave (browser storage) or the demo tune, wires the header, dialogs, Space, Ctrl/Cmd+Z, Ctrl/Cmd+S and `?` |
 | `app/store.js` | the shared state: project, undo/redo (200 steps), selection, playhead |
 | `app/session.js` | glue between store, model and engine: creates the engine on the first click or key, play, stop, mute, note audition, live edits, size and problem reports |
