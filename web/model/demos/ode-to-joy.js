@@ -1,17 +1,28 @@
-// ode-to-joy.js - the starter demo: the "Ode to Joy" theme (L. van Beethoven, public domain) in C major,
-// as a march at 125 beats per minute (speed 6: a tick is 6 frames, a quarter note is 4 ticks).
+// ode-to-joy.js - the starter demo: the "Ode to Joy" theme (L. van Beethoven, Symphony No. 9, last
+// movement), in G major, from a real four-part score, reduced to three SID voices.
 //
-// The arrangement is our own. It plays four rounds of the 16-bar tune and adds something each round,
-// so the loop shows the instruments one after the other:
+// Source: the Mutopia Project edition "Ode to Joy" (SATB hymn setting, typeset in LilyPond by Peter
+// Chubb, Mutopia-2009/08/05-528). The notes below were read from that score's LilyPond text and
+// checked against its MIDI file (see `info.source`). The composition and the edition are public domain.
 //
-//   round 1  plain pulse lead + bass
-//   round 2  + a chord voice (arpeggio instruments: one pulse that flips between two notes every frame)
-//   round 3  + a light beat (kick in the bass voice, hat between the chord stabs) and a faster feel:
-//            the lead plays the dotted "3+1" rhythm, so the notes are shorter
-//   round 4  the lead one octave up, kick and snare in the bass voice, a rising countermelody (saw)
+// Time: 4/4, 16 bars. The score says quarter = 100. One tick is a third of a quarter note, so a bar is
+// 24 ticks and every note value of the piece is a whole number of ticks:
+//   eighth 3, quarter 6, dotted quarter 9, half 12.
+// Speed 5 (5 frames per tick, 30 frames per quarter) gives exactly 100 quarters per minute.
 //
-// Three voices are not many, so voices are shared: the bass voice also plays the kick and the snare
-// (a drum is just an instrument), the chord voice also plays the hat.
+// The four parts of the score are soprano (the tune), alto, tenor and bass. Voices:
+//   1  the tune (soprano), a bright pulse with a late vibrato on long notes
+//   2  the inner harmony: round 1 the alto line, round 2 the tenor and alto in alternation (an eighth
+//      note each), a broken-chord figure that keeps the harmony of both inner parts
+//   3  the bass line, a triangle
+// There are no drums: the tune is the point, and three voices are all there is.
+//
+// Form: round 1 (16 bars = 384 ticks = 38.4 s), round 2 with the tune an octave higher and the inner
+// voice as broken chords (another 38.4 s), then it loops. All three voices have the same number of ticks
+// in every phrase and every round.
+//
+// Notes are written as text: "E5:6" is E in octave 5 for 6 ticks. Octaves follow the tracker: A4 is
+// 440 Hz. Bars are separated by "|" for reading only.
 //
 // Part of the WebSidTracker web app, GPL version 3 or later (see ../../LICENSE).
 
@@ -21,140 +32,127 @@ export const info = {
   id: 'ode-to-joy',
   title: 'Ode to Joy',
   composer: 'L. van Beethoven (public domain), arranged for SID',
-  note: 'A marching Ode to Joy in four rounds: lead and bass, then chords, then a light beat with a shorter-note lead, then a drum-driven finale with a rising countermelody.',
+  note: 'The famous theme from the end of the Ninth Symphony in G major, at the score tempo of 100: a bright lead, the inner parts as harmony (in the second round as broken chords) and a triangle bass.',
+  source: {
+    url: 'https://www.mutopiaproject.org/cgibin/piece-info.cgi?id=528',
+    files: 'https://www.mutopiaproject.org/ftp/BeethovenLv/ode/ode.ly',
+    editor: 'Typeset in LilyPond by Peter Chubb (Mutopia Project, Mutopia-2009/08/05-528)',
+    licence: 'Public Domain (placed in the public domain by the typesetter; the composition is also in the public domain)',
+  },
 };
 
-// ---------------------------------------------------------------- the tune, written out
-// "name:ticks", bars separated by "|". A quarter note is 4 ticks, an eighth 2, a half note 8.
+// ---------------------------------------------------------------- the score, four parts, 4 phrases of 4 bars
+// "name:ticks", bars separated by "|".
 
-// bars 1-4: E E F G | G F E D | C C D E | E. D D
-export const THEME_A = 'E5:4 E5:4 F5:4 G5:4 | G5:4 F5:4 E5:4 D5:4 | C5:4 C5:4 D5:4 E5:4 | E5:6 D5:2 D5:8';
-// bars 5-8 (and 13-16): the same, but the last bar ends on C: D. C C
-export const THEME_A2 = 'E5:4 E5:4 F5:4 G5:4 | G5:4 F5:4 E5:4 D5:4 | C5:4 C5:4 D5:4 E5:4 | D5:6 C5:2 C5:8';
-// bars 9-12: D D E C | D E F E C | D E F E D | C D G (the last G is below the others)
-export const THEME_B = 'D5:4 D5:4 E5:4 C5:4 | D5:4 E5:2 F5:2 E5:4 C5:4 | D5:4 E5:2 F5:2 E5:4 D5:4 | C5:4 D5:4 G4:8';
+export const SOPRANO = [
+  'B4:6 B4:6 C5:6 D5:6 | D5:6 C5:6 B4:6 A4:6 | G4:6 G4:6 A4:6 B4:6 | B4:9 A4:3 A4:12',
+  'B4:6 B4:6 C5:6 D5:6 | D5:6 C5:6 B4:6 A4:6 | G4:6 G4:6 A4:6 B4:6 | A4:9 G4:3 G4:12',
+  'A4:6 A4:6 B4:6 G4:6 | A4:6 B4:3 C5:3 B4:6 G4:6 | A4:6 B4:3 C5:3 B4:6 A4:6 | G4:6 A4:6 D4:12',
+  'B4:6 B4:6 C5:6 D5:6 | D5:6 C5:6 B4:6 A4:6 | G4:6 G4:6 A4:6 B4:6 | A4:9 G4:3 G4:12',
+];
+export const ALTO = [
+  'G4:6 G4:6 A4:6 G4:6 | G4:9 A4:3 G4:6 F#4:6 | D4:6 D4:6 F#4:6 G4:6 | G4:9 F#4:3 F#4:12',
+  'G4:6 G4:6 A4:6 G4:6 | G4:9 A4:3 G4:6 F#4:6 | D4:6 D4:6 F#4:6 G4:6 | G4:6 F#4:6 D4:12',
+  'D4:6 D4:6 D4:6 D4:6 | D4:6 D4:6 D4:6 D4:6 | D4:6 D4:6 F#4:6 F#4:6 | E4:6 C#4:6 D4:12',
+  'D4:6 G4:6 A4:6 A4:6 | B4:6 G4:3 A4:3 G4:6 E4:6 | E4:6 D4:6 F#4:6 G4:6 | G4:6 F#4:6 G4:12',
+];
+export const TENOR = [
+  'D4:6 D4:6 C4:6 B3:6 | E4:9 D4:3 D4:6 D4:6 | B3:6 B3:6 D4:6 D4:6 | D4:9 D4:3 D4:12',
+  'D4:6 D4:6 C4:6 B3:6 | E4:9 D4:3 D4:6 D4:6 | B3:6 B3:6 D4:6 D4:6 | D4:6 D4:6 B3:12',
+  'F#3:6 F#3:6 G3:6 E3:6 | F#3:6 G3:3 A3:3 G3:6 E3:6 | F#3:6 F#3:6 F#3:6 B3:6 | B3:6 A3:6 G3:6 F#3:6',
+  'G3:6 D4:6 F4:6 F4:6 | G4:9 D4:3 D4:6 C4:6 | G3:6 G3:6 C4:6 D4:6 | D4:6 D4:6 B3:12',
+];
+export const BASS = [
+  'G3:6 G3:6 G3:6 G3:6 | E3:9 F#3:3 G3:6 D3:6 | B3:6 B3:6 A3:6 G3:6 | D3:9 D3:3 D3:12',
+  'G3:6 G3:6 G3:6 G3:6 | E3:9 F#3:3 G3:6 D3:6 | B3:6 B3:6 A3:6 G3:6 | D3:6 D3:6 G2:12',
+  'D3:6 D3:6 D3:6 D3:6 | D3:6 D3:6 D3:6 D3:6 | D3:6 D3:6 D#3:6 D#3:6 | E3:6 A2:6 D3:12',
+  'G3:6 G3:6 F3:6 F3:6 | E3:9 F#3:3 G3:6 C3:6 | C3:6 B2:6 A2:6 G2:6 | D3:6 D3:6 G2:12',
+];
 
-// Chords per half bar (C or G major), two letters per bar, for the 16 bars of one round.
-export const CHORDS = ['CC', 'CG', 'CC', 'CG', 'CC', 'CG', 'CC', 'GC', 'GC', 'GC', 'GG', 'CG', 'CC', 'CG', 'CC', 'GC'];
-
-const BAR = 16;   // ticks per bar
+export const TICKS_PER_BAR = 24;
+export const TICKS_PER_PHRASE = 4 * TICKS_PER_BAR;
+export const SLOT = 3;   // an eighth note: the step of the broken-chord figure in round 2
 
 // ---------------------------------------------------------------- instruments
 
-const [BASS, LEAD, KICK, SNARE, HAT, ARP_THIRD, ARP_FIFTH, COUNTER] = [0, 1, 2, 3, 4, 5, 6, 7];
+const [BASS_INST, LEAD, INNER] = [0, 1, 2];
 
 function instruments() {
   const make = (fields) => ({ ...defaultInstrument(), ...fields });
   return [
-    make({ name: 'Bass', wave: 0x40, ad: 0x08, sr: 0xA4, pw: 0x0800, pwStep: 14, pwMin: 0x30, pwMax: 0xD0, release: 2 }),
-    make({ name: 'Lead', wave: 0x40, ad: 0x19, sr: 0xA8, pw: 0x0800, pwStep: 5, pwMin: 0x30, pwMax: 0xC0, vibDelay: 10, vibDepth: 6, vibSpeed: 4, release: 2 }),
-    make({ name: 'Kick', wave: 0x10, ad: 0x05, sr: 0x00, drumNoise: 1, drumFall: 160, release: 2 }),
-    make({ name: 'Snare', wave: 0x40, ad: 0x04, sr: 0x00, pw: 0x0400, drumNoise: 3, drumFall: 120, release: 2 }),
-    make({ name: 'Hat', wave: 0x80, ad: 0x02, sr: 0x00, drumNoise: 255, drumFall: 0, release: 1 }),
-    make({ name: 'Chord (third)', wave: 0x40, ad: 0x09, sr: 0xA8, pw: 0x0400, pwStep: 4, pwMin: 0x20, pwMax: 0xE0, arp: 4, release: 2 }),
-    make({ name: 'Chord (fifth)', wave: 0x40, ad: 0x09, sr: 0xA8, pw: 0x0400, pwStep: 4, pwMin: 0x20, pwMax: 0xE0, arp: 7, release: 2 }),
-    make({ name: 'Counter', wave: 0x20, ad: 0x19, sr: 0xA6, release: 2 }),
+    // Triangle bass: attack 0 is safe on a triangle (the oscillator restarts at zero), a short decay settles to sustain 12.
+    make({ name: 'Bass', wave: 0x10, ad: 0x08, sr: 0xC0, release: 2 }),
+    // Lead: pulse around 50 percent (40 to 60) with a slow sweep, loudest sustain (14), vibrato only after 16 frames.
+    make({ name: 'Lead', wave: 0x40, ad: 0x18, sr: 0xE0, pw: 0x0800, pwStep: 4, pwMin: 0x68, pwMax: 0x98,
+      vibDelay: 16, vibDepth: 5, vibSpeed: 6, release: 2 }),
+    // Inner parts: a thinner pulse (about 25 percent), clearly softer (sustain 7) so the tune stays on top.
+    make({ name: 'Inner', wave: 0x40, ad: 0x19, sr: 0x70, pw: 0x0400, pwStep: 3, pwMin: 0x30, pwMax: 0x58, release: 2 }),
   ];
 }
 
-// ---------------------------------------------------------------- pattern helpers
+// ---------------------------------------------------------------- helpers
 
 const note = (pitch, length) => ({ type: 'note', pitch, length });
-const rest = (length) => ({ type: 'rest', length });
 const inst = (instrument) => ({ type: 'inst', instrument });
 
-// "E5:4 E5:4 | ..." -> note events
-function melody(text) {
+// "G4:6 G4:6 | A4:6" -> [{pitch, length}]
+function parse(text) {
   return text.split(/\s+/).filter((token) => token !== '|').map((token) => {
     const [name, length] = token.split(':');
     const pitch = parseNoteName(name);
     if (pitch === null) throw new Error(`bad note name ${name}`);
-    return note(pitch, Number(length));
+    return { pitch, length: Number(length) };
   });
 }
 
-// The shorter feel of round 3: a quarter note becomes a dotted eighth plus a sixteenth of the same
-// pitch (3+1 ticks), a half note becomes 6+2; eighths and dotted quarters stay.
-function marchRhythm(events) {
-  return events.flatMap((ev) => {
-    if (ev.length === 4) return [note(ev.pitch, 3), note(ev.pitch, 1)];
-    if (ev.length === 8) return [note(ev.pitch, 6), note(ev.pitch, 2)];
-    return [ev];
-  });
+// One pitch per tick.
+function perTick(notes) {
+  return notes.flatMap(({ pitch, length }) => Array(length).fill(pitch));
 }
 
-const ROOT = { C: 0, G: -5 };   // semitones from C: G is a fifth below the C above it
-
-// Bass: root and fifth, C chord root = C-3 (36).
-const bassRoot = (chord) => 36 + ROOT[chord];
-// Chord voice and countermelody: C chord root = C-4 (48).
-const chordRoot = (chord) => 48 + ROOT[chord];
-const KICK_NOTE = 36;    // C-3
-const SNARE_NOTE = 50;   // D-4
-const HAT_NOTE = 72;     // C-6
-
-// One bar pattern for the chord pair `chords` (e.g. 'CG'): `half(chord)` gives the events of 8 ticks.
-const bar = (chords, half) => [...chords].flatMap(half);
-
-const bassPlain = (c) => [inst(BASS), note(bassRoot(c), 4), note(bassRoot(c) + 7, 4)];
-const bassKick = (c) => [inst(KICK), note(KICK_NOTE, 2), inst(BASS), note(bassRoot(c), 2), note(bassRoot(c) + 7, 4)];
-const bassDrums = (c) => [inst(KICK), note(KICK_NOTE, 2), inst(BASS), note(bassRoot(c), 2),
-  inst(SNARE), note(SNARE_NOTE, 2), inst(BASS), note(bassRoot(c) + 7, 2)];
-
-// The chord voice: the same root with the third, then with the fifth (the arpeggio flips every frame).
-const chordShimmer = (c) => [inst(ARP_THIRD), note(chordRoot(c), 2), inst(ARP_FIFTH), note(chordRoot(c), 2),
-  inst(ARP_THIRD), note(chordRoot(c), 2), inst(ARP_FIFTH), note(chordRoot(c), 2)];
-// With the beat: a hat on the beat, a chord stab on the off-beat.
-const chordStabs = (c) => [inst(HAT), note(HAT_NOTE, 2), inst(ARP_THIRD), note(chordRoot(c), 2),
-  inst(HAT), note(HAT_NOTE, 2), inst(ARP_FIFTH), note(chordRoot(c), 2)];
-// The countermelody: the chord rising root, third, fifth, octave (a major triad for C and for G).
-const counterRise = (c) => [inst(COUNTER), note(chordRoot(c), 2), note(chordRoot(c) + 4, 2), note(chordRoot(c) + 7, 2), note(chordRoot(c) + 12, 2)];
+// Round 2 harmony: every eighth note slot alternates between the tenor note (first, third ... slot) and the alto
+// note that sound at that moment. Equal neighbours become one longer note.
+function brokenChords(tenorText, altoText) {
+  const tenor = perTick(parse(tenorText));
+  const alto = perTick(parse(altoText));
+  const events = [];
+  for (let slot = 0; slot * SLOT < tenor.length; slot++) {
+    const pitch = (slot % 2 === 0 ? tenor : alto)[slot * SLOT];
+    const last = events.at(-1);
+    if (last && last.pitch === pitch) last.length += SLOT;
+    else events.push(note(pitch, SLOT));
+  }
+  return events;
+}
 
 // ---------------------------------------------------------------- the project
 
 export function build() {
   const patterns = [];
-  const add = (name, events) => { patterns.push({ name, events }); return patterns.length - 1; };
+  const index = new Map();   // identical event lists share one pattern
+  const add = (name, instrument, notes) => {
+    const events = [inst(instrument), ...notes.map((n) => note(n.pitch, n.length))];
+    const key = JSON.stringify(events);
+    if (!index.has(key)) { index.set(key, patterns.length); patterns.push({ name, events }); }
+    return index.get(key);
+  };
+  const phrases = (name, instrument, texts) => texts.map((text, i) => add(`${name} ${i + 1}`, instrument, parse(text)));
   const entry = (pattern, transpose = 0) => ({ pattern, transpose });
 
-  // Lead: four 4-bar patterns per round, plain and with the shorter notes.
-  const phrases = [melody(THEME_A), melody(THEME_A2), melody(THEME_B)];
-  const leadPlain = phrases.map((events, i) => add(`lead ${'A A2 B'.split(' ')[i]}`, [inst(LEAD), ...events]));
-  const leadShort = phrases.map((events, i) => add(`lead ${'A A2 B'.split(' ')[i]} short`, [inst(LEAD), ...marchRhythm(events)]));
-  const round = (ids) => [ids[0], ids[1], ids[2], ids[1]];   // one round: A A2 B A2
+  const tune = phrases('tune', LEAD, SOPRANO);
+  const alto = phrases('inner', INNER, ALTO);
+  const chords = [0, 1, 2, 3].map((i) => add(`inner chords ${i + 1}`, INNER, brokenChords(TENOR[i], ALTO[i])));
+  const bass = phrases('bass', BASS_INST, BASS);
 
-  const lead = [
-    ...round(leadPlain).map((id) => entry(id)),
-    ...round(leadPlain).map((id) => entry(id)),
-    ...round(leadShort).map((id) => entry(id)),
-    ...round(leadPlain).map((id) => entry(id, 12)),
-    { loop: 0 },
-  ];
-
-  // Bass voice: one pattern per bar type (CC, CG, GC, GG) for each style.
-  const BAR_TYPES = ['CC', 'CG', 'GC', 'GG'];
-  const styles = (prefix, half) => Object.fromEntries(BAR_TYPES.map((t) => [t, add(`${prefix} ${t}`, bar(t, half))]));
-  const bassA = styles('bass', bassPlain);
-  const bassB = styles('bass+kick', bassKick);
-  const bassC = styles('bass+drums', bassDrums);
-  const bassRound = (set) => CHORDS.map((t) => entry(set[t]));
-  const bass = [...bassRound(bassA), ...bassRound(bassA), ...bassRound(bassB), ...bassRound(bassC), { loop: 0 }];
-
-  // Chord voice: silent in round 1, then shimmer, then hat + stabs, then the countermelody.
-  const silence = add('silence 4 bars', [rest(4 * BAR)]);
-  const shimmer = styles('chords', chordShimmer);
-  const stabs = styles('chords+hat', chordStabs);
-  const counter = styles('counter', counterRise);
-  const chordRound = (set, rise = () => 0) => CHORDS.map((t, i) => entry(set[t], rise(i)));
-  const chords = [
-    ...[0, 1, 2, 3].map(() => entry(silence)),
-    ...chordRound(shimmer), ...chordRound(stabs),
-    ...chordRound(counter, (i) => (i >= 8 ? 12 : 0)),   // the line steps up an octave from bar 9 on
-    { loop: 0 },
+  const round = (ids, transpose = 0) => ids.map((id) => entry(id, transpose));
+  const orders = [
+    [...round(tune), ...round(tune, 12), { loop: 0 }],
+    [...round(alto), ...round(chords), { loop: 0 }],
+    [...round(bass), ...round(bass), { loop: 0 }],
   ];
 
   return {
     instruments: instruments(),
-    song: { name: 'ode to joy', speed: 6, patterns, orders: [lead, bass, chords] },
+    song: { name: 'Ode to Joy', speed: 5, patterns, orders },
   };
 }
