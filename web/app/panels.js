@@ -28,13 +28,19 @@ export function createMessages(container) {
      * @param {'error'|'warn'|'info'} kind
      * @param {string} title
      * @param {string[]} [lines]   shown as a list under the title
-     * @param {{dismissible?: boolean, timeoutMs?: number}} [options]
+     * @param {{dismissible?: boolean, timeoutMs?: number, actions?: {label: string, run: () => void, primary?: boolean}[]}} [options]
+     *   `actions` are buttons in the message (an inline question); a click runs the action and closes the message.
      */
-    show(key, kind, title, lines = [], { dismissible = true, timeoutMs = 0 } = {}) {
+    show(key, kind, title, lines = [], { dismissible = true, timeoutMs = 0, actions = [] } = {}) {
       this.clear(key);
       const body = el('div', { class: 'body' }, el('strong', { text: title }));
       if (lines.length) body.append(el('ul', {}, ...lines.map((line) => el('li', { text: line }))));
       const box = el('div', { class: `message ${kind}`, role: kind === 'error' ? 'alert' : 'status' }, body);
+      for (const action of actions) {
+        const button = el('button', { type: 'button', class: action.primary ? 'primary' : '', text: action.label });
+        button.addEventListener('click', () => { this.clear(key); action.run(); });
+        box.append(button);
+      }
       if (dismissible) {
         const close = el('button', { type: 'button', class: 'dismiss', 'aria-label': 'Dismiss', text: 'Dismiss' });
         close.addEventListener('click', () => this.clear(key));

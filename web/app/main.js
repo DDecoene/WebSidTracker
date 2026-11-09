@@ -11,9 +11,11 @@ import { slug, readText, download } from './files.js';
 import * as projectModel from '../model/project.js';
 import * as serialiser from '../model/serialise.js';
 import * as exporter from '../model/export.js';
+import { DEMOS, findDemo, demoLabel } from '../model/demos/index.js';
 import { createEngineClient } from '../engine/client.js';
 
 const AUTOSAVE_KEY = 'websidtracker.autosave.v1';
+const FIRST_START_DEMO = 'ode-to-joy';   // what a new visitor hears when they press Play
 const PAL_FRAMES_PER_SECOND = 985248 / 19656;
 
 const $ = (id) => document.getElementById(id);
@@ -25,7 +27,7 @@ function loadAutosave() {
     const text = localStorage.getItem(AUTOSAVE_KEY);
     if (text) return exporter.projectFromJson(text);
   } catch {
-    // blocked storage or a damaged save: start from the demo
+    // blocked storage or a damaged save: start from the first-start demo
   }
   return null;
 }
@@ -48,7 +50,7 @@ async function fetchJson(relativeUrl) {
 
 async function main() {
   const messages = createMessages($('messages'));
-  const project = loadAutosave() ?? projectModel.demoProject();
+  const project = loadAutosave() ?? findDemo(FIRST_START_DEMO).build();
   const store = createStore(project);
   let savedJson = exporter.projectToJson(project);   // what is on disk (or the start), for the "unsaved" check
 
@@ -71,7 +73,10 @@ async function main() {
       mode: showMode,
       error: (text) => { messages.show('engine', 'error', text); $('audio-status').textContent = text; },
       notice: (text) => messages.show('notice', 'warn', text, [], { timeoutMs: 4000 }),
-      meter: (peak) => { $('meter').style.width = `${Math.min(100, Math.round(peak * 140))}%`; },
+      meter: (peak) => {
+        if (session.mode === 'idle') return;     // the last state message after a stop must not light the meter
+        $('meter').style.width = `${Math.min(100, Math.round(peak * 140))}%`;
+      },
       engine: ({ sampleRate }) => {
         messages.clear('engine');
         $('audio-status').textContent = `Audio ready, ${sampleRate} Hz.`;
@@ -177,11 +182,43 @@ async function main() {
     savedJson = exporter.projectToJson(next);
     saveAutosave(next);
     if (notice) messages.show('file', 'info', notice, [], { timeoutMs: 4000 });
+    messages.clear('demo');
   }
 
   onClick('btn-new', () => {
     if (isDirty() && !window.confirm('Discard the changes since the last save and start a new project?')) return;
     replaceProject(projectModel.newProject(), 'New project.');
+  });
+
+  // ---- demos -----------------------------------------------------------------------
+
+  const demoSelect = $('demo-select');
+  for (const demo of DEMOS) {
+    const option = document.createElement('option');
+    option.value = demo.id;
+    option.textContent = demoLabel(demo);
+    option.title = demo.note;
+    demoSelect.append(option);
+  }
+
+  function loadDemo(demo) {
+    store.stop();
+    replaceProject(demo.build(), `Loaded the demo "${demo.title}". ${demo.note}`);
+  }
+
+  demoSelect.addEventListener('change', () => {
+    const demo = findDemo(demoSelect.value);
+    demoSelect.value = '';              // the menu always shows its prompt, so the same demo can be chosen again
+    demoSelect.blur();
+    if (!demo) return;
+    if (!isDirty()) { loadDemo(demo); return; }
+    messages.show('demo', 'warn', `Load "${demo.title}" and discard the changes since the last load or save?`, [], {
+      dismissible: false,
+      actions: [
+        { label: 'Load demo', primary: true, run: () => loadDemo(demo) },
+        { label: 'Keep my project', run: () => {} },
+      ],
+    });
   });
 
   onClick('btn-open', () => $('file-input').click());

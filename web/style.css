@@ -240,3 +240,7 @@ dialog h3 { margin: 18px 0 6px; font-size: 13px; text-transform: uppercase; lett
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; }
 }
+
+/* ---- demo menu ---------------------------------------------------------- */
+
+.demo-select { max-width: 13rem; }
