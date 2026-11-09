@@ -51,7 +51,7 @@ The full story (what made that approach special, what such a player contains, wh
 
 ## Running the tracker
 
-Online: <https://ddecoene.github.io/WebSidTracker/>.
+Online: <https://ddecoene.github.io/WebSidTracker/> (the landing page, with a link to the tracker itself at `/tracker.html`).
 
 Locally, from a folder with a web server (an AudioWorklet does not load from `file://`):
 

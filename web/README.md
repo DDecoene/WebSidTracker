@@ -13,7 +13,7 @@ cd web
 python3 -m http.server 8010
 ```
 
-Open <http://127.0.0.1:8010/>. The published version is at <https://ddecoene.github.io/WebSidTracker/> (`.github/workflows/pages.yml` publishes this folder on every push to main that touches it). Audio starts at the first click or key press.
+Open <http://127.0.0.1:8010/> for the landing page (`index.html` with `landing.css` and the screenshots in `img/`, plain HTML and CSS with no script), or <http://127.0.0.1:8010/tracker.html> for the tracker itself, which is the app. The published version is at <https://ddecoene.github.io/WebSidTracker/> (`.github/workflows/pages.yml` publishes this folder on every push to main that touches it). Audio starts at the first click or key press.
 
 `sound-test.html` is the first piece of the project, kept as a check of the SID alone: a button and a 440 Hz pulse tone, a list to switch the chip model, and status text with the sample rate and peak level.
 
