@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en" class="manual-html">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark light">
+  <meta name="description" content="The WebSidTracker manual: how to write a Commodore 64 SID song in the browser, edit instruments, and use the exported player in your own game.">
+  <title>WebSidTracker Manual</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 24 24%27%3E%3Cpath d=%27M2 12h3l2-7 3 14 3-10 2 5 2-2h5%27 fill=%27none%27 stroke=%27%2330a0ff%27 stroke-width=%273%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="manual.css">
+</head>
+<body class="manual-page">
+  <header class="man-top">
+    <a class="brand" href="index.html" aria-label="WebSidTracker home">
+      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M2 12h3l2-7 3 14 3-10 2 5 2-2h5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span>WebSid<b>Tracker</b></span>
+    </a>
+    <span>Manual</span>
+    <nav aria-label="Site">
+      <a href="index.html">Home</a>
+      <a href="tracker.html">Open the tracker</a>
+      <a href="https://github.com/DDecoene/WebSidTracker" target="_blank" rel="noopener">Source on GitHub</a>
+    </nav>
+  </header>
+
+  <div class="man-layout">
+    <aside class="man-toc" aria-label="Contents">
+      <label for="manual-search">Search the manual</label>
+      <input id="manual-search" type="search" placeholder="Search" autocomplete="off" spellcheck="false">
+      <p id="manual-status" class="man-status" role="status" aria-live="polite"></p>
+      <nav aria-label="Sections"><ol id="manual-toc"></ol></nav>
+    </aside>
+    <main id="manual-content" class="man-content man">
+      <noscript><p>The manual needs JavaScript. The same text is in docs/tracker-guide.md in the project.</p></noscript>
+      <p id="manual-none" class="man-nomatch" hidden>No section matches your search.</p>
+    </main>
+  </div>
+
+  <script type="module">
+    import { SECTIONS, loadKeySources } from './app/manual.js';
+    import { renderSection, searchSections } from './app/manual-render.js';
+
+    const $ = (id) => document.getElementById(id);
+    const content = $('manual-content');
+    const toc = $('manual-toc');
+    const search = $('manual-search');
+    const status = $('manual-status');
+    const none = $('manual-none');
+
+    function make(tag, props = {}, text) {
+      const node = document.createElement(tag);
+      for (const [key, value] of Object.entries(props)) node.setAttribute(key, value);
+      if (text !== undefined) node.textContent = text;
+      return node;
+    }
+
+    function pager(previous, next) {
+      const nav = make('nav', { class: 'man-pager', 'aria-label': 'Previous and next section' });
+      for (const [section, cls, label] of [[previous, 'prev', 'Previous'], [next, 'next', 'Next']]) {
+        if (!section) continue;
+        const link = make('a', { href: `#${section.id}`, class: cls });
+        link.append(make('small', {}, label), document.createTextNode(section.title));
+        nav.append(link);
+      }
+      return nav;
+    }
+
+    async function start() {
+      const keySources = await loadKeySources();
+      const nodes = new Map();
+      const tocItems = new Map();
+      SECTIONS.forEach((section, index) => {
+        const node = renderSection(document, section, { keySources, number: index + 1 });
+        node.append(pager(SECTIONS[index - 1], SECTIONS[index + 1]));
+        content.insertBefore(node, none);
+        nodes.set(section.id, node);
+
+        const item = make('li');
+        const link = make('a', { href: `#${section.id}` }, section.title);
+        item.append(link);
+        toc.append(item);
+        tocItems.set(section.id, item);
+      });
+
+      function filter() {
+        const query = search.value;
+        const matches = searchSections(SECTIONS, query, keySources);
+        const searching = query.trim() !== '';
+        for (const section of SECTIONS) {
+          const shown = matches.includes(section.id);
+          nodes.get(section.id).hidden = !shown;
+          tocItems.get(section.id).hidden = !shown;
+          nodes.get(section.id).querySelector('.man-pager').hidden = searching;
+        }
+        none.hidden = matches.length > 0;
+        status.textContent = searching ? `${matches.length} of ${SECTIONS.length} sections match.` : '';
+      }
+      search.addEventListener('input', filter);
+      search.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape' && search.value !== '') { search.value = ''; filter(); }
+      });
+
+      // the contents list follows the reading position
+      function markCurrent(id) {
+        for (const [sectionId, item] of tocItems) {
+          if (sectionId === id) item.firstChild.setAttribute('aria-current', 'true');
+          else item.firstChild.removeAttribute('aria-current');
+        }
+      }
+      if ('IntersectionObserver' in window) {
+        const visible = new Set();
+        const observer = new IntersectionObserver((entries) => {
+          for (const entry of entries) {
+            if (entry.isIntersecting) visible.add(entry.target.id); else visible.delete(entry.target.id);
+          }
+          const first = SECTIONS.find((section) => visible.has(section.id));
+          if (first) markCurrent(first.id);
+        }, { rootMargin: '0px 0px -60% 0px' });
+        for (const node of nodes.values()) observer.observe(node);
+      }
+      markCurrent(SECTIONS[0].id);
+
+      // the sections did not exist yet when the browser looked for #anchor in the address
+      const target = location.hash.slice(1);
+      if (target && nodes.has(target)) nodes.get(target).scrollIntoView({ behavior: 'instant' });
+    }
+
+    start().catch((error) => {
+      console.error(error);
+      content.prepend(make('p', {}, `The manual could not be built: ${error.message}`));
+    });
+  </script>
+</body>
+</html>

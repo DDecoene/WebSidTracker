@@ -1,0 +1,190 @@
+/* manual.css - how the manual looks: the text blocks (shared by the standalone page and the
+   dialog in the tracker), the standalone page layout, and the dialog layout.
+   The colours and the font stacks come from style.css (--bg --panel --panel-2 --fg --muted --border
+   --accent --accent-fg --accent-soft --good --warn --focus --mono --sans --radius): link it first.
+
+   Part of the WebSidTracker web app, GPL version 3 or later (see ./LICENSE). */
+
+.sr-only {
+  position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden;
+  clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+
+/* ---- the text blocks ----------------------------------------------------------------- */
+
+.man { line-height: 1.55; overflow-wrap: break-word; }
+.man a { overflow-wrap: anywhere; }
+.man p, .man ul, .man ol { margin: 0 0 0.85em; }
+.man ul, .man ol { padding-left: 1.5em; }
+.man li { margin: 0.3em 0; }
+.man li::marker { color: var(--muted); }
+.man h2 { margin: 0 0 0.6em; font-size: 1.7rem; line-height: 1.2; letter-spacing: -0.01em; }
+.man h3 { margin: 1.6em 0 0.5em; font-size: 1.12rem; line-height: 1.3; text-transform: none; letter-spacing: normal; color: var(--fg); }
+.man .man-section { margin: 0; }
+.man .man-section + .man-section { margin-top: 3.2rem; }
+.man a { color: var(--accent); text-underline-offset: 0.15em; }
+.man code { background: var(--panel-2); border-radius: 0.25rem; padding: 0.05em 0.3em; overflow-wrap: anywhere; }
+.man kbd { white-space: nowrap; }
+.man-num { color: var(--muted); font-weight: 400; }
+.man-anchor { margin-left: 0.4em; font-weight: 400; text-decoration: none; opacity: 0; }
+.man h2:hover .man-anchor, .man-anchor:focus-visible { opacity: 0.7; }
+
+.man-callout {
+  margin: 1.1em 0; padding: 0.7em 1em; border-left: 0.3rem solid var(--accent);
+  background: var(--accent-soft); border-radius: 0 var(--radius) var(--radius) 0;
+}
+.man-callout.note { border-left-color: var(--warn); background: color-mix(in srgb, var(--warn) 13%, transparent); }
+.man-callout p { margin: 0; }
+.man-callout-label { display: block; margin-bottom: 0.15em; font-size: 0.8em; letter-spacing: 0.07em; text-transform: uppercase; color: var(--muted); }
+
+.man-table-wrap { margin: 0 0 1.1em; overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius); }
+.man-table { width: 100%; border-collapse: collapse; font-size: 0.96em; }
+.man-table th, .man-table td { padding: 0.5em 0.8em; text-align: left; vertical-align: top; border-top: 1px solid var(--border); }
+.man-table thead th { border-top: 0; background: var(--panel-2); font-size: 0.82em; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+.man-table td:first-child { white-space: nowrap; }
+.man-table td { overflow-wrap: anywhere; }
+
+.man-keys { display: grid; grid-template-columns: minmax(8rem, max-content) 1fr; gap: 0.45em 1.2em; margin: 0 0 1em; }
+.man-keys dt { text-align: right; line-height: 1.9; }
+.man-keys dt kbd { margin: 0 0.1em; }
+.man-keys dd { margin: 0; line-height: 1.9; }
+
+.man-code {
+  margin: 0 0 1.1em; padding: 0.8em 1em; overflow-x: auto; background: var(--bg);
+  border: 1px solid var(--border); border-radius: var(--radius); font: 0.88em/1.5 var(--mono); tab-size: 8;
+}
+
+/* the keyboard diagram: 14 columns, a white key takes two, a black key sits across two white ones */
+.man-pianos { display: grid; gap: 1em; margin: 0 0 1.1em; }
+.man-piano-label { margin-bottom: 0.3em; font-size: 0.85em; color: var(--muted); }
+.man-piano { display: grid; grid-template-columns: repeat(14, minmax(0, 1fr)); grid-template-rows: auto auto; gap: 0.2rem 0; max-width: 32rem; }
+.man-piano span { display: flex; flex-direction: column; align-items: center; padding: 0.3em 0 0.25em; border: 1px solid var(--border); border-radius: 0.3rem; }
+.man-piano .white { background: var(--panel); }
+.man-piano .black { background: var(--panel-2); margin: 0 0.1rem; }
+.man-piano kbd { min-width: 1.6em; line-height: 1.4; }
+.man-piano small { font: 0.75em/1.4 var(--mono); color: var(--muted); }
+
+.man-pager { display: flex; justify-content: space-between; gap: 1rem; margin-top: 2rem; padding-top: 1rem; border-top: 1px solid var(--border); }
+.man-pager a { max-width: 48%; text-decoration: none; padding: 0.5em 0.8em; border: 1px solid var(--border); border-radius: var(--radius); background: var(--panel); }
+.man-pager a:hover { border-color: var(--accent); }
+.man-pager small { display: block; color: var(--muted); font-size: 0.78em; }
+.man-pager .next { margin-left: auto; text-align: right; }
+
+/* ---- the standalone page --------------------------------------------------------------- */
+
+html.manual-html {
+  font-size: clamp(1rem, 0.7rem + 0.45vw, 1.75rem);    /* 16 px on a phone, about 18 at 1440 wide, 22 at 2560 */
+  height: auto; scroll-behavior: smooth; scroll-padding-top: 1.2rem;
+}
+.manual-page { display: block; height: auto; min-height: 100%; }
+.manual-page :focus-visible { outline-offset: 2px; }
+
+.man-top {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 1.4rem; padding: 0.7rem 1.2rem;
+  background: var(--panel); border-bottom: 1px solid var(--border);
+}
+.man-top .brand { text-decoration: none; }
+.man-top nav { display: flex; flex-wrap: wrap; gap: 0.3rem 1.2rem; margin-left: auto; }
+.man-top nav a { text-decoration: none; }
+.man-top nav a:hover { text-decoration: underline; }
+
+.man-layout {
+  display: grid; grid-template-columns: minmax(15rem, 19rem) minmax(0, 1fr); gap: 2rem 3rem;
+  max-width: 82rem; margin: 0 auto; padding: 1.5rem 1.2rem 4rem; align-items: start;
+}
+.man-toc { position: sticky; top: 1rem; max-height: calc(100vh - 2rem); overflow-y: auto; padding-right: 0.3rem; }
+.man-toc label { display: block; font-size: 0.8em; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); margin-bottom: 0.3rem; }
+.man-toc input[type="search"] { width: 100%; font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius); padding: 0.45em 0.7em; }
+.man-toc ol { list-style: none; margin: 0.9rem 0 0; padding: 0; counter-reset: toc; }
+.man-toc li { counter-increment: toc; }
+.man-toc li a {
+  display: block; padding: 0.35em 0.7em; border-radius: var(--radius); color: var(--fg); text-decoration: none;
+  border-left: 0.2rem solid transparent;
+}
+.man-toc li a::before { content: counter(toc) "."; display: inline-block; min-width: 1.7em; color: var(--muted); }
+.man-toc li a:hover { background: var(--panel-2); }
+.man-toc li a[aria-current="true"] { background: var(--accent-soft); border-left-color: var(--accent); font-weight: 600; }
+.man-toc li[hidden] { display: none; }
+.man-status { margin: 0.5rem 0 0; font-size: 0.85em; color: var(--muted); min-height: 1.3em; }
+
+.man-content { min-width: 0; max-width: 50rem; }
+.man-content .man-section { scroll-margin-top: 1rem; }
+.man-nomatch { padding: 1rem; border: 1px dashed var(--border); border-radius: var(--radius); color: var(--muted); }
+.man-nomatch[hidden], .man-content .man-section[hidden], .man-pager[hidden] { display: none; }
+
+@media (max-width: 56rem) {
+  .man-layout { grid-template-columns: minmax(0, 1fr); padding-top: 1rem; }
+  .man-toc { position: static; max-height: none; }
+  .man-toc ol { display: flex; flex-wrap: wrap; gap: 0.3rem; margin-top: 0.7rem; }
+  .man-toc li a { padding: 0.25em 0.7em; border: 1px solid var(--border); border-radius: 2rem; }
+  .man-toc li a[aria-current="true"] { border-color: var(--accent); }
+  .man-toc li a::before { content: none; }
+  .man h2 { font-size: 1.45rem; }
+  .man-keys { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .man-keys dt { text-align: left; margin-top: 0.7em; line-height: 1.7; }
+  .man-keys dd { line-height: 1.5; }
+}
+
+/* ---- the dialog in the tracker ----------------------------------------------------------- */
+
+dialog.manual-dialog {
+  width: min(72rem, calc(100vw - 1.5rem)); height: min(52rem, calc(100vh - 1.5rem)); max-height: none;
+  padding: 0; overflow: hidden;
+}
+dialog.manual-dialog[open] { display: flex; flex-direction: column; }
+.md-head {
+  flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 1rem; padding: 0.7rem 1.1rem;
+  border-bottom: 1px solid var(--border); background: var(--panel);
+}
+.md-head h2 { margin: 0; font-size: 1.2rem; }
+.md-search { flex: 1 1 12rem; max-width: 24rem; }
+.md-search input { width: 100%; font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius); padding: 0.3rem 0.7rem; min-height: 2.143rem; }
+.md-status { flex: 1 1 auto; font-size: 0.857rem; color: var(--muted); min-width: 0; }
+.md-full { white-space: nowrap; }
+.md-body { flex: 1 1 0; min-height: 0; display: grid; grid-template-columns: 15rem minmax(0, 1fr); }
+.md-nav { overflow-y: auto; padding: 0.7rem 0.5rem; border-right: 1px solid var(--border); background: var(--panel); }
+.md-nav ul { list-style: none; margin: 0; padding: 0; }
+.md-nav li[hidden] { display: none; }
+.md-nav-item {
+  width: 100%; justify-content: flex-start; text-align: left; min-height: 0; padding: 0.4rem 0.7rem;
+  background: transparent; border-color: transparent;
+}
+.md-nav-item:hover:not(:disabled) { background: var(--panel-2); }
+.md-nav-item[aria-current="true"] { background: var(--accent-soft); border-color: var(--accent); font-weight: 600; }
+.md-content { overflow-y: auto; padding: 1.2rem 1.6rem 2rem; background: var(--panel); }
+.md-content .man-section[hidden], .md-content .md-none[hidden] { display: none; }
+.md-content .man-section + .man-section { margin-top: 0; }
+/* while a search shows several sections at once, a line separates them */
+.md-content.md-searching .man-section:not([hidden]) ~ .man-section:not([hidden]) { margin-top: 2.4rem; padding-top: 1.6rem; border-top: 1px solid var(--border); }
+.md-none { color: var(--muted); }
+.md-content .man-keys { grid-template-columns: minmax(7rem, max-content) 1fr; }
+
+@media (max-width: 56rem) {
+  .md-content .man-keys { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .md-content .man-keys dt { text-align: left; margin-top: 0.6em; }
+}
+
+@media (max-width: 40rem) {
+  .md-body { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
+  .md-nav { border-right: 0; border-bottom: 1px solid var(--border); padding: 0.4rem; overflow-x: auto; overflow-y: hidden; }
+  .md-nav ul { display: flex; gap: 0.3rem; }
+  .md-nav-item { white-space: nowrap; width: auto; }
+  .md-content { padding: 1rem; }
+}
+
+/* ---- print: all sections, no controls ------------------------------------------------------ */
+
+@media print {
+  html.manual-html { font-size: 11pt; }
+  .man-top, .man-toc, .man-pager { display: none; }
+  .manual-page { background: #fff; color: #000; }
+  .man-layout { display: block; max-width: none; padding: 0; }
+  .man-content { max-width: none; }
+  .man-content .man-section[hidden] { display: block; }
+  .man .man-section + .man-section { margin-top: 1.5rem; }
+  .man h2, .man h3 { break-after: avoid; }
+  .man-table-wrap, .man-code, .man-callout, .man-pianos { break-inside: avoid; }
+  .man a { color: inherit; text-decoration: none; }
+  .man-num { color: var(--muted); font-weight: 400; }
+.man-anchor { display: none; }
+}
