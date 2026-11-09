@@ -1,23 +1,36 @@
-// fur-elise.js - an arrangement of Beethoven's "Für Elise" (Bagatelle in A minor, WoO 59) for three SID voices.
+// fur-elise.js - Beethoven's "Fur Elise" (Bagatelle in A minor, WoO 59) arranged for three SID voices.
 //
-// The composition is in the public domain; this arrangement (the instruments, the way the left hand is
-// shared out over the voices, the pad, the small changes in the last pass) is original work.
+// The notes come from a public-domain engraving of the piano score (see info.source). They were read
+// from the machine-readable files of that edition and written out here as text, so pitches and rhythm
+// are those of the score; only the reduction from two piano staves to three voices is ours.
 //
-// Time: the piece is in 3/8. One tick is one sixteenth note, so a bar is 6 ticks. Speed 12 frames per
-// tick gives about 125 eighth notes per minute, a calm "poco moto".
+// Time: the piece is in 3/8. One tick is a sixth of a sixteenth note, the smallest unit in which every
+// duration of the piece is a whole number: a sixteenth is 6 ticks, an eighth 12, a bar 36, a thirty-second
+// note 3, and the sixteenth-note triplets of the big arpeggio 4 ticks per note. Speed 2 means two frames
+// per tick: a quarter note (24 ticks) lasts 0.96 seconds, about 62 to the minute (the score says 72, "poco
+// moto"; with whole frames only this and the double speed are possible, and the double speed is far too fast).
 //
-// Voices:
-//   1  melody, a soft pulse with a late vibrato (a bright music box in the last pass)
-//   2  the left hand: broken chords on a triangle
-//   3  a pad that holds one chord tone per bar, swelling in on every bar
-// There are no drums.
+// Voices (the three SID voices mix equally, so the melody has the highest sustain level):
+//   1  the right hand: the melody, the top note of every right-hand chord, a pulse with a slow sweep and a
+//      late vibrato that only the long notes ever reach
+//   2  the left hand: the lowest note of every left-hand chord and the broken-chord figures, on a triangle
+//   3  the inner voices: the other notes of chords. Two notes become one pulse that flips between them every
+//      frame (the arpeggio field: the ear hears a dyad), one note is played plainly. In the left-hand figures
+//      the piano pedal keeps the chord ringing; voice 3 stands in for it with the bass note of the figure,
+//      held softly after the figure ends (the "pedal" instrument). These pedal notes are not in the score.
 //
-// Form (ticks): intro 6 | A 42 | ending 1 6 | A 42 | ending 2 6 | B (F and C major, then E) 36 |
-//               A in the new jacket 42 | close 12     = 192 ticks = 46 seconds, then it loops.
-// The three voices have the same number of ticks in every section, so they stay together.
+// Notes the reduction leaves out: when more than two inner notes sound together only the upper two are
+// kept (chords of four notes in the minor-key section), and a bass note that is doubled by the right hand's
+// chord is not played twice. The two grace notes before the minor-key section and the one before the
+// 32nd-note run are played as short notes of 2 ticks taken from the end of the note before them.
 //
-// Notes are written as text: "E5:2" is E in octave 5 for 2 ticks, "r:3" a rest of 3 ticks, "i1" selects
-// instrument 1. Octaves follow the tracker: A4 is 440 Hz.
+// Form (the repeats are written out): the theme, ending 1, the theme again, ending 2 | the F major, C major
+// section, ending 1, again, ending 2 | the minor-key section with its arpeggio runs | the theme returns, the
+// second section returns, the closing theme. The song loops: its last bar ends with the eighth rest before
+// the upbeat of the first.
+//
+// Notes are written as text: "E5:6" is E in octave 5 for 6 ticks, "r:12" a rest of 12 ticks, "i1" selects
+// instrument 1 and "|" marks a bar line (it only helps reading). Octaves follow the tracker: A4 is 440 Hz.
 //
 // Part of the WebSidTracker web app, GPL version 3 or later (see ../../LICENSE).
 
@@ -27,12 +40,14 @@ export const info = {
   id: 'fur-elise',
   title: 'Für Elise',
   composer: 'L. van Beethoven (public domain), arranged for SID',
-  note: 'The rondo theme on a soft pulse lead with a late vibrato, the left-hand broken chords on a triangle and a slow pad; the last pass dresses the theme as a music box over fuller arpeggios.',
+  note: 'The whole bagatelle in three voices: the rondo theme on a pulse lead, the left hand on a triangle, the inner voices as arpeggio chords, with every repeat written out.',
+  source: 'Score: Mutopia Project, piano edition of Fur Elise WoO 59 from Breitkopf & Haertel 1888, typeset in LilyPond by Stelios Samelis, '
+    + 'https://www.mutopiaproject.org/cgibin/piece-info.cgi?id=931 (licence: Public Domain). Music: Beethoven, public domain. The SID arrangement is original work.',
 };
 
-// "E5:1 r:2 i1" -> events
+// "E5:1 r:2 i1 |" -> events
 export function events(text) {
-  return text.trim().split(/\s+/).map((token) => {
+  return text.trim().split(/\s+/).filter((token) => token !== '|').map((token) => {
     if (token === 'l') return { type: 'legato' };
     if (/^i\d+$/.test(token)) return { type: 'inst', instrument: Number(token.slice(1)) };
     const [name, length] = token.split(':');
@@ -43,131 +58,490 @@ export function events(text) {
   });
 }
 
-// ---------------------------------------------------------------- the notes, one line per bar
-
-const LEAD_INTRO = 'i0 r:4 E5:1 D#5:1';            // the two-note upbeat
-
-const LEAD_A = [                                    // the theme, seven bars
-  'E5:1 D#5:1 E5:1 B4:1 D5:1 C5:1',
-  'A4:2 r:1 C4:1 E4:1 A4:1',
-  'B4:2 r:1 E4:1 G#4:1 B4:1',
-  'C5:2 r:1 E4:1 E5:1 D#5:1',
-  'E5:1 D#5:1 E5:1 B4:1 D5:1 C5:1',
-  'A4:2 r:1 C4:1 E4:1 A4:1',
-  'B4:2 r:1 E4:1 C5:1 B4:1',
-].join(' ');
-
-const LEAD_END1 = 'A4:2 r:2 E5:1 D#5:1';           // back to the theme (with its upbeat)
-const LEAD_END2 = 'A4:2 r:1 B4:1 C5:1 D5:1';       // on into the second section
-
-const LEAD_B = [                                    // F major, C major, then the way back through E
-  'E5:3 G5:1 F5:1 E5:1',
-  'D5:3 F5:1 E5:1 D5:1',
-  'C5:3 E5:1 D5:1 C5:1',
-  'B4:3 E4:1 E5:1 E6:1',
-  'D#6:1 E6:1 D#6:1 E6:1 B5:1 D6:1',
-  'C6:1 A5:3 E5:1 D#5:1',                           // ends on the upbeat of the theme
-].join(' ');
-
-const LEAD_CLOSE = 'A4:6  r:6';
-
-// Left hand in the first two passes: the broken chord only on the first half of the bar.
-const BASS_A = [
-  'r:6',
-  'A2:1 E3:1 A3:1 r:3',
-  'E3:1 G#3:1 B3:1 r:3',
-  'A2:1 E3:1 A3:1 r:3',
-  'r:6',
-  'A2:1 E3:1 A3:1 r:3',
-  'E3:1 G#3:1 B3:1 r:3',
-].join(' ');
-const BASS_END = 'A2:1 E3:1 A3:1 r:3';
-
-const BASS_B = [                                    // chords: F, G, C, E, E, A
-  'F2:1 A2:1 C3:1 A2:1 C3:1 A2:1',
-  'G2:1 B2:1 D3:1 B2:1 D3:1 B2:1',
-  'C3:1 E3:1 G3:1 E3:1 G3:1 E3:1',
-  'E2:1 G#2:1 B2:1 G#2:1 B2:1 G#2:1',
-  'E3:1 G#3:1 B3:1 G#3:1 B3:1 G#3:1',
-  'A2:1 C3:1 E3:1 A2:1 E3:1 C3:1',
-].join(' ');
-
-// Last pass: the left hand rolls through the whole bar.
-const BASS_FULL = [
-  'E2:1 B2:1 E3:1 G#3:1 E3:1 B2:1',
-  'A2:1 E3:1 A3:1 E3:1 A2:1 E3:1',
-  'E3:1 G#3:1 B3:1 G#3:1 E3:1 G#3:1',
-  'A2:1 E3:1 A3:1 E3:1 A2:1 E3:1',
-  'E2:1 B2:1 E3:1 G#3:1 E3:1 B2:1',
-  'A2:1 E3:1 A3:1 E3:1 A2:1 E3:1',
-  'E3:1 G#3:1 B3:1 G#3:1 E3:1 G#3:1',
-].join(' ');
-const BASS_CLOSE = 'A2:1 E3:1 A3:1 C4:1 E4:1 C4:1  A2:6';
-
-// The pad holds the third (or the seventh) of the chord for a whole bar.
-const PAD_A = 'G#3:6 C4:6 D4:6 E4:6 G#3:6 C4:6 D4:6';
-const PAD_B = 'A3:6 B3:6 E4:6 G#3:6 G#3:6 C4:6';
-const PAD_CLOSE = 'C4:6 E4:6';
+export const SPEED = 2;          // frames per tick
+export const BAR = 36;           // ticks per bar
 
 // ---------------------------------------------------------------- instruments
 
-const LEAD = 0, BASS = 1, PAD = 2, BOX = 3;
+const [LEAD, LEFT, INNER, PEDAL] = [0, 1, 2, 3];
+
+// Arpeggio offsets (semitones) of the inner-voice dyads that occur, instrument 4 and up in this order.
+export const DYADS = [2, 3, 4, 6];
 
 function instruments() {
+  const make = (fields) => ({ ...defaultInstrument(), ...fields });
   return [
-    { // 0 soft pulse, narrow sweep, vibrato that comes in after 14 frames (only long notes get it)
-      ...defaultInstrument(), name: 'Soft lead', wave: 0x40, ad: 0x1A, sr: 0x50, pw: 0x0900,
-      pwStep: 3, pwMin: 0x40, pwMax: 0x90, vibDelay: 14, vibDepth: 5, vibSpeed: 4, release: 2,
-    },
-    { // 1 round triangle for the broken chords
-      ...defaultInstrument(), name: 'Soft triangle', wave: 0x10, ad: 0x19, sr: 0xA0, release: 2,
-    },
-    { // 2 slow swell, a slowly breathing wide pulse
-      ...defaultInstrument(), name: 'Warm pad', wave: 0x40, ad: 0x96, sr: 0x40, pw: 0x0800,
-      pwStep: 2, pwMin: 0x30, pwMax: 0xD0, release: 2,
-    },
-    { // 3 music box: bright narrow pulse that dies away by itself
-      ...defaultInstrument(), name: 'Music box', wave: 0x40, ad: 0x09, sr: 0x00, pw: 0x0500,
-      pwStep: 0, release: 2,
-    },
+    // pulse near 50 percent, the width drifts slowly between 40 and 60 percent; the vibrato starts after
+    // 14 frames, so notes shorter than 7 ticks stay clean; highest sustain of the three voices
+    make({ name: 'Lead', wave: 0x40, ad: 0x15, sr: 0xE0, pw: 0x0800, pwStep: 3, pwMin: 0x66, pwMax: 0x99,
+      vibDelay: 14, vibDepth: 4, vibSpeed: 4, release: 2 }),
+    // round triangle, softer than the lead and below its range
+    make({ name: 'Left hand', wave: 0x10, ad: 0x14, sr: 0xC0, release: 2 }),
+    // a thinner pulse for the inner notes, a little lower in level
+    make({ name: 'Inner voice', wave: 0x40, ad: 0x15, sr: 0x90, pw: 0x0700, pwStep: 2, pwMin: 0x50, pwMax: 0xA0, release: 2 }),
+    // the pedal: fades in softly, held under the next figure
+    make({ name: 'Pedal', wave: 0x40, ad: 0x45, sr: 0x70, pw: 0x0800, release: 2 }),
+    // dyads: the inner pulse flips between the note and the note plus the offset
+    ...DYADS.map((arp) => make({ name: `Inner dyad +${arp}`, wave: 0x40, ad: 0x15, sr: 0x90, pw: 0x0700, pwStep: 2, pwMin: 0x50, pwMax: 0xA0, arp, release: 2 })),
   ];
 }
+
+// ---------------------------------------------------------------- the notes, one pattern per section
+
+const PATTERNS = {
+  'lead pickup': `
+    i0 E5:6 D#5:6
+  `,
+  'lead theme': `
+    i0 E5:6 D#5:6 E5:6 B4:6 D5:6 C5:6
+    A4:12 r:6 C4:6 E4:6 A4:6
+    B4:12 r:6 E4:6 G#4:6 B4:6
+    C5:12 r:6 E4:6 E5:6 D#5:6
+    E5:6 D#5:6 E5:6 B4:6 D5:6 C5:6
+    A4:12 r:6 C4:6 E4:6 A4:6
+    B4:12 r:6 E4:6 C5:6 B4:6
+  `,
+  'lead ending 1': `
+    i0 A4:24
+  `,
+  'lead ending 2': `
+    i0 A4:12
+    r:6 B4:6 C5:6 D5:6
+  `,
+  'lead B': `
+    i0 E5:18 G4:6 F5:6 E5:6 D5:18 F4:6 E5:6 D5:6 C5:18 E4:6 D5:6 C5:6 B4:12
+    r:6 E4:6 E5:6 E4:6 E5:6 E5:6
+    E6:6 D#5:6 E5:6 D#5:6 E5:6 D#5:6
+    E5:6 D#5:6 E5:6 D#5:6 E5:6 D#5:6
+    E5:6 B4:6 D5:6 C5:6 A4:12
+    r:6 C4:6 E4:6 A4:6 B4:12
+    r:6 E4:6 G#4:6 B4:6 C5:12
+    r:6 E4:6 E5:6 D#5:6 E5:6 D#5:6
+    E5:6 B4:6 D5:6 C5:6 A4:12
+    r:6 C4:6 E4:6 A4:6 B4:12
+    r:6 E4:6 C5:6 B4:6
+  `,
+  'lead B ending 2': `
+    i0 A4:12
+    r:6 C5:6 C5:6 C5:2 F4:2 A4:2
+  `,
+  'lead C1': `
+    i0 C5:24 F5:9 E5:3 E5:12
+    D5:12 A#5:9 A5:3
+  `,
+  'lead C2': `
+    i0 A5:6 G5:6
+    F5:6 E5:6 D5:6 C5:6 A#4:12
+    A4:10 A#4:2 A4:3 G4:3 A4:3 A#4:3
+  `,
+  'lead C3': `
+    i0 C5:24 D5:6 D#5:6 E5:18 E5:6 F5:6 A4:6
+  `,
+  'lead C4': `
+    i0 C5:24 D5:9 B4:3 C5:3 G5:3 G4:3 G5:3
+    A4:3 G5:3 B4:3 G5:3 C5:3 G5:3 D5:3 G5:3
+  `,
+  'lead C5': `
+    i0 E5:3 G5:3 C6:3 B5:3
+    A5:3 G5:3 F5:3 E5:3 D5:3 G5:3 F5:3 D5:3 C5:3 G5:3 G4:3 G5:3
+    A4:3 G5:3 B4:3 G5:3 C5:3 G5:3 D5:3 G5:3
+  `,
+  'lead C6': `
+    i0 E5:3 G5:3 C6:3 B5:3
+    A5:3 G5:3 F5:3 E5:3 D5:3 G5:3 F5:3 D5:3 E5:3 F5:3 E5:3 D#5:3
+    E5:3 B4:3 E5:3 D#5:3 E5:3 B4:3 E5:3 D#5:3
+  `,
+  'lead C7': `
+    i0 E5:18 B4:6 E5:6 D#5:6 E5:18 B4:6 E5:6 D#5:6
+  `,
+  'lead C8': `
+    i0 E5:6 D#5:6
+    E5:6 D#5:6 E5:6 D#5:6 E5:6 D#5:6
+    E5:6 B4:6 D5:6 C5:6
+  `,
+  'lead C9': `
+    i0 A4:12
+    r:6 C4:6 E4:6 A4:6 B4:12
+    r:6 E4:6 G#4:6 B4:6
+  `,
+  'lead C10': `
+    i0 C5:12
+    r:6 E4:6 E5:6 D#5:6 E5:6 D#5:6
+    E5:6 B4:6 D5:6 C5:6
+  `,
+  'lead C11': `
+    i0 A4:12
+    r:6 C4:6 E4:6 A4:6 B4:12
+    r:6 E4:6 C5:6 B4:6
+  `,
+  'lead C12': `
+    i0 A4:12
+    r:6 B4:6 C5:6 D5:6 E5:18 G4:6 F5:6 E5:6
+  `,
+  'lead C13': `
+    i0 D5:18 F4:6 E5:6 D5:6 C5:18 E4:6 D5:6 C5:6
+  `,
+  'lead C14': `
+    i0 B4:12
+    r:6 E4:6 E5:6 E4:6 E5:6 E5:6
+    E6:6 D#5:6 E5:6 D#5:6
+  `,
+  'lead C19': `
+    i0 A4:12
+    r:24 C#5:36
+  `,
+  'lead C20': `
+    i0 D5:24 E5:6 F5:6 F5:24 F5:12
+  `,
+  'lead C21': `
+    i0 E5:36 D5:24 C5:6 B4:6
+  `,
+  'lead C22': `
+    i0 A4:24 A4:12 A4:12
+    C5:12 B4:12
+  `,
+  'lead C23': `
+    i0 A4:36 C#5:36
+  `,
+  'lead C25': `
+    i0 F5:36 D#5:24 D5:6 C5:6
+  `,
+  'lead C26': `
+    i0 A#4:24 A4:12 G#4:24 G#4:12
+  `,
+  'lead C27': `
+    i0 A4:24 r:12 B4:12
+    r:24
+  `,
+  'lead C28': `
+    i0 A3:4 C4:4 E4:4
+    A4:4 C5:4 E5:4 D5:4 C5:4 B4:4 A4:4 C5:4 E5:4
+    A5:4 C6:4 E6:4 D6:4 C6:4 B5:4
+  `,
+  'lead C29': `
+    i0 A5:4 C6:4 E6:4
+    A6:4 C7:4 E7:4 D7:4 C7:4 B6:4 A#6:4 A6:4 G#6:4
+    G6:4 F#6:4 F6:4 E6:4 D#6:4 D6:4
+  `,
+  'lead C30': `
+    i0 C#6:4 C6:4 B5:4
+    A#5:4 A5:4 G#5:4 G5:4 F#5:4 F5:4 E5:6 D#5:6
+    E5:6 B4:6 D5:6 C5:6
+  `,
+  'lead C40': `
+    i0 A4:12
+    r:6 C4:6 E4:6 A4:6 B4:12
+    r:6 E4:6 C5:6 B4:6 A4:12
+    r:12
+  `,
+  'bass pickup': `
+    r:12
+  `,
+  'bass theme': `
+    r:36 i1
+    A2:6 E3:6 A3:6 r:18
+    E2:6 E3:6 G#3:6 r:18
+    A2:6 E3:6 A3:6 r:54
+    A2:6 E3:6 A3:6 r:18
+    E2:6 E3:6 G#3:6 r:18
+  `,
+  'bass ending 1': `
+    i1 A2:6 E3:6 A3:6 r:6
+  `,
+  'bass ending 2': `
+    i1 A2:6 E3:6
+    A3:6 r:18
+  `,
+  'bass B': `
+    i1 C3:6 G3:6
+    C4:6 r:18 G2:6 G3:6
+    B3:6 r:18 A2:6 E3:6
+    A3:6 r:18 E2:6 E3:6
+    E4:6 r:126 A2:6 E3:6
+    A3:6 r:18 E2:6 E3:6
+    G#3:6 r:18 A2:6 E3:6
+    A3:6 r:54 A2:6 E3:6
+    A3:6 r:18 E2:6 E3:6
+    G#3:6 r:18
+  `,
+  'bass B ending 2': `
+    i1 A2:6 E3:6
+    A3:6 A#3:6 A3:6 G3:6
+  `,
+  'bass C1': `
+    i1 F3:6 A3:6
+    C4:6 A3:6 C4:6 A3:6 F3:6 A#3:6
+    D4:6 A#3:6 D4:6 A#3:6
+  `,
+  'bass C2': `
+    i1 F3:6 E4:6
+    F3:6 E4:6 F3:6 E4:6 F3:6 A3:6
+    C4:6 A3:6 C4:6 A3:6
+  `,
+  'bass C3': `
+    i1 F3:6 A3:6
+    C4:6 A3:6 C4:6 A3:6 E3:6 A3:6
+    C4:6 A3:6 D3:6 F3:6
+  `,
+  'bass C4': `
+    i1 G3:6 E4:6
+    G3:6 E4:6 G3:6 F4:6 C4:12
+    r:6 F4:6 E4:6 D4:6
+  `,
+  'bass C5': `
+    i1 C4:12
+    F3:12 G3:12 C4:12
+    r:6 F4:6 E4:6 D4:6
+  `,
+  'bass C6': `
+    i1 C4:12
+    F3:12 G3:12 G#3:12
+    r:24
+  `,
+  'bass C7': `
+    r:72
+  `,
+  'bass C9': `
+    i1 A2:6 E3:6
+    A3:6 r:18 E2:6 E3:6
+    G#3:6 r:18
+  `,
+  'bass C10': `
+    i1 A2:6 E3:6
+    A3:6 r:54
+  `,
+  'bass C12': `
+    i1 A2:6 E3:6
+    A3:6 r:18 C3:6 G3:6
+    C4:6 r:18
+  `,
+  'bass C13': `
+    i1 G2:6 G3:6
+    B3:6 r:18 A2:6 E3:6
+    A3:6 r:18
+  `,
+  'bass C14': `
+    i1 E2:6 E3:6
+    E4:6 r:54
+  `,
+  'bass C19': `
+    i1 A2:6 A2:6
+    A2:6 A2:6 A2:6 A2:6 A2:6 A2:6
+    A2:6 A2:6 A2:6 A2:6
+  `,
+  'bass C21': `
+    i1 A2:6 A2:6
+    A2:6 A2:6 A2:6 A2:6 D2:6 D2:6
+    D2:6 D2:6 D2:6 D2:6
+  `,
+  'bass C22': `
+    i1 D#2:6 D#2:6
+    D#2:6 D#2:6 D#2:6 D#2:6 E2:6 E2:6
+    E2:6 E2:6 E2:6 E2:6
+  `,
+  'bass C23': `
+    i1 A1:6 A2:6
+    A2:6 A2:6 A2:6 A2:6 A2:6 A2:6
+    A2:6 A2:6 A2:6 A2:6
+  `,
+  'bass C25': `
+    i1 A#2:6 A#2:6
+    A#2:6 A#2:6 A#2:6 A#2:6 A#2:6 A#2:6
+    A#2:6 A#2:6 A#2:6 A#2:6
+  `,
+  'bass C26': `
+    i1 A#2:6 A#2:6
+    A#2:6 A#2:6 A#2:6 A#2:6 B2:6 B2:6
+    B2:6 B2:6 B2:6 B2:6
+  `,
+  'bass C27': `
+    i1 C3:24 r:12 E3:12
+    r:24
+  `,
+  'bass C28': `
+    i1 A1:12
+    r:12 A3:12 A3:12
+    r:12 A3:12
+  `,
+  'bass C29': `
+    i1 A3:12
+    r:12 A3:12 A3:12
+    r:24
+  `,
+  'bass C40': `
+    i1 A2:6 E3:6
+    A3:6 r:18 E2:6 E3:6
+    G#3:6 r:18 A1:12
+    r:12
+  `,
+  'inner pickup': `
+    r:12
+  `,
+  'inner theme': `
+    r:54 i3 A2:18
+    r:18 E2:18
+    r:18 A2:18
+    r:54 A2:18
+    r:18 E2:18
+  `,
+  'inner ending 1': `
+    r:18 i3 A2:6
+  `,
+  'inner ending 2': `
+    r:18 i3 A2:18
+  `,
+  'inner B': `
+    r:18 i3 C3:18 r:18 G2:18 r:18 A2:18 r:18 E2:18 r:126 A2:18 r:18 E2:18 r:18 A2:18 r:54 A2:18 r:18 E2:18
+  `,
+  'inner B ending 2': `
+    r:18 i2 E4:6 F4:6 i5 E4:2 r:4
+  `,
+  'inner C1': `
+    r:72
+  `,
+  'inner C2': `
+    r:12 i5
+    G3:6 r:6 G3:6 r:42
+  `,
+  'inner C3': `
+    r:60 i2 D4:6 r:6
+  `,
+  'inner C4': `
+    r:36 i2 E4:12
+    r:6 G4:6 G4:6 i4 F4:6
+  `,
+  'inner C5': `
+    i5 E4:12 i2
+    A3:12 B3:12 r:18 G4:6 G4:6 i4 F4:6
+  `,
+  'inner C6': `
+    i5 E4:12 i2
+    A3:12 B3:12 B3:12
+    r:24
+  `,
+  'inner C9': `
+    r:18 i3 A2:18 r:18 E2:18
+  `,
+  'inner C10': `
+    r:18 i3 A2:18 r:36
+  `,
+  'inner C12': `
+    r:18 i3 A2:18 r:18 C3:18
+  `,
+  'inner C13': `
+    r:18 i3 G2:18 r:18 A2:18
+  `,
+  'inner C14': `
+    r:18 i3 E2:18 r:36
+  `,
+  'inner C19': `
+    r:36 i5 G4:36
+  `,
+  'inner C20': `
+    i6 F4:24 i2 C#5:6 D5:6 i7 G#4:24 G#4:12
+  `,
+  'inner C21': `
+    i5 A4:36 i2 F4:6 A2:6
+    A2:6 A2:6 E4:6 D4:6
+  `,
+  'inner C22': `
+    i7 C4:6 i2 A2:6
+    A2:6 A2:6 C4:6 A2:6 C4:6 A2:6
+    E4:6 A2:6 D4:6 G#2:6
+  `,
+  'inner C23': `
+    i2 C4:36 i5 G4:36
+  `,
+  'inner C24': `
+    i6 F4:24 i2 C#5:6 D5:6 D5:24 D5:12
+  `,
+  'inner C25': `
+    i2 D5:36 G4:24 F4:6 D#4:6
+  `,
+  'inner C26': `
+    i5 D4:24 D4:12 D4:24 D4:12
+  `,
+  'inner C27': `
+    i6 C4:24 r:12 i2 E4:12
+    r:24
+  `,
+  'inner C28': `
+    r:24 i6 C4:12 C4:12
+    r:12 C4:12
+  `,
+  'inner C29': `
+    i6 C4:12
+    r:12 C4:12 C4:12
+    r:24
+  `,
+  'inner C40': `
+    r:18 i3 A2:18 r:18 E2:18 i2 A2:12
+    r:12
+  `,
+};
+
+// Which pattern each voice plays, in order. The three lists have the same length in ticks, section by section.
+const ORDERS = {
+  lead: [
+  'lead pickup', 'lead theme', 'lead ending 1', 'lead pickup',
+  'lead theme', 'lead ending 2', 'lead B', 'lead ending 2',
+  'lead B', 'lead B ending 2', 'lead C1', 'lead C2',
+  'lead C3', 'lead C4', 'lead C5', 'lead C6',
+  'lead C7', 'lead C8', 'lead C9', 'lead C10',
+  'lead C11', 'lead C12', 'lead C13', 'lead C14',
+  'lead C8', 'lead C9', 'lead C10', 'lead C11',
+  'lead C19', 'lead C20', 'lead C21', 'lead C22',
+  'lead C23', 'lead C20', 'lead C25', 'lead C26',
+  'lead C27', 'lead C28', 'lead C29', 'lead C30',
+  'lead C9', 'lead C10', 'lead C11', 'lead C12',
+  'lead C13', 'lead C14', 'lead C8', 'lead C9',
+  'lead C10', 'lead C40',
+],
+  left: [
+  'bass pickup', 'bass theme', 'bass ending 1', 'bass pickup',
+  'bass theme', 'bass ending 2', 'bass B', 'bass ending 2',
+  'bass B', 'bass B ending 2', 'bass C1', 'bass C2',
+  'bass C3', 'bass C4', 'bass C5', 'bass C6',
+  'bass C7', 'bass C7', 'bass C9', 'bass C10',
+  'bass C9', 'bass C12', 'bass C13', 'bass C14',
+  'bass C7', 'bass C9', 'bass C10', 'bass C9',
+  'bass C19', 'bass C19', 'bass C21', 'bass C22',
+  'bass C23', 'bass C19', 'bass C25', 'bass C26',
+  'bass C27', 'bass C28', 'bass C29', 'bass C7',
+  'bass C9', 'bass C10', 'bass C9', 'bass C12',
+  'bass C13', 'bass C14', 'bass C7', 'bass C9',
+  'bass C10', 'bass C40',
+],
+  inner: [
+  'inner pickup', 'inner theme', 'inner ending 1', 'inner pickup',
+  'inner theme', 'inner ending 2', 'inner B', 'inner ending 2',
+  'inner B', 'inner B ending 2', 'inner C1', 'inner C2',
+  'inner C3', 'inner C4', 'inner C5', 'inner C6',
+  'inner C1', 'inner C1', 'inner C9', 'inner C10',
+  'inner C9', 'inner C12', 'inner C13', 'inner C14',
+  'inner C1', 'inner C9', 'inner C10', 'inner C9',
+  'inner C19', 'inner C20', 'inner C21', 'inner C22',
+  'inner C23', 'inner C24', 'inner C25', 'inner C26',
+  'inner C27', 'inner C28', 'inner C29', 'inner C1',
+  'inner C9', 'inner C10', 'inner C9', 'inner C12',
+  'inner C13', 'inner C14', 'inner C1', 'inner C9',
+  'inner C10', 'inner C40',
+],
+};
 
 // ---------------------------------------------------------------- the project
 
 export function build() {
-  const patterns = [];
-  const add = (name, text) => patterns.push({ name, events: events(text) }) - 1;
-
-  const lead = [
-    add('lead intro', LEAD_INTRO), add('lead theme', LEAD_A), add('lead ending 1', LEAD_END1),
-    add('lead ending 2', LEAD_END2), add('lead second section', LEAD_B),
-    add('lead theme, music box', `i${BOX} ${LEAD_A}`), add('lead close', LEAD_CLOSE),
-  ];
-  const bass = [
-    add('bass intro', `i${BASS} r:6`), add('bass theme', BASS_A), add('bass ending', BASS_END),
-    add('bass second section', BASS_B), add('bass theme, rolling', BASS_FULL), add('bass close', BASS_CLOSE),
-  ];
-  const pad = [
-    add('pad intro', `i${PAD} G#3:6`), add('pad theme', PAD_A), add('pad ending', 'C4:6'),
-    add('pad second section', PAD_B), add('pad close', PAD_CLOSE),
-  ];
-  const [lIntro, lTheme, lEnd1, lEnd2, lB, lBox, lClose] = lead;
-  const [bIntro, bTheme, bEnd, bB, bFull, bClose] = bass;
-  const [pIntro, pTheme, pEnd, pB, pClose] = pad;
-
-  const order = (list) => [...list.map((pattern) => ({ pattern, transpose: 0 })), { loop: 0 }];
+  const names = Object.keys(PATTERNS);
+  const patterns = names.map((name) => ({ name, events: events(PATTERNS[name]) }));
+  const order = (list) => [...list.map((name) => ({ pattern: names.indexOf(name), transpose: 0 })), { loop: 0 }];
   return {
     instruments: instruments(),
     song: {
       name: 'Für Elise',
-      speed: 12,
+      speed: SPEED,
       patterns,
-      orders: [
-        order([lIntro, lTheme, lEnd1, lTheme, lEnd2, lB, lBox, lClose]),
-        order([bIntro, bTheme, bEnd, bTheme, bEnd, bB, bFull, bClose]),
-        order([pIntro, pTheme, pEnd, pTheme, pEnd, pB, pTheme, pClose]),
-      ],
+      orders: [order(ORDERS.lead), order(ORDERS.left), order(ORDERS.inner)],
     },
   };
 }
