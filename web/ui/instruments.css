@@ -18,7 +18,7 @@
   gap: 1rem;
   color: var(--i-text);
   background: var(--i-bg);
-  font: 14px/1.4 system-ui, sans-serif;
+  font: 1rem/1.4 system-ui, sans-serif;
   padding: 0.75rem;
   outline: none;
 }
@@ -51,7 +51,7 @@
   max-height: 22rem;
   overflow-y: auto;
   border: 1px solid var(--i-line);
-  border-radius: 4px;
+  border-radius: 0.286rem;
   background: var(--i-panel);
 }
 .inst-item {
@@ -79,7 +79,7 @@
   margin-top: 0.6rem;
   padding: 0.5rem;
   border: 1px solid var(--i-line);
-  border-radius: 4px;
+  border-radius: 0.286rem;
   background: var(--i-panel);
   display: flex;
   flex-direction: column;
@@ -93,7 +93,7 @@
 .inst-btn {
   padding: 0.25rem 0.65rem;
   border: 1px solid var(--i-line);
-  border-radius: 4px;
+  border-radius: 0.286rem;
   background: var(--i-panel);
   color: inherit;
   font: inherit;
@@ -107,7 +107,7 @@
 .inst-panel input[type="number"] {
   padding: 0.2rem 0.35rem;
   border: 1px solid var(--i-line);
-  border-radius: 4px;
+  border-radius: 0.286rem;
   background: var(--i-bg);
   color: inherit;
   font: inherit;
@@ -123,7 +123,7 @@
   font-family: ui-monospace, Menlo, Consolas, monospace;
   font-size: 1.1rem;
   padding: 0.1rem 0.5rem;
-  border-radius: 4px;
+  border-radius: 0.286rem;
   background: var(--i-accent);
   color: var(--i-accent-text);
 }
@@ -137,7 +137,7 @@
   margin: 0;
   padding: 0.5rem 0.75rem 0.75rem;
   border: 1px solid var(--i-line);
-  border-radius: 6px;
+  border-radius: 0.429rem;
   background: var(--i-panel);
   min-width: 0;
 }
@@ -163,25 +163,46 @@
 .inst-val { font-variant-numeric: tabular-nums; }
 
 /* The panel adapts to the room it is given, not to the window: the page puts it in a pane
-   that is only a third of the window wide. The pane is a size container called "inst"
-   (see style.css). Narrower and narrower: list above the editor, a shorter row, a stacked row. */
-@container inst (max-width: 700px) {
+   that is only a part of the window wide. The pane is a size container called "inst"
+   (see style.css). All thresholds are in rem so they scale with the page: the pane is about
+   31rem wide in a 1280 px window and grows with the window, up to about 63rem on an ultrawide.
+   Narrow: list above the editor and a compact row. Medium: list beside the editor. Wide: the
+   editor sections go two across. */
+@container inst (max-width: 46rem) {
   .inst-panel { grid-template-columns: minmax(0, 1fr); }
   .inst-list { max-height: 10rem; }
 }
 
-@container inst (max-width: 560px) {
+@container inst (max-width: 36rem) {
   .inst-row { grid-template-columns: 6rem minmax(4rem, 1fr) 4rem; }
   .inst-row .inst-hex { display: none; }
   .inst-row .inst-val { grid-column: 2 / -1; }
 }
 
-@container inst (max-width: 450px) {
+/* List beside the editor but not much room left for the editor. */
+@container inst (min-width: 46.01rem) and (max-width: 52rem) {
+  .inst-row { grid-template-columns: 6rem minmax(4rem, 1fr) 4rem; }
+  .inst-row .inst-hex { display: none; }
+  .inst-row .inst-val { grid-column: 2 / -1; }
+}
+
+@container inst (max-width: 31.5rem) {
   .inst-panel { padding: 0.5rem; gap: 0.6rem; }
   .inst-row { grid-template-columns: minmax(0, 1fr) 4rem; }
   .inst-row > label { grid-column: 1 / -1; }
   .inst-row .inst-val, .inst-row > .inst-hint { grid-column: 1 / -1; }
   .inst-name-input { min-width: 0; }
+}
+
+@container inst (min-width: 52rem) {
+  .inst-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: 0.75rem 1rem; }
+  .inst-head, .inst-presets-wrap, .inst-audition, .inst-form > .inst-section:first-of-type { grid-column: 1 / -1; }
+  .inst-row { grid-template-columns: 6rem minmax(4rem, 1fr) 4rem; }
+  .inst-row .inst-hex { display: none; }
+  .inst-row .inst-val { grid-column: 2 / -1; }
+  .inst-panel { grid-template-columns: 12rem minmax(0, 1fr); }
+  .inst-list { max-height: 34rem; }
+  .inst-piano { height: 8rem; }
 }
 
 .inst-graph-wrap { margin: 0.4rem 0; }
@@ -190,7 +211,7 @@
   width: 100%;
   height: 4.5rem;
   border: 1px solid var(--i-line);
-  border-radius: 4px;
+  border-radius: 0.286rem;
   background: var(--i-bg);
 }
 .inst-graph-line { stroke: var(--i-graph); stroke-width: 1.8; fill: none; vector-effect: non-scaling-stroke; }
@@ -214,7 +235,7 @@
   font: 0.7rem ui-monospace, Menlo, Consolas, monospace;
   cursor: pointer;
 }
-.inst-white { flex: 1; background: #f4f2ec; color: #555; border-radius: 0 0 4px 4px; }
+.inst-white { flex: 1; background: #f4f2ec; color: #555; border-radius: 0 0 0.286rem 0.286rem; }
 .inst-black {
   position: absolute;
   top: 0;
@@ -222,7 +243,7 @@
   height: 62%;
   background: #24262b;
   color: #aaa;
-  border-radius: 0 0 3px 3px;
+  border-radius: 0 0 0.214rem 0.214rem;
   z-index: 1;
 }
 .inst-key.inst-down { background: var(--i-accent); color: var(--i-accent-text); }

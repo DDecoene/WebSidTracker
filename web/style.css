@@ -9,7 +9,7 @@
   color-scheme: light dark;
   --mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, "Liberation Mono", monospace;
   --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  --radius: 6px;
+  --radius: 0.429rem;
 
   /* light */
   --bg: #eeece6;
@@ -25,7 +25,7 @@
   --bad: #b3261e;
   --warn: #8a5a00;
   --focus: #0a62b8;
-  --shadow: 0 1px 2px #0002, 0 6px 20px #0001;
+  --shadow: 0 1px 2px #0002, 0 0.429rem 1.429rem #0001;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -43,13 +43,29 @@
     --bad: #ff7b72;
     --warn: #f0b84a;
     --focus: #8fd0ff;
-    --shadow: 0 1px 2px #0006, 0 8px 24px #0006;
+    --shadow: 0 1px 2px #0006, 0 0.571rem 1.714rem #0006;
   }
 }
 
 * { box-sizing: border-box; }
 
-html, body { height: 100%; }
+/* The one scale of the whole interface. Everything else is in rem (or em), so changing this one
+   number resizes fonts, rows, buttons, gaps and icons together.
+     width-based:  1.094vw = 14 px at 1280 px wide
+     height-based: 1.75vh  = 14 px at 800 px high
+   The smaller of the two wins, so a wide but short window does not blow the layout up. The lower
+   bound is 0.875rem (14 px with the default browser font size), the upper bound 1.75rem (28 px).
+   Because the bounds are in rem they follow the user's own font-size setting, and the vw/vh part
+   follows browser zoom (zooming in shrinks the viewport in CSS pixels). Reference points:
+   1280x800 -> 14 px, 1440x900 -> 15.8, 1920x1080 -> 18.9, 2560x1300 -> 22.8, 3440x1440 -> 25.2,
+   3840x2160 -> 28. */
+html {
+  height: 100%;
+  font-size: clamp(0.875rem, min(1.094vw, 1.75vh), 1.75rem);
+  -webkit-text-size-adjust: 100%;
+}
+
+body { height: 100%; }
 
 body {
   margin: 0;
@@ -57,14 +73,14 @@ body {
   flex-direction: column;
   background: var(--bg);
   color: var(--fg);
-  font: 14px/1.4 var(--sans);
+  font: 1rem/1.4 var(--sans);
 }
 
 code, kbd { font-family: var(--mono); font-size: 0.92em; }
 kbd {
   display: inline-block; min-width: 1.6em; padding: 0 0.4em; text-align: center;
   background: var(--panel-2); border: 1px solid var(--border); border-bottom-width: 2px;
-  border-radius: 4px;
+  border-radius: 0.286rem;
 }
 
 a { color: var(--accent); }
@@ -77,28 +93,31 @@ a { color: var(--accent); }
   flex: none;
   background: var(--panel);
   border-bottom: 1px solid var(--border);
-  padding: 8px 14px 10px;
+  padding: 0.571rem 1rem 0.714rem;
   display: grid;
-  gap: 8px;
+  gap: 0.571rem;
 }
 
-.row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
+.row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.571rem 1rem; }
 .grow { flex: 1 1 auto; }
 .spacer { flex: 1; }
 
 .brand {
-  display: flex; align-items: center; gap: 8px;
-  font: 700 17px/1 var(--mono); letter-spacing: 0.02em; color: var(--accent);
+  display: flex; align-items: center; gap: 0.571rem;
+  font: 700 1.214rem/1 var(--mono); letter-spacing: 0.02em; color: var(--accent);
 }
 .brand b { color: var(--fg); font-weight: 700; }
 
-.group { display: inline-flex; gap: 4px; }
+.group { display: inline-flex; gap: 0.286rem; }
 
-.field { display: inline-flex; align-items: center; gap: 6px; }
-.field .label { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; }
-.field .unit { color: var(--muted); font-size: 12px; min-width: 4.5em; }
-.field.grow { max-width: 22rem; }
+.field { display: inline-flex; align-items: center; gap: 0.429rem; }
+.field .label { color: var(--muted); font-size: 0.857rem; text-transform: uppercase; letter-spacing: 0.06em; }
+.field .unit { color: var(--muted); font-size: 0.857rem; min-width: 4.5em; }
+.field.grow { max-width: 22rem; min-width: 12rem; }
 .field.grow input { width: 100%; }
+
+svg { width: 1em; height: 1em; flex: none; }
+.brand svg { width: 1.57rem; height: 1.57rem; }
 
 button, select, input[type="text"], input[type="number"] {
   font: inherit;
@@ -106,14 +125,14 @@ button, select, input[type="text"], input[type="number"] {
   background: var(--panel-2);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 4px 10px;
-  min-height: 30px;
+  padding: 0.286rem 0.714rem;
+  min-height: 2.143rem;
 }
 
 input[type="text"], input[type="number"] { background: var(--bg); }
 input[type="number"] { width: 4.6em; font-family: var(--mono); }
 
-button { cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+button { cursor: pointer; display: inline-flex; align-items: center; gap: 0.429rem; }
 button:hover:not(:disabled) { border-color: var(--accent); }
 button:active:not(:disabled) { transform: translateY(1px); }
 button:disabled { opacity: 0.45; cursor: default; }
@@ -125,17 +144,17 @@ button.stop svg { color: var(--bad); }
 button.play.active { background: var(--good); color: var(--bg); border-color: var(--good); }
 button.play.active svg { color: currentColor; }
 
-button.mute { font-family: var(--mono); font-weight: 600; min-width: 2.8em; justify-content: center; padding: 4px 6px; }
+button.mute { font-family: var(--mono); font-weight: 600; min-width: 2.8em; justify-content: center; padding: 0.286rem 0.429rem; }
 button.mute[aria-pressed="true"] { background: var(--bad); color: var(--bg); border-color: var(--bad); }
 
 input[type="range"] { width: 5.5rem; accent-color: var(--accent); }
 
-.transport { padding-top: 8px; border-top: 1px solid var(--border); }
+.transport { padding-top: 0.571rem; border-top: 1px solid var(--border); }
 
-.meter { width: 56px; height: 10px; background: var(--bg); border: 1px solid var(--border); border-radius: 5px; overflow: hidden; }
+.meter { width: 4rem; height: 0.714rem; background: var(--bg); border: 1px solid var(--border); border-radius: 0.357rem; overflow: hidden; }
 .meter i { display: block; height: 100%; width: 0; background: var(--good); transition: width 60ms linear; }
 
-.readout { flex: 1 1 0; min-width: 11rem; color: var(--muted); font: 12px/1.3 var(--mono); text-align: right; }
+.readout { flex: 1 1 0; min-width: 11rem; color: var(--muted); font: 0.857rem/1.3 var(--mono); text-align: right; }
 .readout span { display: inline-block; white-space: nowrap; margin-left: 0.9em; }
 .readout b { color: var(--fg); font-weight: 600; }
 .readout .low { color: var(--warn); }
@@ -146,9 +165,9 @@ input[type="range"] { width: 5.5rem; accent-color: var(--accent); }
 .messages:empty { display: none; }
 
 .message {
-  display: flex; gap: 10px; align-items: flex-start;
-  padding: 8px 14px; border-bottom: 1px solid var(--border);
-  border-left: 4px solid var(--muted); background: var(--panel);
+  display: flex; gap: 0.714rem; align-items: flex-start;
+  padding: 0.571rem 1rem; border-bottom: 1px solid var(--border);
+  border-left: 0.286rem solid var(--muted); background: var(--panel);
 }
 .message.error { border-left-color: var(--bad); }
 .message.warn { border-left-color: var(--warn); }
@@ -156,7 +175,7 @@ input[type="range"] { width: 5.5rem; accent-color: var(--accent); }
 .message strong { display: block; }
 .message ul { margin: 2px 0 0; padding-left: 1.2em; }
 .message .body { flex: 1; min-width: 0; }
-.message button.dismiss { min-height: 24px; padding: 0 8px; }
+.message button.dismiss { min-height: 1.714rem; padding: 0 0.571rem; }
 
 /* ---- workspace ----------------------------------------------------------- */
 
@@ -164,9 +183,9 @@ input[type="range"] { width: 5.5rem; accent-color: var(--accent); }
   flex: 1 1 0;
   min-height: 0;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(400px, 34%);
-  gap: 10px;
-  padding: 10px 14px;
+  grid-template-columns: minmax(0, 1fr) minmax(28.571rem, 34%);
+  gap: 0.714rem;
+  padding: 0.714rem 1rem;
 }
 
 .pane {
@@ -174,10 +193,10 @@ input[type="range"] { width: 5.5rem; accent-color: var(--accent); }
   overflow: auto;
   background: var(--panel);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 0.571rem;
 }
 
-.pane-failed { padding: 16px; color: var(--bad); }
+.pane-failed { padding: 1.143rem; color: var(--bad); }
 
 /* The instrument panel lays itself out by the width of this pane (see ui/instruments.css). */
 #instrument-pane { container: inst / inline-size; }
@@ -185,47 +204,61 @@ input[type="range"] { width: 5.5rem; accent-color: var(--accent); }
 /* ---- footer -------------------------------------------------------------- */
 
 .footer {
-  flex: none; display: flex; flex-wrap: wrap; gap: 4px 16px; align-items: baseline;
-  padding: 6px 14px; font-size: 12px; color: var(--muted);
+  flex: none; display: flex; flex-wrap: wrap; gap: 0.286rem 1.143rem; align-items: baseline;
+  padding: 0.429rem 1rem; font-size: 0.857rem; color: var(--muted);
   border-top: 1px solid var(--border); background: var(--panel);
 }
 
 /* ---- dialogs ------------------------------------------------------------- */
 
 dialog {
-  width: min(46rem, calc(100vw - 28px)); max-height: calc(100vh - 40px);
+  width: min(46rem, calc(100vw - 2rem)); max-height: calc(100vh - 2.857rem);
   padding: 0; color: var(--fg); background: var(--panel);
-  border: 1px solid var(--border); border-radius: 10px; box-shadow: var(--shadow);
+  border: 1px solid var(--border); border-radius: 0.714rem; box-shadow: var(--shadow);
 }
 dialog::backdrop { background: #0008; }
-dialog form { padding: 16px 20px; }
-dialog h2 { margin: 0 0 8px; font-size: 18px; }
-dialog h3 { margin: 18px 0 6px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
-.dialog-actions { display: flex; justify-content: flex-end; margin-top: 16px; }
-.hint { color: var(--muted); margin: 0 0 12px; }
+dialog form { padding: 1.143rem 1.429rem; }
+dialog h2 { margin: 0 0 0.571rem; font-size: 1.286rem; }
+dialog h3 { margin: 1.286rem 0 0.429rem; font-size: 0.929rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+.dialog-actions { display: flex; justify-content: flex-end; margin-top: 1.143rem; }
+.hint { color: var(--muted); margin: 0 0 0.857rem; }
 
-.keys { display: grid; grid-template-columns: max-content 1fr; gap: 4px 14px; margin: 0; }
+.keys { display: grid; grid-template-columns: max-content 1fr; gap: 0.286rem 1rem; margin: 0; }
 .keys dt { text-align: right; white-space: nowrap; }
 .keys dd { margin: 0; color: var(--fg); }
 
-.file-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 8px 0; border-top: 1px solid var(--border); }
+.file-row { display: flex; flex-wrap: wrap; gap: 0.571rem; align-items: center; padding: 0.571rem 0; border-top: 1px solid var(--border); }
 .file-row:first-child { border-top: 0; }
 .file-row .name { font-family: var(--mono); font-weight: 600; }
-.file-row .size { color: var(--muted); font-size: 12px; }
-.file-row .what { flex-basis: 100%; color: var(--muted); font-size: 12px; margin-top: -4px; }
+.file-row .size { color: var(--muted); font-size: 0.857rem; }
+.file-row .what { flex-basis: 100%; color: var(--muted); font-size: 0.857rem; margin-top: -0.286rem; }
 .file-row .spacer { flex: 1; }
 .file-preview {
-  flex-basis: 100%; margin: 4px 0 0; padding: 8px 10px; max-height: 14rem; overflow: auto;
+  flex-basis: 100%; margin: 0.286rem 0 0; padding: 0.571rem 0.714rem; max-height: 14rem; overflow: auto;
   background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius);
-  font: 12px/1.35 var(--mono); white-space: pre;
+  font: 0.857rem/1.35 var(--mono); white-space: pre;
 }
 
-.noscript { padding: 20px; }
+.noscript { padding: 1.429rem; }
+
+/* ---- wide windows ---------------------------------------------------------- */
+
+/* The header is two tidy rows (file and demo controls, then transport). All its controls need
+   about 145rem for one row, more than any window reaches since the root size grows with the
+   window, so it never merges into one row. */
+
+/* More room for the instrument panel, which has a two-column form of its own when wide. */
+@media (min-width: 1700px) {
+  .workspace { grid-template-columns: minmax(0, 1fr) minmax(28.571rem, 40%); }
+}
+@media (min-width: 2300px) {
+  .workspace { grid-template-columns: minmax(0, 1fr) minmax(28.571rem, 50%); }
+}
 
 /* ---- narrower windows ------------------------------------------------------ */
 
 @media (max-width: 1100px) {
-  .workspace { grid-template-columns: minmax(0, 1fr) 380px; }
+  .workspace { grid-template-columns: minmax(0, 1fr) 27.143rem; }
 }
 
 /* One column: the page itself scrolls. The pattern editor gets a tall pane of its own, the
@@ -233,7 +266,7 @@ dialog h3 { margin: 18px 0 6px; font-size: 13px; text-transform: uppercase; lett
 @media (max-width: 900px) {
   html, body { height: auto; min-height: 100%; }
   .workspace { flex: none; grid-template-columns: minmax(0, 1fr); grid-auto-rows: auto; }
-  #editor-pane { height: max(440px, 70vh); }
+  #editor-pane { height: max(31.429rem, 70vh); }
   #instrument-pane { overflow: visible; }
 }
 

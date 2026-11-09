@@ -19,6 +19,18 @@
   --ed-cursor-dim: #e6dcb2;
   --ed-accent: #1d6f5c;
   --ed-warn: #a83a1a;
+  /* Sizes. --ed-row-size and --ed-head-size are what the stylesheet wants; the script measures
+     them in pixels (they follow the root font size and the browser zoom) and pins the whole
+     pixel values in --ed-row-h and --ed-head-h, so the virtual scrolling maths and the CSS
+     always agree. Before the script has measured, the sizes are used as they are. */
+  --ed-row-size: 1.45rem;
+  --ed-head-size: 2.15rem;
+  --ed-row-h: var(--ed-row-size);
+  --ed-head-h: var(--ed-head-size);
+  /* How many rows of an order list show before it scrolls; the grip below the lists changes it. */
+  --ed-order-rows: 7;
+  /* The widest a voice column's text gets; wider columns centre their text. */
+  --ed-text-w: 22rem;
   --ed-font: ui-monospace, "SF Mono", Menlo, Consolas, "DejaVu Sans Mono", monospace;
 
   display: flex;
@@ -27,9 +39,9 @@
   background: var(--ed-bg);
   color: var(--ed-text);
   font-family: var(--ed-font);
-  font-size: 14px;
+  font-size: 1rem;
   border: 1px solid var(--ed-line);
-  border-radius: 6px;
+  border-radius: 0.429rem;
   outline: none;
 }
 
@@ -65,17 +77,17 @@
 
 /* ---- toolbar ---- */
 .ed-bar {
-  display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px;
-  padding: 6px 10px; background: var(--ed-panel); border-bottom: 1px solid var(--ed-line);
-  font-size: 12px;
+  display: flex; flex-wrap: wrap; align-items: center; gap: 0.429rem 1rem;
+  padding: 0.429rem 0.714rem; background: var(--ed-panel); border-bottom: 1px solid var(--ed-line);
+  font-size: 0.857rem;
 }
 .ed-status { white-space: pre-wrap; color: var(--ed-text); }
-.ed-follow, .ed-name { display: inline-flex; align-items: center; gap: 4px; color: var(--ed-dim); }
-.ed-name input { font: inherit; padding: 1px 4px; background: var(--ed-bg); color: var(--ed-text); border: 1px solid var(--ed-line); border-radius: 3px; }
-.ed-buttons { display: inline-flex; gap: 4px; flex-wrap: wrap; }
+.ed-follow, .ed-name { display: inline-flex; align-items: center; gap: 0.286rem; color: var(--ed-dim); }
+.ed-name input { font: inherit; padding: 0.07rem 0.286rem; background: var(--ed-bg); color: var(--ed-text); border: 1px solid var(--ed-line); border-radius: 0.214rem; }
+.ed-buttons { display: inline-flex; gap: 0.286rem; flex-wrap: wrap; }
 .ed-buttons button {
-  font: inherit; padding: 1px 8px; color: var(--ed-text); background: var(--ed-bg);
-  border: 1px solid var(--ed-line); border-radius: 3px; cursor: pointer;
+  font: inherit; padding: 0.07rem 0.571rem; color: var(--ed-text); background: var(--ed-bg);
+  border: 1px solid var(--ed-line); border-radius: 0.214rem; cursor: pointer;
 }
 .ed-buttons button:hover { border-color: var(--ed-accent); }
 .ed-buttons button:focus-visible, .ed-name input:focus-visible, .ed-follow input:focus-visible { outline: 2px solid var(--ed-accent); outline-offset: 1px; }
@@ -88,15 +100,20 @@
   grid-template-columns: 3.2em repeat(3, minmax(0, 1fr));
 }
 
+/* Cell padding: 0.57rem, but a column wider than --ed-text-w centres its text instead of
+   spreading it. Percentages here are of the grid area, i.e. of the column. */
+.ed-orders, .ed-head, .ed-row { --ed-pad-x: max(0.571rem, calc((100% - var(--ed-text-w)) / 2)); }
+
 /* ---- order lists ---- */
-.ed-orders { border-bottom: 1px solid var(--ed-line); user-select: none; }
-.ed-gutter { padding: 4px 6px; color: var(--ed-dim); font-size: 11px; }
+.ed-orders { user-select: none; }
+.ed-gutter { padding: 0.286rem 0.429rem; color: var(--ed-dim); font-size: 0.786rem; }
 .ed-order {
-  max-height: calc(var(--ed-row-h) * 7 + 22px); overflow-y: auto; position: relative;
+  max-height: calc(var(--ed-row-h) * var(--ed-order-rows) + 1.6rem); overflow-y: auto; position: relative;
+  scrollbar-width: thin; scrollbar-color: var(--ed-line) transparent; overscroll-behavior: contain;
   border-left: 1px solid var(--ed-line); padding-bottom: 2px;
 }
-.ed-oh { padding: 2px 8px; color: var(--ed-dim); font-size: 11px; position: sticky; top: 0; background: var(--ed-bg); z-index: 1; }
-.ed-oe { height: var(--ed-row-h); line-height: var(--ed-row-h); padding: 0 8px; white-space: pre; cursor: pointer; }
+.ed-oh { padding: 0.14rem var(--ed-pad-x); color: var(--ed-dim); font-size: 0.786rem; position: sticky; top: 0; background: var(--ed-bg); z-index: 1; }
+.ed-oe { height: var(--ed-row-h); line-height: var(--ed-row-h); padding: 0 var(--ed-pad-x); white-space: pre; cursor: pointer; }
 .ed-oe .ix { color: var(--ed-dim); }
 .ed-oe.k-stop, .ed-oe.k-loop { color: var(--ed-legato); }
 .ed-oe.cur { background: var(--ed-beat16); }
@@ -106,23 +123,37 @@
 .ed-oe.play::after { content: " \25B6"; color: var(--ed-accent); }
 .ed-oe.sel.play::after { color: var(--ed-cursor-text); }
 
+/* The grip under the order lists: drag it to show more or fewer order rows. */
+.ed-grip {
+  height: 0.5rem; cursor: row-resize; touch-action: none; background: var(--ed-panel);
+  border-bottom: 1px solid var(--ed-line); position: relative;
+}
+.ed-grip::after {
+  content: ""; position: absolute; left: 50%; top: 50%; width: 3rem; height: 0.18rem;
+  transform: translate(-50%, -50%); border-radius: 0.1rem; background: var(--ed-dim); opacity: .5;
+}
+.ed-grip:hover::after, .ed-grip:focus-visible::after { opacity: 1; background: var(--ed-accent); }
+
 /* ---- pattern grid ---- */
-.ed-scroll { position: relative; overflow: auto; flex: 1 1 auto; min-height: 220px; max-height: 70vh; user-select: none; }
+.ed-scroll {
+  position: relative; overflow: auto; flex: 1 1 auto; min-height: 15.714rem; user-select: none;
+  scrollbar-width: thin; scrollbar-color: var(--ed-line) transparent;
+}
 .ed-head {
   position: sticky; top: 0; z-index: 2; height: var(--ed-head-h); align-items: center;
   background: var(--ed-panel); border-bottom: 1px solid var(--ed-line);
 }
-.ed-vh { padding: 0 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.ed-vh b { color: var(--ed-accent); margin-right: 4px; }
-.ed-vh i { font-style: normal; color: var(--ed-dim); margin-left: 8px; font-size: 11px; }
+.ed-vh { padding: 0 var(--ed-pad-x); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ed-vh b { color: var(--ed-accent); margin-right: 0.286rem; }
+.ed-vh i { font-style: normal; color: var(--ed-dim); margin-left: 0.571rem; font-size: 0.786rem; }
 .ed-vh.sel { box-shadow: inset 0 -2px 0 var(--ed-accent); }
 
 .ed-rows { position: relative; }
 .ed-row { position: absolute; left: 0; right: 0; height: var(--ed-row-h); line-height: var(--ed-row-h); }
 .ed-row.b4 { background: var(--ed-beat); }
 .ed-row.b16 { background: var(--ed-beat16); }
-.ed-rn { padding: 0 6px; color: var(--ed-dim); text-align: right; font-size: 12px; }
-.ed-c { padding: 0 8px; white-space: pre; border-left: 1px solid var(--ed-line); overflow: hidden; }
+.ed-rn { padding: 0 0.429rem; color: var(--ed-dim); text-align: right; font-size: 0.857rem; }
+.ed-c { padding: 0 var(--ed-pad-x); white-space: pre; border-left: 1px solid var(--ed-line); overflow: hidden; }
 .ed-c .nt { color: var(--ed-note); font-weight: 600; }
 .ed-c .rs { color: var(--ed-dim); }
 .ed-c .in { color: var(--ed-inst); }
@@ -130,12 +161,17 @@
 .ed-c .su { color: var(--ed-dim); }
 .ed-c .su.note { color: var(--ed-note); opacity: .55; }
 .ed-c .en { color: var(--ed-dim); font-style: italic; }
-.ed-c.void { background: repeating-linear-gradient(135deg, transparent 0 6px, var(--ed-line) 6px 7px); opacity: .35; }
+.ed-c.void { background: repeating-linear-gradient(135deg, transparent 0 0.429rem, var(--ed-line) 0.429rem 0.5rem); opacity: .35; }
 .ed-c.play { background: var(--ed-play); }
 .ed-c.cursordim { box-shadow: inset 0 0 0 1px var(--ed-cursor); }
 .ed-c.cursor { background: var(--ed-cursor); box-shadow: inset 0 0 0 2px var(--ed-cursor-text); }
 .ed-c.cursor span { color: var(--ed-cursor-text); opacity: 1; }
 
 @media (max-width: 900px) {
-  .ed { font-size: 13px; }
+  .ed { font-size: 0.929rem; }
 }
+
+/* Taller windows show more order rows. */
+@media (min-height: 900px) { .ed { --ed-order-rows: 8; } }
+@media (min-height: 1100px) { .ed { --ed-order-rows: 9; } }
+@media (min-height: 1400px) { .ed { --ed-order-rows: 10; } }

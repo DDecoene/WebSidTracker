@@ -14,7 +14,7 @@
 //                    (grid or order list), the "follow the song" switch.
 //
 // Only the rows that can be seen are built, so a pattern with thousands of ticks
-// stays fast. Row height is fixed (ROW_H) for that reason.
+// stays fast. Row height is fixed (ROW_H, measured from the stylesheet) for that reason.
 //
 // Part of the WebSidTracker web app, GPL version 3 or later (see ../LICENSE).
 
@@ -28,8 +28,12 @@ import {
 
 export { keyHelp };
 
-const ROW_H = 20;          // px, the same for every grid row
-const HEAD_H = 30;         // px, the sticky header with the voice names
+// Row and header heights come from the stylesheet (--ed-row-size and --ed-head-size, in rem, so
+// they scale with the page). They are measured in pixels at mount and again whenever the
+// container resizes (window size, browser zoom), rounded to whole pixels so that every row is
+// the same height and the virtual scrolling maths stays exact.
+let ROW_H = 20;            // px, the same for every grid row
+let HEAD_H = 30;           // px, the sticky header with the voice names
 const EXTRA_ROWS = 8;      // empty space after the last row so the end can scroll up
 
 const hex2 = (n) => n.toString(16).toUpperCase().padStart(2, '0');
@@ -55,8 +59,6 @@ export function mountEditor(container, store) {
   container.classList.add('ed');
   container.tabIndex = 0;
   container.setAttribute('aria-label', 'Pattern editor');
-  container.style.setProperty('--ed-row-h', `${ROW_H}px`);
-  container.style.setProperty('--ed-head-h', `${HEAD_H}px`);
   container.innerHTML = `
     <div class="ed-bar">
       <span class="ed-status" data-role="status"></span>
@@ -77,6 +79,8 @@ export function mountEditor(container, store) {
       <div class="ed-order" data-v="1"></div>
       <div class="ed-order" data-v="2"></div>
     </div>
+    <div class="ed-grip" data-role="grip" role="separator" aria-orientation="horizontal" tabindex="0"
+         aria-label="Order list height (drag, or use the up and down arrow keys)" title="Drag to show more or fewer order rows"></div>
     <div class="ed-scroll" data-role="scroll">
       <div class="ed-head" data-role="head"></div>
       <div class="ed-rows" data-role="rows"></div>
@@ -90,6 +94,62 @@ export function mountEditor(container, store) {
   const headEl = $('head');
   const rowsEl = $('rows');
   const orderEls = [...container.querySelectorAll('.ed-order')];
+  const gripEl = $('grip');
+
+  // ---- sizes from the stylesheet -------------------------------------------------------
+
+  // Measure what a length such as 1.45rem is in pixels right now, using a probe element.
+  function measure(cssLength) {
+    const probe = document.createElement('div');
+    probe.style.cssText = `position:absolute;visibility:hidden;pointer-events:none;height:${cssLength}`;
+    container.append(probe);
+    const px = probe.getBoundingClientRect().height;
+    probe.remove();
+    return px;
+  }
+
+  // Returns true when the sizes changed.
+  function measureSizes() {
+    const row = Math.max(8, Math.round(measure('var(--ed-row-size)')));
+    const head = Math.max(8, Math.round(measure('var(--ed-head-size)')));
+    if (row === ROW_H && head === HEAD_H && container.style.getPropertyValue('--ed-row-h')) return false;
+    ROW_H = row;
+    HEAD_H = head;
+    container.style.setProperty('--ed-row-h', `${row}px`);
+    container.style.setProperty('--ed-head-h', `${head}px`);
+    return true;
+  }
+  measureSizes();
+
+  // ---- the order list height grip ------------------------------------------------------
+
+  let orderRows = null;                       // null = the stylesheet's default for this window height
+  function setOrderRows(rows) {
+    orderRows = clamp(rows, 3, 30);
+    container.style.setProperty('--ed-order-rows', String(orderRows));
+  }
+  gripEl.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    gripEl.setPointerCapture(e.pointerId);
+    const startY = e.clientY;
+    const startRows = orderRows ?? Number.parseFloat(getComputedStyle(container).getPropertyValue('--ed-order-rows'));
+    const move = (ev) => setOrderRows(Math.round((startRows + (ev.clientY - startY) / ROW_H) * 2) / 2);
+    const up = () => {
+      gripEl.removeEventListener('pointermove', move);
+      gripEl.removeEventListener('pointerup', up);
+      gripEl.removeEventListener('pointercancel', up);
+    };
+    gripEl.addEventListener('pointermove', move);
+    gripEl.addEventListener('pointerup', up);
+    gripEl.addEventListener('pointercancel', up);
+  });
+  gripEl.addEventListener('keydown', (e) => {
+    if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+    e.preventDefault();
+    e.stopPropagation();
+    const now = orderRows ?? Number.parseFloat(getComputedStyle(container).getPropertyValue('--ed-order-rows'));
+    setOrderRows(now + (e.key === 'ArrowDown' ? 1 : -1));
+  });
 
   // ---- reading the project -----------------------------------------------------------
 
@@ -678,6 +738,20 @@ export function mountEditor(container, store) {
     requestAnimationFrame(() => { scrollQueued = false; renderGrid(); });
   });
 
+  // Window size, browser zoom and layout changes alter the pixel size of a rem: measure again.
+  let sizeQueued = false;
+  function onResize() {
+    if (sizeQueued) return;
+    sizeQueued = true;
+    requestAnimationFrame(() => {
+      sizeQueued = false;
+      if (measureSizes()) render(); else renderGrid();
+    });
+  }
+  const resizeObserver = typeof ResizeObserver === 'function' ? new ResizeObserver(onResize) : null;
+  if (resizeObserver) resizeObserver.observe(container);
+  window.addEventListener('resize', onResize);
+
   // ---- store changes -----------------------------------------------------------------
 
   function onPlayhead() {
@@ -714,6 +788,8 @@ export function mountEditor(container, store) {
   return {
     destroy() {
       unsubscribe();
+      if (resizeObserver) resizeObserver.disconnect();
+      window.removeEventListener('resize', onResize);
       clearTimeout(ui.messageTimer);
       container.removeEventListener('keydown', onKeyDown);
       container.removeEventListener('mousedown', onMouseDown);
