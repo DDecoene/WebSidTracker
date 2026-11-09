@@ -1,0 +1,235 @@
+/* style.css - the shell of the tracker: colours, header, panes, dialogs.
+   The pattern editor and the instrument panel have their own files (ui/*.css) and can
+   use the colour variables below: --bg --panel --panel-2 --fg --muted --border --accent
+   --accent-fg --accent-soft --good --bad --warn --focus --mono --radius.
+
+   Part of the WebSidTracker web app, GPL version 3 or later (see ./LICENSE). */
+
+:root {
+  color-scheme: light dark;
+  --mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --radius: 6px;
+
+  /* light */
+  --bg: #eeece6;
+  --panel: #fbfaf7;
+  --panel-2: #e4e1d8;
+  --fg: #1c2027;
+  --muted: #5d6471;
+  --border: #c9c5b8;
+  --accent: #0a62b8;
+  --accent-fg: #ffffff;
+  --accent-soft: #0a62b822;
+  --good: #1a7f4b;
+  --bad: #b3261e;
+  --warn: #8a5a00;
+  --focus: #0a62b8;
+  --shadow: 0 1px 2px #0002, 0 6px 20px #0001;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #101319;
+    --panel: #181c24;
+    --panel-2: #232937;
+    --fg: #e5e8ee;
+    --muted: #9aa2b3;
+    --border: #2f3646;
+    --accent: #5cb6ff;
+    --accent-fg: #06121f;
+    --accent-soft: #5cb6ff26;
+    --good: #55d494;
+    --bad: #ff7b72;
+    --warn: #f0b84a;
+    --focus: #8fd0ff;
+    --shadow: 0 1px 2px #0006, 0 8px 24px #0006;
+  }
+}
+
+* { box-sizing: border-box; }
+
+html, body { height: 100%; }
+
+body {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  color: var(--fg);
+  font: 14px/1.4 var(--sans);
+}
+
+code, kbd { font-family: var(--mono); font-size: 0.92em; }
+kbd {
+  display: inline-block; min-width: 1.6em; padding: 0 0.4em; text-align: center;
+  background: var(--panel-2); border: 1px solid var(--border); border-bottom-width: 2px;
+  border-radius: 4px;
+}
+
+a { color: var(--accent); }
+
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+/* ---- header ------------------------------------------------------------ */
+
+.topbar {
+  flex: none;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+  padding: 8px 14px 10px;
+  display: grid;
+  gap: 8px;
+}
+
+.row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
+.grow { flex: 1 1 auto; }
+.spacer { flex: 1; }
+
+.brand {
+  display: flex; align-items: center; gap: 8px;
+  font: 700 17px/1 var(--mono); letter-spacing: 0.02em; color: var(--accent);
+}
+.brand b { color: var(--fg); font-weight: 700; }
+
+.group { display: inline-flex; gap: 4px; }
+
+.field { display: inline-flex; align-items: center; gap: 6px; }
+.field .label { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; }
+.field .unit { color: var(--muted); font-size: 12px; min-width: 4.5em; }
+.field.grow { max-width: 22rem; }
+.field.grow input { width: 100%; }
+
+button, select, input[type="text"], input[type="number"] {
+  font: inherit;
+  color: var(--fg);
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 4px 10px;
+  min-height: 30px;
+}
+
+input[type="text"], input[type="number"] { background: var(--bg); }
+input[type="number"] { width: 4.6em; font-family: var(--mono); }
+
+button { cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+button:hover:not(:disabled) { border-color: var(--accent); }
+button:active:not(:disabled) { transform: translateY(1px); }
+button:disabled { opacity: 0.45; cursor: default; }
+
+button.primary { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); font-weight: 600; }
+
+button.play svg { color: var(--good); }
+button.stop svg { color: var(--bad); }
+button.play.active { background: var(--good); color: var(--bg); border-color: var(--good); }
+button.play.active svg { color: currentColor; }
+
+button.mute { font-family: var(--mono); font-weight: 600; min-width: 2.8em; justify-content: center; padding: 4px 6px; }
+button.mute[aria-pressed="true"] { background: var(--bad); color: var(--bg); border-color: var(--bad); }
+
+input[type="range"] { width: 5.5rem; accent-color: var(--accent); }
+
+.transport { padding-top: 8px; border-top: 1px solid var(--border); }
+
+.meter { width: 56px; height: 10px; background: var(--bg); border: 1px solid var(--border); border-radius: 5px; overflow: hidden; }
+.meter i { display: block; height: 100%; width: 0; background: var(--good); transition: width 60ms linear; }
+
+.readout { flex: 1 1 0; min-width: 11rem; color: var(--muted); font: 12px/1.3 var(--mono); text-align: right; }
+.readout span { display: inline-block; white-space: nowrap; margin-left: 0.9em; }
+.readout b { color: var(--fg); font-weight: 600; }
+.readout .low { color: var(--warn); }
+
+/* ---- messages ------------------------------------------------------------ */
+
+.messages { flex: none; display: grid; }
+.messages:empty { display: none; }
+
+.message {
+  display: flex; gap: 10px; align-items: flex-start;
+  padding: 8px 14px; border-bottom: 1px solid var(--border);
+  border-left: 4px solid var(--muted); background: var(--panel);
+}
+.message.error { border-left-color: var(--bad); }
+.message.warn { border-left-color: var(--warn); }
+.message.info { border-left-color: var(--good); }
+.message strong { display: block; }
+.message ul { margin: 2px 0 0; padding-left: 1.2em; }
+.message .body { flex: 1; min-width: 0; }
+.message button.dismiss { min-height: 24px; padding: 0 8px; }
+
+/* ---- workspace ----------------------------------------------------------- */
+
+.workspace {
+  flex: 1 1 0;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(400px, 34%);
+  gap: 10px;
+  padding: 10px 14px;
+}
+
+.pane {
+  min-width: 0; min-height: 0;
+  overflow: auto;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.pane-failed { padding: 16px; color: var(--bad); }
+
+/* ---- footer -------------------------------------------------------------- */
+
+.footer {
+  flex: none; display: flex; flex-wrap: wrap; gap: 4px 16px; align-items: baseline;
+  padding: 6px 14px; font-size: 12px; color: var(--muted);
+  border-top: 1px solid var(--border); background: var(--panel);
+}
+
+/* ---- dialogs ------------------------------------------------------------- */
+
+dialog {
+  width: min(46rem, calc(100vw - 28px)); max-height: calc(100vh - 40px);
+  padding: 0; color: var(--fg); background: var(--panel);
+  border: 1px solid var(--border); border-radius: 10px; box-shadow: var(--shadow);
+}
+dialog::backdrop { background: #0008; }
+dialog form { padding: 16px 20px; }
+dialog h2 { margin: 0 0 8px; font-size: 18px; }
+dialog h3 { margin: 18px 0 6px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+.dialog-actions { display: flex; justify-content: flex-end; margin-top: 16px; }
+.hint { color: var(--muted); margin: 0 0 12px; }
+
+.keys { display: grid; grid-template-columns: max-content 1fr; gap: 4px 14px; margin: 0; }
+.keys dt { text-align: right; white-space: nowrap; }
+.keys dd { margin: 0; color: var(--fg); }
+
+.file-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 8px 0; border-top: 1px solid var(--border); }
+.file-row:first-child { border-top: 0; }
+.file-row .name { font-family: var(--mono); font-weight: 600; }
+.file-row .size { color: var(--muted); font-size: 12px; }
+.file-row .what { flex-basis: 100%; color: var(--muted); font-size: 12px; margin-top: -4px; }
+.file-row .spacer { flex: 1; }
+.file-preview {
+  flex-basis: 100%; margin: 4px 0 0; padding: 8px 10px; max-height: 14rem; overflow: auto;
+  background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius);
+  font: 12px/1.35 var(--mono); white-space: pre;
+}
+
+.noscript { padding: 20px; }
+
+/* ---- narrower windows ------------------------------------------------------ */
+
+@media (max-width: 1100px) {
+  .workspace { grid-template-columns: minmax(0, 1fr) 380px; }
+}
+
+@media (max-width: 900px) {
+  .workspace { grid-template-columns: minmax(0, 1fr); grid-auto-rows: minmax(320px, 1fr); overflow: auto; }
+  .pane { overflow: auto; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; }
+}
