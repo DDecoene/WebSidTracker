@@ -1,20 +1,28 @@
-// mountain-king.js - "In the Hall of the Mountain King" (Edvard Grieg, public domain) arranged for
-// three SID voices. The arrangement is original work.
+// mountain-king.js - "In the Hall of the Mountain King" (Edvard Grieg, Peer Gynt Suite No. 1, Op. 46 No. 4),
+// reduced from the piano score to the three SID voices.
 //
-// Voice 1 = bass, voice 2 = the theme, voice 3 = chord shimmer (arpeggio) and, at the end, drums.
+// Source: the Mutopia Project piano edition (see `info.source`). The notes below are read from that
+// edition's MIDI file, bar by bar, and every rhythm is kept exactly: one tick is a 96th of a whole
+// note, so a bar of 4/4 is 96 ticks, an eighth note 12, a sixteenth 6, an eighth-note triplet 8 and the
+// grace notes 3 each. The song speed is 1 frame per tick (125 beats per minute, a little slower than the
+// 138 and 154 of the printed score: a song has one fixed speed).
 //
-// The song speed is fixed (5 frames per tick, so one tick is 0.1 s). The tune gets faster by
-// writing the same bars with shorter notes: u is the number of ticks of one eighth note.
+// The reduction, voice by voice:
+//   voice 1  the melody: the top note of the right hand
+//   voice 2  the bass: the lowest note of the left hand
+//   voice 3  the harmony: everything else, as a note, or as a chord stab that alternates between the
+//            lowest chord note and the nearest chord tone above it (the instrument's arpeggio)
+// Where the score has only two lines (bars 2 to 25) the third voice is silent, as the score is.
 //
-//   creep    u=4  quiet triangle theme over a soft bass
-//   rise     u=3  the theme an octave higher on a pulse lead, pulse bass, off-beat chord stabs
-//   march    u=2  twice, the second time a tone higher
-//   drive    u=2  twice, saw lead, octave bass, drums come in
-//   rush     u=1  twice, a tone higher each time, as fast as this speed allows
-//   finale   u=2  rising run, a long high note and a crash, a short silence, then the loop
+// Pitches are written as in the score (the printed octave, as the MIDI file sounds them). The order
+// list moves them where a SID voice sounds well: the tune an octave up for the quiet opening and an
+// octave down for the loud part, the bass an octave up for the opening. One bass note is written an
+// octave above the score because the printed one (B0, 31 Hz) is too low to hear: the first note of
+// bar 26.
 //
-// Melody and rhythm are written as text: "B3:1 C#4:1 r:4" is a note (name, length in eighths) or a
-// rest. The length is multiplied by u when the pattern is built, so one string serves every tempo.
+// A bar is one text line per voice: "B-1:12" is a note (name, length in ticks), "r:12" a rest.
+// "F#3+4:12" is a chord stab (the note and the note 4 semitones above, alternating), and a "g" after the
+// pitch marks a grace note (three of them run up to the beat).
 //
 // Part of the WebSidTracker web app, GPL version 3 or later (see ../../LICENSE).
 
@@ -23,168 +31,398 @@ import { defaultInstrument, parseNoteName } from '../project.js';
 export const info = {
   id: 'mountain-king',
   title: 'In the Hall of the Mountain King',
-  composer: 'Edvard Grieg (public domain), arranged for SID',
-  note: 'The creeping theme starts quietly on a triangle and is repeated higher and faster, with chord shimmer, pulse bass and finally drums, until the finale.',
+  composer: 'Edvard Grieg (public domain), reduced for SID',
+  note: 'The creeping march theme from the real score: it starts quiet and staccato, climbs in pitch and loudness through the key changes and ends in the loud finale with the final chords.',
+  source: 'Mutopia Project, piece 1888 (https://www.mutopiaproject.org/cgibin/piece-info.cgi?id=1888), '
+    + 'edition of The University Society, 1918, typeset in LilyPond by Coyau, licence: Public Domain (CC0-style dedication by the typesetter). '
+    + 'The MIDI file of that edition was used for the notes.',
 };
 
-// ---------------------------------------------------------------- the theme, in eighth notes
+export const BAR_TICKS = 96;
+export const BARS = 88;
 
-// One phrase per bar (8 eighths each), in B minor. A and C climb the scale, B and D are the
-// answering "dip" figures; C reaches up to the high B and D rests on the dominant (F sharp major).
-export const THEME = {
-  A: 'B3:1 C#4:1 D4:1 E4:1 F#4:1 D4:1 F#4:2',
-  B: 'F4:1 C#4:1 F4:2 r:4',
-  C: 'B3:1 C#4:1 D4:1 E4:1 F#4:1 D4:1 F#4:1 B4:1',
-  D: 'A#4:1 F#4:1 A#4:2 r:4',
-};
+const MELODY = [
+  /*  1 */ 'F#4:96',
+  /*  2 */ 'B-1:12 C#2:12 D-2:12 E-2:12 F#2:12 D-2:12 F#2:24',
+  /*  3 */ 'F-2:12 C#2:12 F-2:24 E-2:12 C-2:12 E-2:24',
+  /*  4 */ 'B-1:12 C#2:12 D-2:12 E-2:12 F#2:12 D-2:12 F#2:12 B-2:12',
+  /*  5 */ 'A-2:12 F#2:12 D-2:12 F#2:12 A-2:48',
+  /*  6 */ 'B-2:12 C#3:12 D-3:12 E-3:12 F#3:12 D-3:12 F#3:24',
+  /*  7 */ 'F-3:12 C#3:12 F-3:24 E-3:12 C-3:12 E-3:24',
+  /*  8 */ 'B-2:12 C#3:12 D-3:12 E-3:12 F#3:12 D-3:12 F#3:12 B-3:12',
+  /*  9 */ 'A-3:12 F#3:12 D-3:12 F#3:12 A-3:48',
+  /* 10 */ 'F#2:12 G#2:12 A#2:12 B-2:12 C#3:12 A#2:12 C#3:24',
+  /* 11 */ 'D-3:12 A#2:12 D-3:24 C#3:12 A#2:12 C#3:24',
+  /* 12 */ 'F#2:12 G#2:12 A#2:12 B-2:12 C#3:12 A#2:12 C#3:24',
+  /* 13 */ 'D-3:12 A#2:12 D-3:24 C#3:48',
+  /* 14 */ 'F#3:12 G#3:12 A#3:12 B-3:12 C#4:12 A#3:12 C#4:24',
+  /* 15 */ 'D-4:12 A#3:12 D-4:24 C#4:12 A#3:12 C#4:24',
+  /* 16 */ 'F#3:12 G#3:12 A#3:12 B-3:12 C#4:12 A#3:12 C#4:24',
+  /* 17 */ 'D-4:12 A#3:12 D-4:24 C#4:48',
+  /* 18 */ 'B-1:12 C#2:12 D-2:12 E-2:12 F#2:12 D-2:12 F#2:24',
+  /* 19 */ 'F-2:12 C#2:12 F-2:24 E-2:12 C-2:12 E-2:24',
+  /* 20 */ 'B-1:12 C#2:12 D-2:12 E-2:12 F#2:12 D-2:12 F#2:12 B-2:12',
+  /* 21 */ 'A-2:12 F#2:12 D-2:12 F#2:12 A-2:48',
+  /* 22 */ 'B-2:12 C#3:12 D-3:12 E-3:12 F#3:12 D-3:12 F#3:24',
+  /* 23 */ 'F-3:12 C#3:12 F-3:24 E-3:12 C-3:12 E-3:24',
+  /* 24 */ 'B-2:12 C#3:12 D-3:12 E-3:12 F#3:12 D-3:12 F#3:12 B-3:12',
+  /* 25 */ 'A-3:12 F#3:12 D-3:12 F#3:12 A-3:48',
+  /* 26 */ 'B-3:12 C#4:12 D-4:12 E-4:12 F#4:12 D-4:12 F#4:24',
+  /* 27 */ 'F-4:12 C#4:12 F-4:24 E-4:12 C-4:12 E-4:24',
+  /* 28 */ 'B-3:12 C#4:12 D-4:12 E-4:12 F#4:12 D-4:12 F#4:12 B-4:12',
+  /* 29 */ 'A-4:12 F#4:12 D-4:12 F#4:12 A-4:24 D-4:24',
+  /* 30 */ 'B-4:12 C#5:12 D-5:12 E-5:12 F#5:12 D-5:12 F#5:24',
+  /* 31 */ 'F-5:12 C#5:12 F-5:24 E-5:12 C-5:12 E-5:24',
+  /* 32 */ 'B-4:12 C#5:12 D-5:12 E-5:12 F#5:12 D-5:12 F#5:12 B-5:12',
+  /* 33 */ 'A-5:12 F#5:12 D-5:12 F#5:12 A-5:24 D-5:24',
+  /* 34 */ 'F#4:12 G#4:12 A#4:12 B-4:12 C#5:12 A#4:12 C#5:24',
+  /* 35 */ 'D-5:12 A#4:12 D-5:24 C#5:12 A#4:12 C#5:24',
+  /* 36 */ 'F#4:12 G#4:12 A#4:12 B-4:12 C#5:12 A#4:12 C#5:24',
+  /* 37 */ 'D-5:12 A#4:12 D-5:24 C#5:24 A#4:24',
+  /* 38 */ 'F#5:12 G#5:12 A#5:12 B-5:12 C#6:12 A#5:12 C#6:24',
+  /* 39 */ 'D-6:12 A#5:12 D-6:24 C#6:12 A#5:12 C#6:24',
+  /* 40 */ 'F#5:12 G#5:12 A#5:12 B-5:12 C#6:12 A#5:12 C#6:24',
+  /* 41 */ 'D-6:12 A#5:12 D-6:24 C#6:24 A#5:24',
+  /* 42 */ 'B-3:12 C#4:12 D-4:12 E-4:12 F#4:12 D-4:12 F#4:24',
+  /* 43 */ 'F-4:12 C#4:12 F-4:24 E-4:12 C-4:12 F-4:24',
+  /* 44 */ 'B-3:12 C#4:12 D-4:12 E-4:12 F#4:12 D-4:12 F#4:12 B-4:12',
+  /* 45 */ 'A-4:12 F#4:12 E-4:12 F#4:12 A-4:24 E-4:24',
+  /* 46 */ 'B-4:12 C#5:12 D-5:12 E-5:12 F#5:12 D-5:12 F#5:24',
+  /* 47 */ 'F-5:12 C#5:12 F-5:24 E-5:12 C-5:12 E-5:24',
+  /* 48 */ 'B-4:12 C#5:12 D-5:12 E-5:12 F#5:12 D-5:12 F#5:12 B-5:12',
+  /* 49 */ 'F#5:12 D-5:12 F#5:12 B-5:12 B-4:48',
+  /* 50 */ 'B-5:12 C#6:12 D-6:12 E-6:12 F#6:12 D-6:12 F#6:24',
+  /* 51 */ 'F-6:12 C#6:12 F-6:24 E-6:12 C-6:12 E-6:24',
+  /* 52 */ 'B-5:12 C#6:12 D-6:12 E-6:12 F#6:12 D-6:12 F#6:12 B-6:12',
+  /* 53 */ 'A-6:12 F#6:12 D-6:12 F#6:12 A-6:48',
+  /* 54 */ 'B-5:12 C#6:12 D-6:12 E-6:12 F#6:12 D-6:12 F#6:24',
+  /* 55 */ 'F-6:12 C#6:12 F-6:24 E-6:12 C-6:12 E-6:24',
+  /* 56 */ 'B-5:12 C#6:12 D-6:12 E-6:12 F#6:12 D-6:12 F#6:12 B-6:12',
+  /* 57 */ 'A-6:12 F#6:12 D-6:12 F#6:12 A-6:48',
+  /* 58 */ 'F#6:12 G#6:12 A#6:12 B-6:12 C#7:12 A#6:12 C#7:24',
+  /* 59 */ 'D-7:12 A#6:12 D-7:24 C#7:12 A#6:12 C#7:24',
+  /* 60 */ 'F#6:12 G-6:12 A#6:12 B-6:12 C#7:12 A#6:12 C#7:24',
+  /* 61 */ 'D-7:12 A#6:12 D-7:24 C#7:48',
+  /* 62 */ 'F#6:12 G#6:12 A#6:12 B-6:12 C#7:12 A#6:12 C#7:24',
+  /* 63 */ 'D#7:12 A#6:12 D#7:24 C#7:12 A#6:12 C#7:24',
+  /* 64 */ 'F#6:12 G-6:12 A#6:12 B-6:12 C#7:12 A#6:12 C#7:24',
+  /* 65 */ 'D-7:12 A#6:12 D-7:24 C#7:48',
+  /* 66 */ 'B-5:12 C#6:12 D-6:12 E-6:12 F#6:12 D-6:12 F#6:24',
+  /* 67 */ 'F-6:12 C#6:12 F-6:24 E-6:12 C-6:12 E-6:24',
+  /* 68 */ 'B-5:12 C#6:12 D-6:12 E-6:12 F#6:12 B-5:12 F#6:12 B-6:12',
+  /* 69 */ 'A-6:12 F#6:12 D-6:12 F#6:12 A-6:48',
+  /* 70 */ 'B-5:12 C#6:12 D-6:12 E-6:12 F#6:12 D-6:12 F#6:24',
+  /* 71 */ 'F-6:12 C#6:12 F-6:24 E-6:12 C-6:12 E-6:24',
+  /* 72 */ 'B-5:12 C#6:12 D-6:12 E-6:12 F#6:12 D-6:12 F#6:12 B-6:12',
+  /* 73 */ 'F#6:12 D-6:12 F#6:12 B-6:12 B-5:48',
+  /* 74 */ 'r:15 G#6g:3 A-6g:3 A#6g:3 B-6:24 r:48',
+  /* 75 */ 'r:15 G#6g:3 A-6g:3 A#6g:3 B-6:24 r:48',
+  /* 76 */ 'B-4:12 C#5:12 D-5:12 E-5:12 F#5:12 D-5:12 F#5:12 B-5:12',
+  /* 77 */ 'A#5:12 F#5:12 A#5:12 C#6:12 B-5:48',
+  /* 78 */ 'r:15 G#6g:3 A-6g:3 A#6g:3 B-6:24 r:48',
+  /* 79 */ 'r:15 G#6g:3 A-6g:3 A#6g:3 B-6:24 r:48',
+  /* 80 */ 'B-5:12 C#6:12 D-6:12 E-6:12 F#6:12 D-6:12 F#6:12 B-6:12',
+  /* 81 */ 'A#6:12 F#6:12 A#6:12 C#7:12 B-6:48',
+  /* 82 */ 'r:15 G#6g:3 A-6g:3 A#6g:3 B-6:24 r:48',
+  /* 83 */ 'r:15 G#6g:3 A-6g:3 A#6g:3 B-6:24 r:48',
+  /* 84 */ 'r:15 G#6g:3 A-6g:3 A#6g:3 B-6:15 G#6g:3 A-6g:3 A#6g:3 B-6:15 G#6g:3 A-6g:3 A#6g:3 B-6:15 G#6g:3 A-6g:3 A#6g:3',
+  /* 85 */ 'B-6:15 G#6g:3 A-6g:3 A#6g:3 B-6:15 G#6g:3 A-6g:3 A#6g:3 B-6:15 G#6g:3 A-6g:3 A#6g:3 B-6:24',
+  /* 86 */ 'r:96',
+  /* 87 */ 'r:96',
+  /* 88 */ 'r:15 G#6g:3 A-6g:3 A#6g:3 B-6:24 r:48',
+];
 
-const BARS = ['A', 'B', 'C', 'D'];
-const isDominant = (bar) => bar === 'B' || bar === 'D';   // bars B and D sit on F sharp
+const BASS = [
+  /*  1 */ 'F#3:96',
+  /*  2 */ 'B-0:24 F#1:24 B-0:24 F#1:24',
+  /*  3 */ 'B-0:24 F#1:24 B-0:24 F#1:24',
+  /*  4 */ 'B-0:24 F#1:24 B-0:24 F#1:24',
+  /*  5 */ 'D-1:24 A-1:24 D-1:24 A-1:24',
+  /*  6 */ 'B-0:24 F#1:24 B-0:24 F#1:24',
+  /*  7 */ 'B-0:24 F#1:24 B-0:24 F#1:24',
+  /*  8 */ 'B-0:24 F#1:24 B-0:24 F#1:24',
+  /*  9 */ 'D-1:24 A-1:24 D-1:24 A-1:24',
+  /* 10 */ 'F#1:24 C#2:24 F#1:24 C#2:24',
+  /* 11 */ 'D-1:24 A#1:24 F#1:24 C#2:24',
+  /* 12 */ 'F#1:24 C#2:24 F#1:24 C#2:24',
+  /* 13 */ 'D-1:24 A#1:24 F#1:24 C#2:24',
+  /* 14 */ 'F#1:24 C#2:24 F#1:24 C#2:24',
+  /* 15 */ 'D-1:24 A#1:24 F#1:24 C#2:24',
+  /* 16 */ 'F#1:24 C#2:24 F#1:24 C#2:24',
+  /* 17 */ 'D-1:24 A#1:24 F#1:24 C#2:24',
+  /* 18 */ 'B-0:24 F#1:24 B-0:24 F#1:24',
+  /* 19 */ 'B-0:24 F#1:24 B-0:24 F#1:24',
+  /* 20 */ 'B-0:24 F#1:24 B-0:24 F#1:24',
+  /* 21 */ 'D-1:24 A-1:24 D-1:24 A-1:24',
+  /* 22 */ 'B-0:24 F#1:24 B-0:24 F#1:24',
+  /* 23 */ 'B-0:24 F#1:24 B-0:24 F#1:24',
+  /* 24 */ 'B-0:24 B-1:24 A-1:24 G-1:24',
+  /* 25 */ 'F#1:24 E-1:24 C#1:24 B-0:24',
+  /* 26 */ 'B-1:24 F#2:6 F-2:6 F#2:12 B-1:24 F#2:6 F-2:6 F#2:12',
+  /* 27 */ 'B-1:24 F#2:6 F-2:6 F#2:12 B-1:24 F#2:6 F-2:6 F#2:12',
+  /* 28 */ 'B-1:24 F#2:6 F-2:6 F#2:12 B-1:24 F#2:6 F-2:6 F#2:12',
+  /* 29 */ 'D-2:24 A-2:6 G#2:6 A-2:12 D-2:24 A-2:6 G#2:6 A-2:12',
+  /* 30 */ 'B-1:24 F#2:6 F-2:6 F#2:12 B-1:24 F#2:6 F-2:6 F#2:12',
+  /* 31 */ 'B-1:24 F#2:6 F-2:6 F#2:12 B-1:24 F#2:6 F-2:6 F#2:12',
+  /* 32 */ 'B-1:24 F#2:6 F-2:6 F#2:12 B-1:24 F#2:6 F-2:6 F#2:12',
+  /* 33 */ 'D-2:24 A-2:6 G#2:6 A-2:12 D-2:24 A-2:6 G#2:6 A-2:12',
+  /* 34 */ 'F#2:24 C#3:6 C-3:6 C#3:12 F#2:24 C#3:6 C-3:6 C#3:12',
+  /* 35 */ 'D-2:24 D-3:6 C#3:6 D-3:12 F#2:24 C#3:6 C-3:6 C#3:12',
+  /* 36 */ 'F#2:24 C#3:6 C-3:6 C#3:12 F#2:24 C#3:6 C-3:6 C#3:12',
+  /* 37 */ 'D-2:24 D-3:6 C#3:6 D-3:12 F#2:24 C#3:6 C-3:6 C#3:12',
+  /* 38 */ 'F#2:24 C#3:6 C-3:6 C#3:12 F#2:24 C#3:6 C-3:6 C#3:12',
+  /* 39 */ 'D-2:24 D-3:6 C#3:6 D-3:12 F#2:24 C#3:6 C-3:6 C#3:12',
+  /* 40 */ 'F#2:24 C#3:6 C-3:6 C#3:12 F#2:24 C#3:6 C-3:6 C#3:12',
+  /* 41 */ 'D-2:24 D-3:6 C#3:6 D-3:12 F#2:24 C#3:6 C-3:6 C#3:12',
+  /* 42 */ 'B-1:8 F-2:8 F#2:8 D-3:8 F-2:8 F#2:8 B-1:8 F-2:8 F#2:8 D-3:8 F-2:8 F#2:8',
+  /* 43 */ 'B-1:8 F-2:8 F#2:8 C#3:8 F-2:8 F#2:8 B-1:8 F-2:8 F#2:8 C-3:8 F-2:8 F#2:8',
+  /* 44 */ 'B-1:8 F-2:8 F#2:8 D-3:8 F-2:8 F#2:8 B-1:8 F-2:8 F#2:8 D-3:8 F-2:8 F#2:8',
+  /* 45 */ 'D-2:8 G#2:8 A-2:8 F#3:8 G#2:8 A-2:8 D-2:8 G#2:8 A-2:8 F#3:8 G#2:8 A-2:8',
+  /* 46 */ 'B-1:8 F-2:8 F#2:8 D-3:8 F-2:8 F#2:8 B-1:8 F-2:8 F#2:8 D-3:8 F-2:8 F#2:8',
+  /* 47 */ 'B-1:8 F-2:8 F#2:8 D-3:8 F-2:8 F#2:8 B-1:8 F-2:8 F#2:8 D-3:8 F-2:8 F#2:8',
+  /* 48 */ 'B-1:8 F-2:8 F#2:8 B-2:24 A-2:24 G-2:24',
+  /* 49 */ 'F#2:24 E-2:24 D-2:24 C#2:24',
+  /* 50 */ 'B-1:12 A-2:12 G-2:12 F#2:12 B-1:12 A-2:12 G-2:12 F#2:12',
+  /* 51 */ 'B-1:12 A-2:12 G-2:12 F#2:12 B-1:12 A-2:12 G-2:12 F#2:12',
+  /* 52 */ 'B-1:12 A-2:12 G-2:12 F#2:12 B-1:12 A-2:12 G-2:12 F#2:12',
+  /* 53 */ 'D-2:12 C#3:12 B-2:12 A-2:12 D-2:12 C#3:12 B-2:12 A-2:12',
+  /* 54 */ 'B-1:12 A-2:12 G-2:12 F#2:12 B-1:12 A-2:12 G-2:12 F#2:12',
+  /* 55 */ 'B-1:12 A-2:12 G-2:12 F#2:12 B-1:12 A-2:12 G-2:12 F#2:12',
+  /* 56 */ 'B-1:12 A-2:12 G-2:12 F#2:12 B-1:12 A-2:12 G-2:12 F#2:12',
+  /* 57 */ 'B-1:12 A-2:12 G-2:12 F#2:12 B-1:12 A-2:12 G-2:12 F#2:12',
+  /* 58 */ 'F#2:12 E-3:12 D-3:12 C#3:12 F#2:12 E-3:12 D-3:12 C#3:12',
+  /* 59 */ 'D-2:12 C#3:12 D-3:12 E-3:12 F#2:12 E-3:12 D-3:12 C#3:12',
+  /* 60 */ 'F#2:12 E-3:12 D-3:12 C#3:12 F#2:12 E-3:12 D-3:12 C#3:12',
+  /* 61 */ 'D-2:12 C#3:12 D-3:12 E-3:12 F#2:12 E-3:12 D-3:12 C#3:12',
+  /* 62 */ 'F#2:12 F-3:12 D#3:12 C#3:12 F#2:12 F-3:12 D#3:12 C#3:12',
+  /* 63 */ 'D#2:12 C#3:12 D#3:12 F-3:12 F#2:12 F-3:12 D#3:12 C#3:12',
+  /* 64 */ 'F#2:12 F-3:12 D#3:12 C#3:12 F#2:12 F-3:12 D#3:12 C#3:12',
+  /* 65 */ 'D#2:12 C#3:12 D#3:12 F-3:12 F#2:12 F-3:12 D#3:12 C#3:12',
+  /* 66 */ 'B-1:12 A-2:12 G-2:12 F#2:12 B-1:12 A-2:12 G-2:12 F#2:12',
+  /* 67 */ 'B-1:12 A-2:12 G-2:12 F#2:12 B-1:12 A-2:12 G-2:12 F#2:12',
+  /* 68 */ 'B-1:12 A-2:12 G-2:12 F#2:12 B-1:12 A-2:12 G-2:12 F#2:12',
+  /* 69 */ 'D-2:12 C#3:12 A-2:12 G-2:12 D-2:12 C#3:12 A-2:12 G-2:12',
+  /* 70 */ 'B-1:12 A-2:12 G-2:12 F#2:12 B-1:12 A-2:12 G-2:12 F#2:12',
+  /* 71 */ 'B-1:12 A-2:12 G-2:12 F#2:12 B-1:12 A-2:12 G-2:12 F#2:12',
+  /* 72 */ 'B-1:12 A-2:12 G-2:12 F#2:12 B-1:12 A-2:12 G-2:12 F#2:12',
+  /* 73 */ 'B-1:12 A-2:12 G-2:12 F#2:12 B-1:12 A-2:12 G-2:12 F#2:12',
+  /* 74 */ 'B-1:24 D-3:24 r:48',
+  /* 75 */ 'B-1:24 D-3:24 r:48',
+  /* 76 */ 'G-2:24 D-3:24 F#2:24 D-3:24',
+  /* 77 */ 'F#1:24 C#3:24 B-1:24 D-3:24',
+  /* 78 */ 'B-1:24 D-3:24 r:48',
+  /* 79 */ 'B-1:24 D-3:24 r:48',
+  /* 80 */ 'G-2:24 D-3:24 F#2:24 D-3:24',
+  /* 81 */ 'F#1:24 C#3:24 B-1:24 D-3:24',
+  /* 82 */ 'B-1:24 D-3:24 r:48',
+  /* 83 */ 'B-1:24 D-3:24 r:48',
+  /* 84 */ 'B-1:24 D-3:24 D-3:24 D-3:24',
+  /* 85 */ 'D-3:24 D-3:24 D-3:24 D-3:24',
+  /* 86 */ 'r:48 B-1:6 B-2:6 B-1:6 B-2:6 B-1:6 B-2:6 B-1:6 B-2:6',
+  /* 87 */ 'B-1:6 B-2:6 B-1:6 B-2:6 B-1:6 B-2:6 B-1:6 B-2:6 B-1:6 B-2:6 B-1:6 B-2:6 B-1:6 B-2:6 B-1:6 B-2:6',
+  /* 88 */ 'B-0:24 B-2:24 r:48',
+];
+
+const HARMONY = [
+  /*  1 */ 'r:96',
+  /*  2 */ 'r:96',
+  /*  3 */ 'r:96',
+  /*  4 */ 'r:96',
+  /*  5 */ 'r:96',
+  /*  6 */ 'r:96',
+  /*  7 */ 'r:96',
+  /*  8 */ 'r:96',
+  /*  9 */ 'r:48 A-2:48',
+  /* 10 */ 'r:96',
+  /* 11 */ 'r:96',
+  /* 12 */ 'r:96',
+  /* 13 */ 'r:96',
+  /* 14 */ 'r:96',
+  /* 15 */ 'r:96',
+  /* 16 */ 'r:96',
+  /* 17 */ 'r:48 C#3:48',
+  /* 18 */ 'r:96',
+  /* 19 */ 'r:96',
+  /* 20 */ 'r:96',
+  /* 21 */ 'r:96',
+  /* 22 */ 'r:96',
+  /* 23 */ 'r:96',
+  /* 24 */ 'r:96',
+  /* 25 */ 'r:48 A-2:48',
+  /* 26 */ 'r:24 D-3+4:12 r:36 D-3+4:24',
+  /* 27 */ 'r:24 C#3+4:24 r:24 C-3+4:24',
+  /* 28 */ 'r:24 D-3+4:12 r:36 D-3:12 r:12',
+  /* 29 */ 'r:24 F#3+3:12 r:36 F#3+3:24',
+  /* 30 */ 'r:24 D-3+4:24 r:24 D-3+4:24',
+  /* 31 */ 'r:24 C#3+5:24 r:24 D-3+4:24',
+  /* 32 */ 'r:24 D-3+4:24 r:24 D-3:12 r:12',
+  /* 33 */ 'r:24 F#3+3:24 r:24 F#3+3:24',
+  /* 34 */ 'r:24 A#3+8:24 r:24 A#3+8:24',
+  /* 35 */ 'r:24 A#3+8:24 r:24 A#3+8:24',
+  /* 36 */ 'r:24 A#3+8:24 r:24 A#3+8:24',
+  /* 37 */ 'r:24 A#3+8:24 r:24 A#3+8:24',
+  /* 38 */ 'r:24 A#3+8:12 r:36 A#3+8:24',
+  /* 39 */ 'r:24 A#3+8:24 r:24 A#3+8:24',
+  /* 40 */ 'r:24 A#3+8:12 r:36 A#3+8:24',
+  /* 41 */ 'r:24 A#3+8:24 r:24 A#3+8:24',
+  /* 42 */ 'r:24 F#3:12 r:36 F#3:24',
+  /* 43 */ 'r:24 F#3:24 r:24 F#3:24',
+  /* 44 */ 'r:24 F#3:12 r:36 B-3:12 r:12',
+  /* 45 */ 'r:24 A-3:12 r:36 A-3:24',
+  /* 46 */ 'r:24 F#4:24 r:24 F#4:24',
+  /* 47 */ 'r:24 F#4:24 r:24 F#4:24',
+  /* 48 */ 'r:48 B-2:24 B-2+3:24',
+  /* 49 */ 'B-2:24 B-2+3:24 B-2:24 B-2:24',
+  /* 50 */ 'r:48 B-5:48',
+  /* 51 */ 'B-5:48 B-5:48',
+  /* 52 */ 'r:48 B-5:48',
+  /* 53 */ 'A-5+5:48 A-5+5:48',
+  /* 54 */ 'r:48 B-5:48',
+  /* 55 */ 'B-5:48 B-5:48',
+  /* 56 */ 'r:48 B-5:48',
+  /* 57 */ 'A-5+5:48 A-5+5:48',
+  /* 58 */ 'r:48 C#6+5:24 C#6+5:24',
+  /* 59 */ 'D-6+4:12 r:12 D-6+4:24 C#6+5:12 r:12 C#6+5:24',
+  /* 60 */ 'r:12 F#6:12 F#6:12 F#6:12 C#6+5:12 C#6+5:12 C#6+5:24',
+  /* 61 */ 'D-6+4:12 D-6+4:12 D-6+4:24 C#6+5:48',
+  /* 62 */ 'r:48 C#6+5:24 C#6+5:24',
+  /* 63 */ 'D#6+3:12 r:12 D#6+3:24 C#6+5:12 r:12 C#6+5:24',
+  /* 64 */ 'r:12 F#6:12 F#6:12 F#6:12 C#6+5:12 C#6+5:12 C#6+5:24',
+  /* 65 */ 'D-6+4:12 D-6+4:12 D-6+4:24 C#6+5:48',
+  /* 66 */ 'r:48 B-5:48',
+  /* 67 */ 'B-5:48 B-5:48',
+  /* 68 */ 'r:48 B-5:24 r:24',
+  /* 69 */ 'A-5+5:48 A-5+5:48',
+  /* 70 */ 'r:12 B-5:12 B-5:12 B-5:12 B-5:12 B-5:12 B-5+3:24',
+  /* 71 */ 'B-5:12 B-5:12 B-5:24 B-5:12 B-5:12 B-5:24',
+  /* 72 */ 'r:12 B-5:12 B-5:12 B-5:12 B-5:12 B-5:12 B-5:12 B-5:12',
+  /* 73 */ 'B-5:12 B-5:12 B-5:12 B-5:12 r:48',
+  /* 74 */ 'r:24 F-3+3:24 r:48',
+  /* 75 */ 'r:24 F-3+3:24 r:48',
+  /* 76 */ 'r:24 G-3+4:24 r:24 F#3+5:24',
+  /* 77 */ 'r:24 F#3+4:24 r:24 F#3+5:24',
+  /* 78 */ 'r:24 F-3+3:24 r:48',
+  /* 79 */ 'r:24 F-3+3:24 r:48',
+  /* 80 */ 'r:24 G-3+4:24 r:24 F#3+5:24',
+  /* 81 */ 'r:24 F#3+4:24 r:24 F#3+5:24',
+  /* 82 */ 'r:24 F-3+3:24 r:48',
+  /* 83 */ 'r:24 F-3+3:24 r:48',
+  /* 84 */ 'r:24 F-3+3:24 F-3+3:24 F-3+3:24',
+  /* 85 */ 'F-3+3:24 F-3+3:24 F-3+3:24 F-3+3:24',
+  /* 86 */ 'r:96',
+  /* 87 */ 'r:96',
+  /* 88 */ 'r:24 D-3+4:24 r:48',
+];
+// ---------------------------------------------------------------- order list helpers
+
+// [first bar, value]: the value holds from that bar on, until the next entry.
+const from = (table, bar) => table.reduce((value, [first, v]) => (bar >= first ? v : value), table[0][1]);
+
+// The transpose of each voice's order entries, in semitones.
+export const TRANSPOSE = [
+  [[1, 0], [2, 12], [26, 0], [50, -12]],            // melody
+  [[1, 0], [2, 12], [26, 0], [88, 12]],             // bass
+  [[1, 0], [2, 12], [26, 0], [50, -12], [74, 0]],   // harmony
+];
+
+// How loud each bar is, 1 to 15 (the sustain level of the instruments): quiet and creeping at the
+// start, one step up for every few bars, and the big build from the dark chords to the final chord.
+const LEVEL = [
+  [1, 5], [2, 3], [10, 4], [14, 5], [18, 3], [22, 4], [26, 5], [30, 6], [34, 7], [38, 9],
+  [42, 10], [46, 12], [50, 14], [66, 15], [74, 13], [76, 9], [78, 13], [80, 10], [82, 13],
+  [84, 7], [85, 9], [86, 9], [87, 12], [88, 15],
+];
+const MELODY_WAVE = [[1, 'tri'], [26, 'pulse']];
+const BASS_WAVE = [[1, 'tri'], [26, 'pulse']];
 
 // ---------------------------------------------------------------- instruments
 
-const INST = { SOFT_BASS: 0, PULSE_BASS: 1, SOFT_LEAD: 2, LEAD: 3, BIG_LEAD: 4, ARP_MINOR: 5, ARP_MAJOR: 6, KICK: 7, SNARE: 8, HAT: 9, CRASH: 10 };
-
-function instruments() {
-  const make = (name, fields) => ({ ...defaultInstrument(), name, ...fields });
-  return [
-    // 0 quiet triangle bass for the opening (sustain 8 of 15)
-    make('Soft bass', { wave: 0x10, ad: 0x29, sr: 0x80, release: 3 }),
-    // 1 pulse bass whose width sweeps slowly, loud (sustain 15)
-    make('Pulse bass', { wave: 0x40, ad: 0x08, sr: 0xF0, pw: 0x0800, pwStep: 12, pwMin: 0x30, pwMax: 0xD0, release: 3 }),
-    // 2 quiet triangle lead with a late, shallow vibrato (sustain 7)
-    make('Soft lead', { wave: 0x10, ad: 0x4A, sr: 0x70, vibDelay: 8, vibDepth: 5, vibSpeed: 4, release: 3 }),
-    // 3 pulse lead, vibrato only on the long notes (sustain 10)
-    make('Lead', { wave: 0x40, ad: 0x2A, sr: 0xA8, pw: 0x0600, pwStep: 5, pwMin: 0x30, pwMax: 0xC0, vibDelay: 10, vibDepth: 6, vibSpeed: 4, release: 3 }),
-    // 4 saw lead for the loud part (sustain 15)
-    make('Big lead', { wave: 0x20, ad: 0x09, sr: 0xF9, vibDelay: 8, vibDepth: 5, vibSpeed: 4, release: 3 }),
-    // 5, 6 chord shimmer: the note and its minor third, or major third, on alternate frames
-    make('Arp minor', { wave: 0x40, ad: 0x09, sr: 0x98, pw: 0x0400, pwStep: 4, pwMin: 0x20, pwMax: 0xE0, arp: 3, release: 3 }),
-    make('Arp major', { wave: 0x40, ad: 0x09, sr: 0x98, pw: 0x0400, pwStep: 4, pwMin: 0x20, pwMax: 0xE0, arp: 4, release: 3 }),
-    // 7 kick: one frame of noise, then a triangle that falls fast
-    make('Kick', { wave: 0x10, ad: 0x05, sr: 0xF0, drumNoise: 1, drumFall: 160, release: 2 }),
-    // 8 snare: a few frames of noise, then a pulse body that falls
-    make('Snare', { wave: 0x40, ad: 0x04, sr: 0xF0, pw: 0x0400, drumNoise: 3, drumFall: 120, release: 2 }),
-    // 9 hat: noise only, very short
-    make('Hat', { wave: 0x80, ad: 0x02, sr: 0xC0, drumNoise: 255, drumFall: 0, release: 1 }),
-    // 10 crash: noise with a long decay
-    make('Crash', { wave: 0x80, ad: 0x0B, sr: 0x00, drumNoise: 255, drumFall: 0, release: 3 }),
-  ];
-}
-
-// Drum letters used in the drum strings: instrument and the pitch that goes with it.
-const DRUMS = {
-  K: { inst: INST.KICK, note: 'C3' },
-  S: { inst: INST.SNARE, note: 'D4' },
-  H: { inst: INST.HAT, note: 'C6' },
-  C: { inst: INST.CRASH, note: 'D4' },
-};
-
-// ---------------------------------------------------------------- text to events
-
-// "B3:1 r:2 K:1" -> events. Lengths are in units of `unit` ticks (the result must be a whole number).
-// `inst` is put first, so a pattern never depends on what the voice played before it.
-export function parseNotes(text, unit, inst) {
-  const events = [{ type: 'inst', instrument: inst }];
-  let current = inst;
-  for (const token of text.trim().split(/\s+/)) {
-    const [name, units] = token.split(':');
-    const length = Number(units) * unit;
-    if (!Number.isInteger(length) || length < 1) throw new Error(`bad length in "${token}" for unit ${unit}`);
-    if (name === 'r') { events.push({ type: 'rest', length }); continue; }
-    const drum = DRUMS[name];
-    if (drum && drum.inst !== current) { events.push({ type: 'inst', instrument: drum.inst }); current = drum.inst; }
-    const pitch = parseNoteName(drum ? drum.note : name);
-    if (pitch === null) throw new Error(`bad note name in "${token}"`);
-    events.push({ type: 'note', pitch, length });
-  }
-  return events;
-}
-
-// ---------------------------------------------------------------- the arrangement
-
-// Bass, one bar in eighths, root B (the order list moves it to F sharp on the dominant bars).
-const BASS = {
-  soft: 'B2:2 r:2 F#3:2 r:2',
-  walk: 'B2:1 B2:1 B3:1 B2:1 F#3:1 B2:1 B3:1 B2:1',
-  octave: 'B2:1 B3:1 B2:1 B3:1 B2:1 B3:1 B2:1 B3:1',
-};
-
-// Chord shimmer on voice 3, one bar in eighths. Root B on the tonic bars, F sharp on the dominant bars.
-const CHORD = {
-  stab: (root) => `r:1 ${root}:1 r:1 ${root}:1 r:1 ${root}:1 r:1 ${root}:1`,
-  hold: (root) => `${root}:3 r:1 ${root}:3 r:1`,
-};
-
-// Drums, one bar in eighths.
-const BEAT = 'K:1 H:1 S:1 H:1 K:1 K:1 S:1 H:1';
-const FILL = 'K:1 H:1 S:1 H:1 K:1 S:1 S:1 S:1';
-
-// Each section: u (ticks per eighth), key (semitones above B minor), the lead (instrument, octave
-// shift), the bass style and what voice 3 does.
-const SECTIONS = [
-  { u: 4, key: 0, lead: [INST.SOFT_LEAD, 0], bass: [INST.SOFT_BASS, 'soft'], third: 'rest' },
-  { u: 3, key: 0, lead: [INST.LEAD, 12], bass: [INST.PULSE_BASS, 'walk'], third: 'stab' },
-  { u: 2, key: 0, lead: [INST.LEAD, 12], bass: [INST.PULSE_BASS, 'walk'], third: 'hold' },
-  { u: 2, key: 2, lead: [INST.LEAD, 12], bass: [INST.PULSE_BASS, 'walk'], third: 'hold' },
-  { u: 2, key: 2, lead: [INST.BIG_LEAD, 12], bass: [INST.PULSE_BASS, 'octave'], third: 'drums' },
-  { u: 2, key: 4, lead: [INST.BIG_LEAD, 12], bass: [INST.PULSE_BASS, 'octave'], third: 'drums' },
-  { u: 1, key: 4, lead: [INST.BIG_LEAD, 12], bass: [INST.PULSE_BASS, 'octave'], third: 'drums' },
-  { u: 1, key: 6, lead: [INST.BIG_LEAD, 12], bass: [INST.PULSE_BASS, 'octave'], third: 'drums' },
-];
-
-const FINALE_U = 2;
-const GAP_TICKS = 20;   // two seconds of silence before the loop
-
-export function build() {
-  const patterns = [];
+// Instruments are made when a bar asks for them: the same description gives the same number.
+function instrumentSet() {
+  const list = [];
   const index = new Map();
-  // Adds a pattern once; the same name always gives the same pattern number.
-  const pattern = (name, make) => {
-    if (!index.has(name)) { index.set(name, patterns.length); patterns.push({ name, events: make() }); }
+  const get = (name, fields) => {
+    if (!index.has(name)) {
+      index.set(name, list.length);
+      list.push({ ...defaultInstrument(), name, release: 2, ...fields });
+    }
     return index.get(name);
   };
-  const entry = (n, transpose = 0) => ({ pattern: n, transpose });
+  return { list, get };
+}
 
-  const orders = [[], [], []];
-  for (const s of SECTIONS) {
-    const barTicks = 8 * s.u;
-    for (const bar of BARS) {
-      const dominant = isDominant(bar);
-      // voice 1: the bass pattern is written on B; the dominant bars move it down to F sharp
-      const [bassInst, bassStyle] = s.bass;
-      orders[0].push(entry(pattern(`bass ${bassStyle} u${s.u}`, () => parseNotes(BASS[bassStyle], s.u, bassInst)), s.key + (dominant ? -5 : 0)));
-      // voice 2: the theme
-      const [leadInst, shift] = s.lead;
-      orders[1].push(entry(pattern(`theme ${bar} u${s.u} i${leadInst}`, () => parseNotes(THEME[bar], s.u, leadInst)), s.key + shift));
-      // voice 3: silence, chord shimmer or drums
-      if (s.third === 'rest') {
-        orders[2].push(entry(pattern(`silence ${barTicks}`, () => [{ type: 'inst', instrument: 0 }, { type: 'rest', length: barTicks }])));
-      } else if (s.third === 'drums') {
-        const text = bar === 'D' ? FILL : BEAT;
-        orders[2].push(entry(pattern(`drums ${bar === 'D' ? 'fill' : 'beat'} u${s.u}`, () => parseNotes(text, s.u, INST.KICK))));
-      } else {
-        const inst = dominant ? INST.ARP_MAJOR : INST.ARP_MINOR;
-        const root = dominant ? 'F#3' : 'B3';
-        orders[2].push(entry(pattern(`chord ${s.third} ${root} u${s.u}`, () => parseNotes(CHORD[s.third](root), s.u, inst)), s.key));
-      }
-    }
+// What an instrument is made of, by role. `level` is the sustain, 0 to 15: a note jumps to full
+// volume, falls in a few frames to this level and stays there. A low level is a quiet note.
+function describe(set, role, level, wave, arp) {
+  const sr = level << 4;
+  // quiet notes fall to their level in 24 ms, loud ones in about 70 ms: the louder, the more marcato
+  const ad = level <= 5 ? 0x01 : 0x03;
+  if (role === 'melody') {
+    // vibrato only after 20 frames, so only the long notes (half and whole notes) get it
+    const vib = { vibDelay: 20, vibDepth: 5, vibSpeed: 4 };
+    if (wave === 'tri') return set.get(`Lead triangle ${level}`, { wave: 0x10, ad, sr, ...vib });
+    return set.get(`Lead pulse ${level}`, { wave: 0x40, ad, sr, pw: 0x0800, pwStep: 6, pwMin: 0x30, pwMax: 0xC0, ...vib });
   }
+  if (role === 'grace') {
+    // 3 ticks long: release 1 leaves two frames of sound
+    return set.get(`Grace ${level}`, { wave: 0x40, ad: 0x00, sr, pw: 0x0800, release: 1 });
+  }
+  if (role === 'bass') {
+    if (wave === 'tri') return set.get(`Bass triangle ${level}`, { wave: 0x10, ad: 0x03, sr });
+    return set.get(`Bass pulse ${level}`, { wave: 0x40, ad: 0x04, sr, pw: 0x0600, pwStep: 5, pwMin: 0x20, pwMax: 0xA0 });
+  }
+  // a chord stab: the pulse note, and the same note plus `arp` semitones on every other frame
+  return set.get(arp ? `Stab +${arp} ${level}` : `Stab ${level}`, { wave: 0x40, ad, sr, pw: 0x0500, pwStep: 4, pwMin: 0x20, pwMax: 0xE0, arp });
+}
 
-  // The finale: a rising run over a driving bass and a snare roll, then a long high note, a low
-  // bass note and a crash, and a silence.
-  const u = FINALE_U;
-  const finale = [
-    [INST.PULSE_BASS, 'B2:1 B3:1 B2:1 B3:1 B2:1 B3:1 B2:1 B3:1', 'B1:6 r:2'],
-    [INST.BIG_LEAD, 'B4:1 D5:1 F#5:1 B5:1 D6:1 B5:1 F#5:1 D5:1', 'B5:6 r:2'],
-    [INST.SNARE, 'S:1 S:1 S:1 S:1 S:1 S:1 S:1 S:1', 'C:6 r:2'],
-  ];
-  finale.forEach(([inst, run, end], voice) => {
-    orders[voice].push(entry(pattern(`finale run ${voice}`, () => parseNotes(run, u, inst))));
-    orders[voice].push(entry(pattern(`finale end ${voice}`, () => parseNotes(end, u, inst))));
-    orders[voice].push(entry(pattern(`gap ${GAP_TICKS}`, () => [{ type: 'inst', instrument: 0 }, { type: 'rest', length: GAP_TICKS }])));
+// ---------------------------------------------------------------- reading the bars
+
+const TOKEN = /^([A-G][#-]\d)(?:\+(\d+))?(g?):(\d+)$/;
+
+// "B-1:12 r:12" -> [{ pitch, arp, grace, length }] with pitch null for a rest
+export function parseBar(text) {
+  return text.split(' ').map((word) => {
+    if (/^r:\d+$/.test(word)) return { pitch: null, length: Number(word.slice(2)) };
+    const m = TOKEN.exec(word);
+    if (!m) throw new Error(`bad token "${word}"`);
+    return { pitch: parseNoteName(m[1]), arp: Number(m[2] || 0), grace: m[3] === 'g', length: Number(m[4]) };
+  });
+}
+
+export function build() {
+  const set = instrumentSet();
+  const patterns = [];
+  const patternIndex = new Map();
+  const orders = [[], [], []];
+
+  const ROLE = ['melody', 'bass', 'harmony'];
+  [MELODY, BASS, HARMONY].forEach((score, voice) => {
+    score.forEach((text, i) => {
+      const bar = i + 1;
+      const level = from(LEVEL, bar);
+      const events = [];
+      let current = -1;
+      for (const note of parseBar(text)) {
+        if (note.pitch === null) { events.push({ type: 'rest', length: note.length }); continue; }
+        let instrument;
+        if (voice === 0) instrument = note.grace ? describe(set, 'grace', level, 'pulse') : describe(set, 'melody', Math.min(15, level + (from(MELODY_WAVE, bar) === 'tri' ? 1 : 0)), from(MELODY_WAVE, bar));
+        else if (voice === 1) instrument = describe(set, 'bass', Math.max(1, level - (from(BASS_WAVE, bar) === 'tri' ? 2 : 3)), from(BASS_WAVE, bar));
+        else instrument = describe(set, 'harmony', Math.max(2, level - 3), 'pulse', note.arp);
+        if (instrument !== current) { events.push({ type: 'inst', instrument }); current = instrument; }
+        events.push({ type: 'note', pitch: note.pitch, length: note.length });
+      }
+      const key = JSON.stringify(events);
+      if (!patternIndex.has(key)) {
+        patternIndex.set(key, patterns.length);
+        patterns.push({ name: `${ROLE[voice]} bar ${bar}`, events });
+      }
+      orders[voice].push({ pattern: patternIndex.get(key), transpose: from(TRANSPOSE[voice], bar) });
+    });
     orders[voice].push({ loop: 0 });
   });
 
-  return { instruments: instruments(), song: { name: 'mountain king', speed: 5, patterns, orders } };
+  return {
+    instruments: set.list,
+    song: { name: 'Mountain King', speed: 1, patterns, orders },
+  };
 }
