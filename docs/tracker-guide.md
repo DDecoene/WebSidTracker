@@ -25,9 +25,9 @@ The sound is the part to check by ear. The numbers on screen say nothing about t
 1. Open the page. It starts with the project you last worked on (kept in your browser) or, the first time, with the Ode to Joy demo. **New** starts an empty project.
 2. Click the pattern grid and play notes on the computer keyboard like a piano: the row `z s x d c v g b h n j m` is the lower octave, `q 2 w 3 e r 5 t 6 y 7 u` the next one up. Each key press plays the note and enters it at the cursor.
 3. `<` and `>` change the octave. `9` and `0` change the default length of new notes. `;` and `'` change how many rows the cursor moves down after entering a note.
-4. Press `[` and `]` to pick another instrument, or edit the instrument on the right. The piano at the bottom of the instrument panel plays it.
+4. Press `[` and `]` (or use the Instrument selector in the bar above the grid) to pick the instrument that new notes get, or edit the instrument on the right. The piano at the bottom of the instrument panel plays it. To change the instrument of a note that is already there, click its chip in the grid.
 5. Press **Space** to play from the start and **Space** again to stop. **Shift+Space** plays from the cursor. The **Follow** switch lets the grid scroll with the song.
-6. Set the loop: in the order list, `o` moves the keyboard there; `Insert` adds an entry, `l` turns the entry into a loop to entry 00, `s` into a stop.
+6. Set the loop: each voice has an order list above its grid. `ins` (or `Insert` after pressing `o`) adds an entry; choose LOOP in the entry's drop-down (or press `l`) to loop to entry 00, and STOP (or `s`) to end the voice. Change the pattern of an entry with its drop-down, and its transpose with the number box, the plus and minus buttons or the -12 and +12 buttons.
 7. **Save** downloads the project as a JSON file; **Open** reads one. The tracker also keeps an autosave in your browser, but save to a file for anything you care about.
 8. **Export** gives you the files for your game (section 6).
 
@@ -56,41 +56,57 @@ Keys work when the pattern editor or the page has the focus, not when you are ty
 |---|---|
 | `z s x d c v g b h n j m` | Play and enter a note, lower octave (C to B) |
 | `q 2 w 3 e r 5 t 6 y 7 u` | Play and enter a note, one octave higher |
-| `<` and `>` (or F1 / F2) | Octave down / up |
+| < and >  (or F1 / F2) | Octave down / up |
 | `1` | Enter a rest |
-| `9` / `0` | Default length of new notes: shorter / longer (ticks) |
-| `;` and `'` | Step: rows to move down after entering: less / more |
-| `-` / `=` | Make the note or rest under the cursor one tick shorter / longer |
-| Delete or `.` | Clear the note under the cursor (it becomes a rest of the same length) |
+| `9 / 0` | Default length of new notes: shorter / longer (ticks) |
+| ;  and  ' | Step: rows to move down after entering: less / more |
+| `- / =` | Make the note or rest under the cursor one tick shorter / longer |
+| Delete or . | Clear the note under the cursor (it becomes a rest of the same length) |
 | Insert / Backspace | Insert a row / delete a row (later events move) |
 | Shift+Up / Shift+Down | Move the note under the cursor a semitone up / down |
 | `l` | Legato marker on / off for the note under the cursor |
-| `[` / `]` | Previous / next instrument |
-| `i` | Type an instrument number (two hex digits) |
+| `[ / ]` | Previous / next current instrument (the one new notes get) |
+| `i` | Type a current instrument number (two hex digits) |
 | Enter | Give the note under the cursor the current instrument |
+| Shift+Enter | Give the note under the cursor and all notes after it in the pattern the current instrument |
+| Shift+I | Open the instrument list for the note under the cursor (the same as clicking its instrument) |
 | Up / Down, PageUp / PageDown | Move the cursor (1 row, 16 rows) |
 | Home / End | First row / the end of the pattern |
-| Left / Right, Tab / Shift+Tab | Switch voice |
+| Left / Right, Tab / Shift+Tab | Switch voice (in the order list Left / Right move between the fields first) |
 | Alt+Up / Alt+Down | Previous / next entry in the order list of this voice |
+| Alt+Shift+Up / Alt+Shift+Down | Move the order entry up / down in its list |
 | `o` | Switch between the pattern grid and the order list |
-| Shift+N | New empty pattern for this order entry |
-| Shift+D | Duplicate the pattern of this order entry as a new pattern |
+| Shift+N | New empty pattern, put in this order entry |
+| Shift+D | Duplicate the pattern of this order entry as a new pattern, put in this entry |
 | Shift+X | Delete the pattern of this order entry (refused while another entry uses it) |
-| Mouse | Click a row or an order entry to place the cursor |
+| Shift+P | Go to the Patterns list |
+| Mouse | Click a grid row to place the cursor, an instrument chip to change that note's instrument; use the controls on every order entry; click a pattern to select it, double-click to use it, drag it onto an order entry or between two entries |
 
-The buttons above the grid do the same as some keys: New pattern, Duplicate, Delete pattern, Insert entry, Delete entry. The pattern name field names the pattern (names are for you; they appear as comments in the export).
+The Patterns panel on the left holds the buttons New, Delete unused, Use in entry, Add entry, Duplicate, Rename and Delete (see section 4). Click an instrument chip in the grid to change that note's instrument. The Instrument selector in the bar above the grid chooses the current instrument; To note and To rest of pattern apply it.
 
 ### Order list (after pressing `o`)
 
 | Key | What |
 |---|---|
-| `+` / `-` | Next / previous pattern number (or loop target); hex digits type it |
-| `[ ]` and `{ }` | Transpose of the entry: 1 semitone / 1 octave down and up |
+| Left / Right | Move between the fields of the entry: pattern, transpose (or loop target); at the edge go to the next voice |
+| Up / Down | Change the field: next / previous pattern, transpose 1 semitone up / down, loop target |
+| Shift+Up / Shift+Down | On the transpose field: one octave (12 semitones) up / down |
+| `0-9, a-f` | Type the pattern number (or the loop target) in hex |
+| PageUp, PageDown, Home, End | Previous / next entry, first / last entry |
+| `+ / -` | Next / previous pattern number (or loop target), as Up / Down |
+| [ ] and { } | Transpose of the entry: 1 semitone / 1 octave down and up (as Shift+Up / Down, kept from earlier versions) |
 | Insert, Backspace | Insert an entry after this one / delete this entry |
-| `s`, `l`, `p` | Make the entry STOP / LOOP to entry 00 / a pattern again |
+| `s, l, p` | Make the entry STOP / LOOP to entry 00 / a pattern again |
 | Enter | Go to the pattern grid |
 
-Up and Down, Home and End also move through the order list entries while it has the keyboard.
+### Patterns list (after Shift+P)
+
+| Key | What |
+|---|---|
+| Up / Down | Select the previous / next pattern (Home and End jump) |
+| Enter | Use the selected pattern in the current order entry |
+| Shift+Enter or Insert | Insert the selected pattern as a new order entry after the current one |
+| F2, Delete, Escape | Rename it / delete it (only when unused) / back to the editor |
 
 ### Instrument editor
 
@@ -102,6 +118,22 @@ Up and Down, Home and End also move through the order list entries while it has 
 | Up / Down (in the list) | Select the previous / next instrument |
 
 The panel also has the mouse controls: the list with New, Duplicate and Delete, a name field, preset buttons (Bass, Lead, Pad, Pluck, Kick, Snare, Hat), a slider and number box for every field, and a small on-screen piano. Delete does not renumber the other instruments: instrument numbers stay stable, and the tracker warns when a song still uses an instrument that no longer exists.
+
+### Managing patterns
+
+The Patterns panel on the left lists every pattern with its name, size (ticks, notes, bytes) and the voices that use it (a chip such as V1 x2: voice 1, two entries; click it to go to the entry). A pattern that no order entry uses has an *unused* badge, and the header counts them.
+
+- **See what is unused.** Look for the badge, or tick "unused only" to list just those patterns.
+- **Reuse a pattern in another voice or position.** Select it and press Use in entry (it replaces the pattern of the current order entry) or Add entry (a new entry after the current one). You can also drag its number onto an order entry, or between two entries. Then set that entry's transpose: the same pattern then plays higher or lower, and it exists only once.
+- **Duplicate and vary.** Select a pattern and press Duplicate. The copy is a new, unused pattern; put it in an entry with Use in entry, change it, and give it a name with Rename. The original stays as it was.
+- **Delete unused.** Delete removes the selected pattern, but not while an entry uses it (the message names the entries). Delete unused removes all unused patterns at once and asks you to press it a second time. The remaining patterns are renumbered and the order entries follow, so the music does not change.
+
+### Changing the instrument of a note
+
+In the grid every note shows an instrument chip. A bright chip means the instrument is set at that note; a dim chip is inherited from an earlier note or pattern.
+
+- **With the mouse.** Click the chip of the note, then click an instrument in the list that opens. Tick "also the rest of the pattern" in the list to change all later notes in the pattern as well.
+- **With the keyboard.** Choose the current instrument (`[` and `]`, `i`, or the Instrument selector) and press Enter on the note (the To note button), or Shift+Enter (To rest of pattern) to change this note and every note after it in the pattern. Shift+I opens the same list as a click on the chip.
 
 ## 4. What the instrument fields do
 
