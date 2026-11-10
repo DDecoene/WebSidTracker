@@ -1,0 +1,169 @@
+{
+ "format": "websidtracker-project",
+ "version": 1,
+ "release": "0.1.0",
+ "instruments": [
+  {
+   "name": "Bass",
+   "wave": 65,
+   "ad": 8,
+   "sr": 163,
+   "pw": 2560,
+   "pwStep": 3,
+   "pwMin": 48,
+   "pwMax": 208,
+   "vibDelay": 0,
+   "vibDepth": 0,
+   "vibSpeed": 0,
+   "arp": 0,
+   "drumNoise": 0,
+   "drumFall": 0,
+   "release": 3
+  },
+  {
+   "name": "Lead",
+   "wave": 65,
+   "ad": 42,
+   "sr": 132,
+   "pw": 1536,
+   "pwStep": -2,
+   "pwMin": 24,
+   "pwMax": 232,
+   "vibDelay": 12,
+   "vibDepth": 5,
+   "vibSpeed": 4,
+   "arp": 7,
+   "drumNoise": 0,
+   "drumFall": 0,
+   "release": 2
+  },
+  {
+   "name": "Snare",
+   "wave": 129,
+   "ad": 0,
+   "sr": 0,
+   "pw": 2048,
+   "pwStep": 0,
+   "pwMin": 32,
+   "pwMax": 224,
+   "vibDelay": 0,
+   "vibDepth": 0,
+   "vibSpeed": 0,
+   "arp": -3,
+   "drumNoise": 2,
+   "drumFall": 40,
+   "release": 1
+  }
+ ],
+ "song": {
+  "name": "golden",
+  "speed": 5,
+  "patterns": [
+   {
+    "name": "bass",
+    "events": [
+     {
+      "type": "inst",
+      "instrument": 0
+     },
+     {
+      "type": "note",
+      "pitch": 24,
+      "length": 4
+     },
+     {
+      "type": "note",
+      "pitch": 31,
+      "length": 4
+     },
+     {
+      "type": "rest",
+      "length": 2
+     },
+     {
+      "type": "note",
+      "pitch": 29,
+      "length": 6
+     }
+    ]
+   },
+   {
+    "name": "lead",
+    "events": [
+     {
+      "type": "inst",
+      "instrument": 1
+     },
+     {
+      "type": "note",
+      "pitch": 48,
+      "length": 8
+     },
+     {
+      "type": "legato"
+     },
+     {
+      "type": "note",
+      "pitch": 50,
+      "length": 8
+     },
+     {
+      "type": "rest",
+      "length": 4
+     }
+    ]
+   },
+   {
+    "name": "drums",
+    "events": [
+     {
+      "type": "inst",
+      "instrument": 2
+     },
+     {
+      "type": "note",
+      "pitch": 36,
+      "length": 2
+     },
+     {
+      "type": "rest",
+      "length": 2
+     }
+    ]
+   }
+  ],
+  "orders": [
+   [
+    {
+     "pattern": 0,
+     "transpose": 0
+    },
+    {
+     "pattern": 0,
+     "transpose": -5
+    },
+    {
+     "loop": 0
+    }
+   ],
+   [
+    {
+     "pattern": 1,
+     "transpose": 12
+    },
+    {
+     "stop": true
+    }
+   ],
+   [
+    {
+     "pattern": 2,
+     "transpose": 0
+    },
+    {
+     "loop": 0
+    }
+   ]
+  ]
+ }
+}

@@ -46,7 +46,7 @@ Rule for the release version (*my call*): a rise of the format version makes it 
 | Project json | `version` already exists (value 1) and keeps its meaning: it is the format version. Added: `release`, the release version of the tracker that wrote it. |
 | `song_<name>.asm`, `instruments.asm` | a comment line at the top, for example `; websidtracker format 2, release 0.3.0`. A comment, so the bytes the player sees do not change. |
 | `music.asm` | the same comment line, and two constants (`FORMAT_VERSION`, `RELEASE`) in the source. |
-| `web/player/symbols.json` | two fields, `format` and `release`, written by `tools/build-player.sh`. |
+| `web/player/symbols.json` | four numeric labels, `format_version`, `release_major`, `release_minor`, `release_patch`, written by `tools/build-player.sh` from the constants in `music.asm` (the file is a flat label to number map, so no string field). |
 | The tracker | one source of truth, a small module `web/version.js`, exporting `FORMAT` and `RELEASE`. The header shows the release. |
 
 The exported `.prg` is not given a version field of its own (*my call*): it is the player image plus data, and the player image already carries the constants.

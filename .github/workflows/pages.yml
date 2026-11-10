@@ -1,24 +1,33 @@
-# Publishes the web app (the web/ folder) on GitHub Pages.
-# There is no build step: web/sid/sid.wasm is committed, see web/README.md.
+# Publishes the web app on GitHub Pages (see docs/releasing.md and docs/design-versioning-and-releases.md).
+#
+# - A tag v<release> (made on main when a release is done) publishes the site and makes a GitHub release.
+# - A push to develop republishes the site with the new development preview under /dev/.
+# The root of the site is always the newest release; every release stays under /v<release>/.
+# GitHub Pages deploys a whole site at once, so every run builds the complete site from the tags again.
+# There is no build step for the web app itself: web/sid/sid.wasm and web/player/ are committed.
 
 name: Pages
 
 on:
   push:
-    branches: [main]
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+    branches: [develop]
     paths:
       - 'web/**'
+      - 'src/**'
+      - 'tools/**'
       - '.github/workflows/pages.yml'
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   pages: write
   id-token: write
 
 concurrency:
   group: pages
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   deploy:
@@ -28,8 +37,38 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Tests
+        run: |
+          node --test web/version.test.mjs web/model/migrate.test.mjs web/model/golden.test.mjs web/model/test.mjs web/model/player.test.mjs
+          node --test web/app/files.test.mjs web/app/live.test.mjs web/app/session.test.mjs web/app/store.test.mjs web/app/integration.test.mjs web/app/manual.test.mjs
+          node --test web/app/handover.test.mjs web/app/releases.test.mjs web/app/upgrade.test.mjs web/app/autosave-lock.test.mjs
+          node --test web/ui/editor-logic.test.mjs web/ui/instruments-logic.test.mjs
+          node --test web/player/test.mjs web/engine/test.mjs web/cpu/test.mjs tools/release-tools.test.mjs
+          node web/sid/test.mjs
+
+      - name: The tag must match the release in web/version.js
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: node tools/release-tools.mjs check-tag "$GITHUB_REF_NAME"
+
+      - name: GitHub release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        # a re-run after a failed deploy must not fail on an existing release
+        run: gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 || gh release create "$GITHUB_REF_NAME" src/music.asm web/player/player.prg web/player/symbols.json --title "$GITHUB_REF_NAME" --generate-notes
+
+      - name: Build the site from the tags and develop
+        run: node tools/release-tools.mjs assemble site --dev-ref origin/develop
+
+      - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: web
+          path: site
       - id: deployment
         uses: actions/deploy-pages@v4

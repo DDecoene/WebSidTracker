@@ -171,9 +171,19 @@ All of this runs on the real player, on every frame of the note (except where no
 
 A song that breaks a limit the tracker checks is flagged in the strip below the header and cannot be exported.
 
+### Older project files
+
+Every project file says which format it has and which release wrote it. When you open a file (or the browser's own saved project) that is older than the tracker, the tracker does not change anything yet. It shows a dialog with the two formats and a list of what porting would lose or change ("Nothing is lost" if nothing), and you choose:
+
+- **Port to this version.** The result opens as an unsaved project; the file on disk is not changed, Save makes a new one.
+- **Open in the old tracker.** The tracker opens the newest release that has the file's format, with your file loaded. Your current project is saved in the browser first.
+- **Cancel.**
+
+If porting is not possible (the result would not be a valid project) the dialog says why and only the old tracker is offered. If the list of releases cannot be loaded, only porting is offered. A file from a newer tracker is refused with a message; open it in a newer release. In a release that is older than the project saved in the browser, autosave stays off so that project is not overwritten; use Save.
+
 ## 6. Export, and using the files in a game
 
-**Export** shows three files, each with a Download button (and a Show and Copy button for the text files):
+**Export** shows three files, each with a Download button (and a Show and Copy button for the text files). The second line of each assembler file names the format and the release that wrote it:
 
 | File | What |
 |---|---|

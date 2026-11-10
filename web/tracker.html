@@ -13,11 +13,13 @@
   <script type="module" src="app/main.js"></script>
 </head>
 <body>
+  <div id="dev-bar" class="dev-bar" hidden>Development version, not a release. Your work here is autosaved separately.</div>
   <header class="topbar">
     <div class="row">
       <div class="brand" aria-label="WebSidTracker">
         <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M2 12h3l2-7 3 14 3-10 2 5 2-2h5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
         <span>WebSid<b>Tracker</b></span>
+        <small id="release" class="release"></small>
       </div>
 
       <label class="field grow">
@@ -101,6 +103,7 @@
   <footer class="footer">
     <span id="audio-status">Audio starts when you press Play or a note key.</span>
     <span class="spacer"></span>
+    <span id="footer-version" title="Release version and format version of this tracker"></span>
     <span>WebSidTracker, free software under the GPL version 3 or later. SID sound by reSIDfp. The player and your exports are MIT.</span>
     <a href="manual.html" target="_blank" rel="noopener">manual</a>
     <a href="sound-test.html">sound test</a>
@@ -112,6 +115,22 @@
       <p class="hint">These files play your song in a game. Copy <code>music.asm</code> from the project's <code>src/</code> folder next to them; the .prg already contains the player.</p>
       <div id="export-body"></div>
       <div class="dialog-actions"><button value="close" class="primary">Close</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="upgrade-dialog" aria-labelledby="upgrade-title">
+    <form method="dialog">
+      <h2 id="upgrade-title"></h2>
+      <p id="upgrade-summary"></p>
+      <h3>What would be lost or changed</h3>
+      <ul id="upgrade-losses"></ul>
+      <ul id="upgrade-reasons" class="hint"></ul>
+      <p id="upgrade-note" class="hint"></p>
+      <div class="dialog-actions upgrade-actions">
+        <button type="button" id="upgrade-old"></button>
+        <button type="button" id="upgrade-port" class="primary"></button>
+        <button type="button" id="upgrade-cancel">Cancel</button>
+      </div>
     </form>
   </dialog>
 
