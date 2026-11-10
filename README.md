@@ -47,7 +47,8 @@ The full story (what made that approach special, what such a player contains, wh
 | `web/player/` | the built player image (`player.prg`, `symbols.json`) and its tests |
 | `tools/` | the player build script, a label converter, a small server for the browser C64 emulator |
 | `Makefile`, `project-config.json`, `.vscode/` | build and run |
-| `.github/workflows/pages.yml` | tests, makes the GitHub release for a tag and publishes the site on GitHub Pages |
+| `.github/workflows/pages.yml` | runs the tests and publishes the site on GitHub Pages |
+| `.github/workflows/release.yml` | makes the GitHub release for a tag |
 | `docs/releasing.md` | versions, branches and how to make a release |
 
 ## Versions and releases
@@ -88,9 +89,11 @@ Node.js 22 or later; no packages to install. From the repository root:
 
 ```
 node --test web/player/test.mjs
-node --test web/model/test.mjs
+node --test web/model/test.mjs web/model/player.test.mjs
+node --test web/model/demos/*.test.mjs
 node --test web/engine/test.mjs
 node --test web/app/files.test.mjs web/app/live.test.mjs web/app/session.test.mjs web/app/store.test.mjs
+node --test web/app/integration.test.mjs web/app/manual.test.mjs
 node --test web/ui/editor-logic.test.mjs web/ui/instruments-logic.test.mjs
 node --test web/cpu/test.mjs
 node --test web/version.test.mjs web/model/migrate.test.mjs web/model/golden.test.mjs
