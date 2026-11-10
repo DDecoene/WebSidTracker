@@ -297,6 +297,319 @@ test('typeHexDigit slides digits in, only existing patterns', () => {
   assert.equal(L.typeHexDigit(1, 0xF, 4), -1);
 });
 
+// ---- instruments in the grid -------------------------------------------------------
+
+test('buildLayout: eff is the instrument in force, inst only the event in front of the note', () => {
+  const lay = L.buildLayout([note(48, 1), inst(2), note(50, 2), note(52, 1), inst(3), rest(1), note(53, 1)]);
+  const notes = lay.rows.filter((r) => r.kind === 'note' || r.kind === 'rest');
+  assert.deepEqual(notes.map((r) => r.inst), [null, 2, null, 3, null]);
+  assert.deepEqual(notes.map((r) => r.eff), [null, 2, 2, 3, 3]);
+});
+
+test('setNoteInstrument inserts, updates and removes the instrument event', () => {
+  let ev = [inst(1), note(48, 1), note(50, 1), note(52, 1)];
+  ev = L.setNoteInstrument(ev, 1, 2);                          // middle note gets instrument 2
+  assert.equal(fmt(ev), 'i1 C-4:1 i2 D-4:1 i1 E-4:1');           // the next note keeps instrument 1
+  ev = L.setNoteInstrument(ev, 1, 1);                          // back to what is in force: no events needed
+  assert.equal(fmt(ev), 'i1 C-4:1 D-4:1 E-4:1');
+  ev = L.setNoteInstrument(ev, 0, 3);                          // first note: the event is updated in place
+  assert.equal(fmt(ev), 'i3 C-4:1 i1 D-4:1 E-4:1');
+  assert.equal(L.setNoteInstrument(ev, 3, 1), null);           // the end row: nothing to do
+  assert.equal(L.setNoteInstrument([rest(2)], 0, 1), null);    // rests have no instrument
+});
+
+test('setNoteInstrument on a note without any event before it writes one', () => {
+  assert.equal(fmt(L.setNoteInstrument([note(48, 1), note(50, 1)], 0, 4)), 'i4 C-4:1 D-4:1');
+  assert.equal(fmt(L.setNoteInstrument([note(48, 1), note(50, 1)], 1, 4)), 'C-4:1 i4 D-4:1');
+});
+
+test('setInstrumentFrom: this note and the rest of the pattern share one event', () => {
+  const ev = [inst(1), note(48, 1), inst(5), note(50, 1), note(52, 2), inst(1), note(53, 1)];
+  assert.equal(fmt(L.setInstrumentFrom(ev, 1, 2)), 'i1 C-4:1 i2 D-4:1 E-4:2 F-4:1');
+  assert.equal(fmt(L.setInstrumentFrom(ev, 0, 1)), 'i1 C-4:1 D-4:1 E-4:2 F-4:1');
+  assert.equal(fmt(L.setInstrumentFrom(ev, 0, 7)), 'i7 C-4:1 D-4:1 E-4:2 F-4:1');
+  assert.equal(L.setInstrumentFrom(ev, 99, 7), null);
+  // an event at the very end belongs to the next pattern and stays
+  assert.equal(fmt(L.setInstrumentFrom([note(48, 1), note(50, 1), inst(9)], 0, 2)), 'i2 C-4:1 D-4:1 i9');
+});
+
+test('lastInstrument and entryInstruments follow the voice through its order list', () => {
+  assert.equal(L.lastInstrument([inst(1), note(48, 1), inst(4), note(50, 1)]), 4);
+  assert.equal(L.lastInstrument([note(48, 1)]), null);
+  const s = {
+    patterns: [{ name: '', events: [inst(3), note(48, 1)] }, { name: '', events: [note(48, 1)] }, { name: '', events: [note(48, 1), inst(6)] }],
+    orders: [[{ pattern: 1, transpose: 0 }, { pattern: 0, transpose: 0 }, { pattern: 1, transpose: 0 }, { pattern: 2, transpose: 0 }, { pattern: 1, transpose: 0 }, { stop: true }], [], []],
+  };
+  assert.deepEqual(L.entryInstruments(s)[0], [0, 0, 3, 3, 6, 6]);   // a voice starts with instrument 0
+});
+
+// ---- patterns: usage, unused, delete ---------------------------------------------
+
+function usageSong() {
+  return {
+    name: 't', speed: 6,
+    patterns: [
+      { name: 'intro', events: [inst(0), note(48, 2), rest(2), note(50, 1), L.noteLabel ? legato() : null].filter(Boolean) },
+      { name: 'lonely', events: [note(48, 1)] },
+      { name: '', events: [] },
+      { name: 'bass', events: [note(36, 4)] },
+    ],
+    orders: [
+      [{ pattern: 0, transpose: 0 }, { pattern: 3, transpose: 0 }, { pattern: 0, transpose: 12 }, { loop: 0 }],
+      [{ pattern: 3, transpose: 0 }, { pattern: 0, transpose: 0 }, { stop: true }],
+      [{ pattern: 0, transpose: -12 }],
+    ],
+  };
+}
+
+test('patternUsage: counts per voice, sizes, unused detection', () => {
+  const usage = L.patternUsage(usageSong());
+  assert.equal(usage.length, 4);
+  assert.deepEqual(usage[0].byVoice, [2, 1, 1]);
+  assert.deepEqual(usage[0].users, [{ voice: 0, index: 0 }, { voice: 0, index: 2 }, { voice: 1, index: 1 }, { voice: 2, index: 0 }]);
+  assert.equal(usage[0].ticks, 5);
+  assert.equal(usage[0].notes, 2);
+  assert.equal(usage[0].bytes, 1 + 2 + 2 + 2 + 2 + 1);          // inst, note, rest, note, legato + end marker
+  assert.equal(usage[1].unused, true);
+  assert.equal(usage[2].unused, true);
+  assert.equal(usage[2].bytes, 1);
+  assert.equal(usage[3].unused, false);
+  assert.deepEqual(usage[3].byVoice, [1, 1, 0]);
+  assert.equal(usage[0].name, 'intro');
+});
+
+test('usageSummary and deleteRefusal', () => {
+  const usage = L.patternUsage(usageSong());
+  assert.equal(L.usageSummary(usage[0]), 'V1 x2, V2 x1, V3 x1');
+  assert.equal(L.usageSummary(usage[3]), 'V1 x1, V2 x1');
+  assert.equal(L.usageSummary(usage[1]), 'unused');
+  assert.equal(L.deleteRefusal(usage[1]), '');
+  assert.match(L.deleteRefusal(usage[3]), /Pattern 03 is used by V1 x1, V2 x1/);
+});
+
+test('a LOOP or STOP entry is not a user; a dangling pattern number is ignored', () => {
+  const s = usageSong();
+  s.orders[2].push({ pattern: 99, transpose: 0 });
+  const usage = L.patternUsage(s);
+  assert.equal(usage.length, 4);
+  assert.equal(usage.filter((u) => u.unused).length, 2);
+});
+
+test('removeUnusedPatterns removes only unused ones and renumbers the rest', () => {
+  const s = usageSong();
+  const removed = L.removeUnusedPatterns(s);
+  assert.deepEqual(removed, [1, 2]);
+  assert.deepEqual(s.patterns.map((p) => p.name), ['intro', 'bass']);
+  assert.deepEqual(s.orders[0].map((e) => e.pattern), [0, 1, 0, undefined]);
+  assert.deepEqual(s.orders[1].map((e) => e.pattern), [1, 0, undefined]);
+  assert.equal(s.orders[0][3].loop, 0);                          // untouched
+  assert.deepEqual(L.removeUnusedPatterns(s), []);               // nothing left to remove
+  assert.equal(L.patternUsage(s).every((u) => !u.unused), true);
+});
+
+test('removePattern keeps every other reference pointing at the same pattern', () => {
+  const s = usageSong();
+  const before = s.orders.map((list) => list.map((e) => (e.pattern === undefined ? null : s.patterns[e.pattern].name)));
+  L.removePattern(s, 1);
+  const after = s.orders.map((list) => list.map((e) => (e.pattern === undefined ? null : s.patterns[e.pattern].name)));
+  assert.deepEqual(after, before);
+});
+
+test('nextUse cycles through the entries of one voice', () => {
+  const s = usageSong();
+  assert.deepEqual(L.nextUse(s, 0, 0, -1), { voice: 0, index: 0 });
+  assert.deepEqual(L.nextUse(s, 0, 0, 0), { voice: 0, index: 2 });
+  assert.deepEqual(L.nextUse(s, 0, 0, 2), { voice: 0, index: 0 });   // round again
+  assert.equal(L.nextUse(s, 3, 2, 0), null);
+  assert.equal(L.nextUse(s, 1, 0, 0), null);
+});
+
+test('titles', () => {
+  assert.equal(L.patternTitle(10, 'tune'), '0A tune');
+  assert.equal(L.patternTitle(3, ''), '03');
+  assert.equal(L.instrumentTitle(1, { name: 'Lead' }), '01 Lead');
+  assert.equal(L.instrumentTitle(2, null), '02 (empty)');
+});
+
+// ---- order entries: assign, insert from a pattern, move, drop ------------------------
+
+test('setEntryChoice: pattern keeps the transpose, STOP and LOOP replace in place', () => {
+  const s = usageSong();
+  L.setEntryChoice(s, 0, 2, 3);
+  assert.deepEqual(s.orders[0][2], { pattern: 3, transpose: 12 });
+  L.setEntryChoice(s, 0, 2, 'stop');
+  assert.deepEqual(s.orders[0][2], { stop: true });
+  L.setEntryChoice(s, 0, 2, 1);                                  // STOP -> pattern: starts at +0
+  assert.deepEqual(s.orders[0][2], { pattern: 1, transpose: 0 });
+  L.setEntryChoice(s, 0, 2, 'loop');
+  assert.deepEqual(s.orders[0][2], { loop: 0 });
+  s.orders[0][2].loop = 1;
+  L.setEntryChoice(s, 0, 2, 'loop');                              // already a loop: target kept
+  assert.equal(s.orders[0][2].loop, 1);
+  const length = s.orders[0].length;
+  L.setEntryChoice(s, 0, 99, 1);                                  // no such entry
+  assert.equal(s.orders[0].length, length);
+  assert.equal(L.entryChoice({ pattern: 5, transpose: 0 }), 5);
+  assert.equal(L.entryChoice({ stop: true }), 'stop');
+  assert.equal(L.entryChoice({ loop: 0 }), 'loop');
+});
+
+test('assignPattern: the pattern of an entry changes, patterns stay as they are', () => {
+  const s = usageSong();
+  const count = s.patterns.length;
+  L.assignPattern(s, 0, 0, 1);
+  assert.equal(s.patterns.length, count);
+  assert.equal(L.patternUsage(s)[1].unused, false);
+  assert.equal(L.patternUsage(s)[0].byVoice[0], 1);
+});
+
+test('dropPattern: on an entry replaces, before / after / end insert a new entry', () => {
+  let s = usageSong();
+  assert.equal(L.dropPattern(s, 0, 1, 'on', 2), 1);
+  assert.deepEqual(s.orders[0][1], { pattern: 2, transpose: 0 });
+  assert.equal(s.orders[0].length, 4);
+
+  s = usageSong();
+  assert.equal(L.dropPattern(s, 0, 1, 'before', 1), 1);
+  assert.deepEqual(s.orders[0].map(L.entryKind), ['pattern', 'pattern', 'pattern', 'pattern', 'loop']);
+  assert.equal(s.orders[0][1].pattern, 1);
+  assert.equal(s.orders[0][1].transpose, 0);
+  assert.equal(s.orders[0][4].loop, 0);                           // the loop still points at entry 0
+
+  s = usageSong();
+  assert.equal(L.dropPattern(s, 0, 1, 'after', 1), 2);
+  assert.equal(s.orders[0][2].pattern, 1);
+  assert.equal(s.orders[0][3].pattern, 0);                        // the old entry 2 moved down
+
+  s = usageSong();
+  assert.equal(L.dropPattern(s, 0, 0, 'end', 2), 3);              // in front of the closing LOOP
+  assert.equal(s.orders[0][3].pattern, 2);
+  assert.equal(L.entryKind(s.orders[0][4]), 'loop');
+  assert.equal(L.dropPattern(s, 2, 0, 'end', 2), 1);              // an open list: appended
+  assert.equal(s.orders[2].length, 2);
+
+  s = usageSong();
+  assert.equal(L.dropPattern(s, 1, 2, 'on', 1), 2);               // on a STOP: inserted in front of it
+  assert.deepEqual(s.orders[1].map(L.entryKind), ['pattern', 'pattern', 'pattern', 'stop']);
+});
+
+test('dropPattern refuses when the list is full, but still replaces', () => {
+  const s = usageSong();
+  s.orders[2] = Array.from({ length: L.MAX_ENTRIES - 1 }, () => ({ pattern: 0, transpose: 0 }));   // plus the STOP the serialiser adds = full
+  assert.equal(L.canInsertEntry(s.orders[2]), false);
+  assert.equal(L.dropPattern(s, 2, 0, 'after', 1), -1);
+  assert.equal(s.orders[2].length, L.MAX_ENTRIES - 1);
+  assert.equal(L.dropPattern(s, 2, 0, 'on', 1), 0);
+  assert.equal(L.canInsertEntry([{ pattern: 0, transpose: 0 }]), true);
+});
+
+test('moveEntry moves one entry and loops keep pointing at the same entry', () => {
+  const s = usageSong();
+  // voice 0: [P0, P3, P0+12, LOOP 0]   move the first entry down to the third place
+  assert.equal(L.moveEntry(s, 0, 0, 2), 2);
+  assert.deepEqual(s.orders[0].map((e) => e.pattern ?? 'x'), [3, 0, 0, 'x']);
+  assert.equal(s.orders[0][2].transpose, 0);                      // it is the old first entry that moved
+  assert.equal(s.orders[0][1].transpose, 12);
+  assert.equal(s.orders[0][3].loop, 2);                           // the loop followed the entry it pointed at
+  // and back up
+  assert.equal(L.moveEntry(s, 0, 2, 0), 0);
+  assert.deepEqual(s.orders[0], usageSong().orders[0]);
+  // edges and no-ops
+  assert.equal(L.moveEntry(s, 0, 0, -3), 0);
+  assert.equal(L.moveEntry(s, 0, 3, 9), 3);
+  assert.equal(L.moveEntry(s, 0, 9, 0), 9);
+  assert.deepEqual(s.orders[0], usageSong().orders[0]);
+});
+
+test('moveEntry: a loop entry that moves keeps its (followed) target', () => {
+  const s = usageSong();
+  assert.equal(L.moveEntry(s, 0, 3, 1), 1);
+  assert.deepEqual(s.orders[0].map(L.entryKind), ['pattern', 'loop', 'pattern', 'pattern']);
+  assert.equal(s.orders[0][1].loop, 0);
+});
+
+test('moving and renumbering leave the pattern users the same', () => {
+  const s = usageSong();
+  const names = () => s.orders.map((list) => list.map((e) => (e.pattern === undefined ? '-' : s.patterns[e.pattern].name)));
+  L.moveEntry(s, 0, 0, 1);
+  assert.deepEqual(names()[0], ['bass', 'intro', 'intro', '-']);
+  L.removeUnusedPatterns(s);
+  assert.deepEqual(names()[0], ['bass', 'intro', 'intro', '-']);
+  assert.deepEqual(names()[1], ['bass', 'intro', '-']);
+});
+
+// ---- order entries: fields and values ----------------------------------------------
+
+test('entryFields, validField and neighbourField', () => {
+  const p = { pattern: 1, transpose: 0 };
+  assert.deepEqual(L.entryFields(p), ['pattern', 'transpose']);
+  assert.deepEqual(L.entryFields({ loop: 0 }), ['pattern', 'target']);
+  assert.deepEqual(L.entryFields({ stop: true }), ['pattern']);
+  assert.equal(L.validField({ stop: true }, 'transpose'), 'pattern');
+  assert.equal(L.validField({ loop: 1 }, 'transpose'), 'target');
+  assert.equal(L.validField(p, 'target'), 'transpose');
+  assert.deepEqual(L.neighbourField(p, 'pattern', 1), { field: 'transpose' });
+  assert.deepEqual(L.neighbourField(p, 'transpose', 1), { edge: 1 });
+  assert.deepEqual(L.neighbourField(p, 'pattern', -1), { edge: -1 });
+  assert.deepEqual(L.neighbourField({ stop: true }, 'pattern', 1), { edge: 1 });
+  assert.deepEqual(L.neighbourField({ loop: 1 }, 'pattern', 1), { field: 'target' });
+});
+
+test('nudgeEntryField: pattern goes round, transpose steps by semitone or octave and clamps', () => {
+  const s = usageSong();
+  assert.equal(L.nudgeEntryField(s, 0, 0, 'pattern', 1), true);
+  assert.equal(s.orders[0][0].pattern, 1);
+  L.nudgeEntryField(s, 0, 0, 'pattern', -1);
+  L.nudgeEntryField(s, 0, 0, 'pattern', -1);
+  assert.equal(s.orders[0][0].pattern, 3);                        // 0 - 1 goes round to the last pattern
+  L.nudgeEntryField(s, 0, 0, 'pattern', 1);
+  assert.equal(s.orders[0][0].pattern, 0);
+
+  assert.equal(L.nudgeEntryField(s, 0, 0, 'transpose', 5), true);
+  assert.equal(s.orders[0][0].transpose, 5);
+  L.nudgeEntryField(s, 0, 0, 'transpose', -12);
+  assert.equal(s.orders[0][0].transpose, -7);
+  L.nudgeEntryField(s, 0, 0, 'transpose', -500);
+  assert.equal(s.orders[0][0].transpose, -96);
+  assert.equal(L.nudgeEntryField(s, 0, 0, 'transpose', -1), false);   // already at the limit
+  L.nudgeEntryField(s, 0, 0, 'transpose', 500);
+  assert.equal(s.orders[0][0].transpose, 96);
+
+  assert.equal(L.nudgeEntryField(s, 0, 3, 'target', 1), true);   // loop 0 -> 1
+  assert.equal(s.orders[0][3].loop, 1);
+  L.nudgeEntryField(s, 0, 3, 'target', 50);
+  assert.equal(s.orders[0][3].loop, 3);                           // the last entry
+  assert.equal(L.nudgeEntryField(s, 1, 2, 'pattern', 1), false);  // STOP has nothing to change
+  assert.equal(L.nudgeEntryField(s, 0, 3, 'transpose', 1), false);
+  assert.equal(L.nudgeEntryField({ patterns: [], orders: [[{ pattern: 0, transpose: 0 }], [], []] }, 0, 0, 'pattern', 1), false);
+});
+
+test('transpose text: show and parse', () => {
+  assert.equal(L.formatTranspose(0), '+0');
+  assert.equal(L.formatTranspose(5), '+5');
+  assert.equal(L.formatTranspose(-12), '-12');
+  assert.equal(L.parseTranspose('+5'), 5);
+  assert.equal(L.parseTranspose('-12'), -12);
+  assert.equal(L.parseTranspose(' 7 '), 7);
+  assert.equal(L.parseTranspose('- 3'), -3);
+  assert.equal(L.parseTranspose('500'), 96);
+  assert.equal(L.parseTranspose('-500'), -96);
+  assert.equal(L.parseTranspose('abc'), null);
+  assert.equal(L.parseTranspose(''), null);
+  assert.equal(L.parseTranspose('1.5'), null);
+  assert.equal(L.parseHexIndex('0A'), 10);
+  assert.equal(L.parseHexIndex('7'), 7);
+  assert.equal(L.parseHexIndex('xyz'), null);
+});
+
+test('keyHelp covers the order list fields, the pattern list and the old transpose keys', () => {
+  const text = L.keyHelp().map(([k, d]) => `${k} ${d}`).join('\n');
+  assert.match(text, /Left \/ Right/);
+  assert.match(text, /\[ \] and \{ \}/);
+  assert.match(text, /Patterns list/);
+  assert.match(text, /Shift\+Enter/);
+});
+
 test('keyHelp lists pairs of strings', () => {
   const help = L.keyHelp();
   assert.ok(help.length > 10);

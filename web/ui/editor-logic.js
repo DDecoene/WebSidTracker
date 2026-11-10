@@ -7,7 +7,9 @@
 //   2. the edits, one function per key. Each takes an event list and a row and
 //      returns a NEW event list (or null when nothing would change),
 //   3. the order list and pattern list edits (these change a song in place and
-//      are meant to run inside store.update).
+//      are meant to run inside store.update),
+//   4. questions the Patterns panel asks (who uses a pattern, which are unused) and
+//      the small value rules of the order list controls (transpose text, fields).
 //
 // How the edits work: an event list is first unpacked into a "timeline", one
 // cell per tick:
@@ -58,11 +60,15 @@ const clamp = (value, lo, hi) => Math.max(lo, Math.min(hi, value));
 // ---- grid rows from events ---------------------------------------------------
 
 // Rows of the grid for an event list. Row kinds:
-//   note     first tick of a note: { pitch, inst (number|null), legato, length }
+//   note     first tick of a note: { pitch, inst (number|null), eff (number|null), legato, length }
 //   rest     first tick of a rest
 //   sustain  later ticks of a note or rest: { of: 'note'|'rest', offset }
 //   end      the row after the last tick, always present; it is where you append.
 //            Instrument / legato events at the very end of the pattern show here.
+// `inst` is the instrument event written in front of this note (null = none: the note
+// keeps the instrument of the note before it). `eff` is the instrument in force for the
+// note inside this pattern: its own event, else the last event before it, else null
+// (then it comes from the pattern before it in the order list, see entryInstruments).
 // Every row has `event`, the index of the note/rest event it belongs to (for the
 // end row: events.length). `starts[i]` is the row where event i begins; an
 // instrument or legato event begins on the row of the note that follows it.
@@ -70,20 +76,21 @@ export function buildLayout(events) {
   const rows = [];
   const starts = [];
   let inst = null;
+  let eff = null;
   let legato = false;
   events.forEach((ev, i) => {
     starts[i] = rows.length;
-    if (ev.type === 'inst') { inst = ev.instrument; return; }
+    if (ev.type === 'inst') { inst = ev.instrument; eff = ev.instrument; return; }
     if (ev.type === 'legato') { legato = true; return; }
     if (ev.type !== 'note' && ev.type !== 'rest') return;
     const isNote = ev.type === 'note';
-    rows.push({ kind: ev.type, event: i, pitch: isNote ? ev.pitch : -1, inst, legato, length: ev.length });
+    rows.push({ kind: ev.type, event: i, pitch: isNote ? ev.pitch : -1, inst, eff, legato, length: ev.length });
     for (let k = 1; k < ev.length; k++) rows.push({ kind: 'sustain', of: ev.type, event: i, offset: k });
     inst = null;
     legato = false;
   });
   starts[events.length] = rows.length;
-  rows.push({ kind: 'end', event: events.length, inst, legato });
+  rows.push({ kind: 'end', event: events.length, inst, eff, legato });
   return { rows, starts, total: rows.length - 1 };
 }
 
@@ -194,6 +201,18 @@ function setInstrument(cells, head, instrument) {
   delete head.inst;
   if (instrument === undefined) return;
   if (instrumentsBefore(cells).before.get(head) !== instrument) head.inst = instrument;
+}
+
+// Remove instrument events that repeat the instrument already in force (they
+// cost two bytes and change nothing). The first event of a pattern stays: nothing
+// in this pattern says what is in force there.
+function dropRedundant(cells) {
+  let running = null;
+  for (const cell of cells) {
+    if (cell.cont || cell.inst === undefined) continue;
+    if (cell.inst === running) delete cell.inst;
+    else running = cell.inst;
+  }
 }
 
 // After an edit: the first NOTE at or after cell `from` that has no instrument
@@ -373,7 +392,48 @@ export function setNoteInstrument(events, row, instrument) {
   if (head.pitch < 0) return null;
   setInstrument(cells, head, instrument);
   repair(cells, oldBefore, runEnd(cells, start));
+  dropRedundant(cells);
   return fromTimeline(cells, trail);
+}
+
+// The note under the cursor and every note after it in this pattern play with
+// `instrument`: their own instrument events are dropped, so one event in front of
+// this note does the whole job. (A change written at the very end of the pattern
+// is meant for the next pattern and stays.)
+export function setInstrumentFrom(events, row, instrument) {
+  const { cells, trail } = toTimeline(events);
+  if (row >= cells.length) return null;
+  const start = runStart(cells, row);
+  if (cells[start].pitch < 0) return null;
+  for (let i = start + 1; i < cells.length; i++) if (!cells[i].cont) delete cells[i].inst;
+  setInstrument(cells, cells[start], instrument);
+  dropRedundant(cells);
+  return fromTimeline(cells, trail);
+}
+
+// The instrument a pattern leaves in force at its end (its last instrument event),
+// or null when it never sets one.
+export function lastInstrument(events) {
+  for (let i = events.length - 1; i >= 0; i--) if (events[i].type === 'inst') return events[i].instrument;
+  return null;
+}
+
+// For every voice and order entry: the instrument in force when that entry starts,
+// following the voice from its first entry (the player starts every voice with
+// instrument 0 and an instrument stays until an event changes it). A loop is not
+// followed, so for the entry a loop jumps to this is the value of the first time round.
+export function entryInstruments(song) {
+  return song.orders.map((list) => {
+    let running = 0;
+    return list.map((entry) => {
+      const incoming = running;
+      if (entryKind(entry) === 'pattern' && song.patterns[entry.pattern]) {
+        const last = lastInstrument(song.patterns[entry.pattern].events);
+        if (last !== null) running = last;
+      }
+      return incoming;
+    });
+  });
 }
 
 // Move the pitch of the note under the cursor by `delta` semitones.
@@ -494,6 +554,245 @@ export function setEntryLoop(song, voice, at, target = 0) {
   song.orders[voice][at] = { loop: clamp(target, 0, Math.max(0, song.orders[voice].length - 1)) };
 }
 
+// ---- order list: choices, moving, dropping --------------------------------------
+
+export const MAX_ENTRIES = 128;      // per voice, the STOP the serialiser adds when the list does not end in one included
+
+// Can one more entry go into this order list? (The serialiser adds a STOP at the
+// end of a list that does not end in STOP or LOOP, and that counts too.)
+export function canInsertEntry(list) {
+  const last = list[list.length - 1];
+  const closed = entryKind(last) === 'stop' || entryKind(last) === 'loop';
+  return list.length + 1 + (closed ? 0 : 1) <= MAX_ENTRIES;
+}
+
+// What the pattern drop-down of an entry shows and sets: a pattern number, 'stop' or 'loop'.
+export function entryChoice(entry) {
+  const kind = entryKind(entry);
+  return kind === 'pattern' ? entry.pattern : kind;
+}
+
+// Set an entry from a drop-down choice. The entry stays where it is (loops that
+// point at it keep pointing at it). A pattern keeps its transpose when the entry
+// already was a pattern entry; a new loop starts at entry 0.
+export function setEntryChoice(song, voice, at, choice) {
+  const list = song.orders[voice];
+  if (at < 0 || at >= list.length) return;
+  if (choice === 'stop') list[at] = { stop: true };
+  else if (choice === 'loop') { if (entryKind(list[at]) !== 'loop') list[at] = { loop: 0 }; }
+  else if (entryKind(list[at]) === 'pattern') list[at].pattern = choice;
+  else list[at] = { pattern: choice, transpose: 0 };
+}
+
+// Move entry `from` to position `to` of the same order list (the others shift).
+// Loop entries follow what they point at. Returns the new index of the entry.
+export function moveEntry(song, voice, from, to) {
+  const list = song.orders[voice];
+  if (from < 0 || from >= list.length) return from;
+  to = clamp(to, 0, list.length - 1);
+  if (to === from) return from;
+  const order = list.map((_, i) => i);                 // order[newIndex] = oldIndex
+  order.splice(to, 0, ...order.splice(from, 1));
+  const newIndexOf = [];
+  order.forEach((oldIndex, newIndex) => { newIndexOf[oldIndex] = newIndex; });
+  const moved = order.map((oldIndex) => list[oldIndex]);
+  list.splice(0, list.length, ...moved);
+  for (const entry of list) if (entryKind(entry) === 'loop' && newIndexOf[entry.loop] !== undefined) entry.loop = newIndexOf[entry.loop];
+  return to;
+}
+
+// Put pattern n into an order list the way a drop does. `zone` says where on the
+// entry at `index` it landed: 'on' replaces the pattern of that entry (a STOP or LOOP
+// gets a new entry in front of it), 'before' / 'after' insert a new entry next to it,
+// 'end' appends (in front of a closing STOP or LOOP). A new entry has transpose 0.
+// Returns the index of the entry that now holds the pattern, or -1 when the list is full.
+export function dropPattern(song, voice, index, zone, n) {
+  const list = song.orders[voice];
+  if (zone === 'on' && entryKind(list[index]) === 'pattern') {
+    list[index].pattern = n;
+    return index;
+  }
+  if (!canInsertEntry(list)) return -1;
+  let at = index;
+  if (zone === 'after') at = index + 1;
+  else if (zone === 'end') {
+    const last = list[list.length - 1];
+    at = entryKind(last) === 'stop' || entryKind(last) === 'loop' ? list.length - 1 : list.length;
+  }
+  return insertEntry(song, voice, at, { pattern: n, transpose: 0 });
+}
+
+// ---- order list: fields and values --------------------------------------------------
+
+// The fields of an entry that the arrow keys visit, left to right.
+export function entryFields(entry) {
+  const kind = entryKind(entry);
+  if (kind === 'pattern') return ['pattern', 'transpose'];
+  if (kind === 'loop') return ['pattern', 'target'];
+  return ['pattern'];
+}
+
+// A field that exists on this entry: `field` itself, or the closest one that does.
+export function validField(entry, field) {
+  const fields = entryFields(entry);
+  if (fields.includes(field)) return field;
+  return field === 'target' || field === 'transpose' ? fields[fields.length - 1] : fields[0];
+}
+
+// One step left (-1) or right (+1) from `field`: { field } or { edge: -1 | 1 } when
+// there is no field further that way (the caller then goes to the next voice).
+export function neighbourField(entry, field, direction) {
+  const fields = entryFields(entry);
+  const at = fields.indexOf(validField(entry, field)) + direction;
+  return at < 0 || at >= fields.length ? { edge: direction } : { field: fields[at] };
+}
+
+// Change the value of one field of an entry by `delta` (in place on a song):
+//   pattern    previous / next pattern, going round (only on a pattern entry)
+//   transpose  semitones, kept within -96..96
+//   target     loop target entry
+// Returns true when something changed.
+export function nudgeEntryField(song, voice, at, field, delta) {
+  const list = song.orders[voice];
+  const entry = list[at];
+  const kind = entryKind(entry);
+  if (field === 'pattern' && kind === 'pattern') {
+    const count = song.patterns.length;
+    if (!count) return false;
+    const next = (((entry.pattern + delta) % count) + count) % count;
+    if (next === entry.pattern) return false;
+    entry.pattern = next;
+    return true;
+  }
+  if (field === 'transpose' && kind === 'pattern') {
+    const next = clamp((entry.transpose || 0) + delta, -96, 96);
+    if (next === (entry.transpose || 0)) return false;
+    entry.transpose = next;
+    return true;
+  }
+  if (field === 'target' && kind === 'loop') {
+    const next = clamp(entry.loop + delta, 0, Math.max(0, list.length - 1));
+    if (next === entry.loop) return false;
+    entry.loop = next;
+    return true;
+  }
+  return false;
+}
+
+// Transpose as shown in the control: "+0", "+5", "-12".
+export function formatTranspose(transpose) {
+  return `${transpose < 0 ? '-' : '+'}${Math.abs(transpose || 0)}`;
+}
+
+// What a person may type into the transpose box: "5", "+5", "-12", " - 3 ". Returns
+// semitones kept within -96..96, or null when it is not a number.
+export function parseTranspose(text) {
+  const m = /^\s*([+-]?)\s*(\d{1,3})\s*$/.exec(String(text));
+  if (!m) return null;
+  const value = Number(m[2]) * (m[1] === '-' ? -1 : 1);
+  return clamp(value, -96, 96);
+}
+
+// A loop target typed in hex ("0A"), or null.
+export function parseHexIndex(text) {
+  const m = /^\s*([0-9a-fA-F]{1,2})\s*$/.exec(String(text));
+  return m ? parseInt(m[1], 16) : null;
+}
+
+// ---- the pattern list --------------------------------------------------------------
+
+// Bytes a pattern takes in the song data: 2 per note, rest and instrument event,
+// 1 per legato marker, and the end marker.
+export function patternBytes(events) {
+  let bytes = 1;
+  for (const ev of events) bytes += ev.type === 'legato' ? 1 : 2;
+  return bytes;
+}
+
+export function noteCount(events) {
+  let notes = 0;
+  for (const ev of events) if (ev.type === 'note') notes++;
+  return notes;
+}
+
+// One record per pattern, in pattern-number order:
+//   { n, name, ticks, notes, bytes, users: [{ voice, index }], byVoice: [n, n, n], unused }
+// A pattern is unused when no order entry of any voice points at it.
+export function patternUsage(song) {
+  const usage = song.patterns.map((pattern, n) => ({
+    n,
+    name: pattern.name || '',
+    ticks: patternTicks(pattern.events),
+    notes: noteCount(pattern.events),
+    bytes: patternBytes(pattern.events),
+    users: [],
+    byVoice: [0, 0, 0],
+    unused: true,
+  }));
+  song.orders.forEach((list, voice) => list.forEach((entry, index) => {
+    const record = entryKind(entry) === 'pattern' ? usage[entry.pattern] : null;
+    if (!record) return;
+    record.users.push({ voice, index });
+    record.byVoice[voice]++;
+    record.unused = false;
+  }));
+  return usage;
+}
+
+// "V1 x3, V3 x1", or "unused".
+export function usageSummary(record) {
+  if (record.unused) return 'unused';
+  return record.byVoice.map((count, voice) => (count ? `V${voice + 1} x${count}` : '')).filter(Boolean).join(', ');
+}
+
+// The reason a pattern cannot be deleted, or '' when it can.
+export function deleteRefusal(record) {
+  if (!record.unused) return `Pattern ${hex(record.n)} is used by ${usageSummary(record)}. Change those order entries first.`;
+  return '';
+}
+
+// Remove every pattern that no order entry uses. The later patterns move down and
+// the order entries follow them. Returns the numbers (as they were) that went.
+export function removeUnusedPatterns(song) {
+  const usage = patternUsage(song);
+  const removed = usage.filter((record) => record.unused).map((record) => record.n);
+  if (!removed.length) return removed;
+  const newNumber = new Map();
+  const kept = [];
+  usage.forEach((record) => {
+    if (record.unused) return;
+    newNumber.set(record.n, kept.length);
+    kept.push(song.patterns[record.n]);
+  });
+  song.patterns = kept;
+  for (const list of song.orders) {
+    for (const entry of list) if (entryKind(entry) === 'pattern' && newNumber.has(entry.pattern)) entry.pattern = newNumber.get(entry.pattern);
+  }
+  return removed;
+}
+
+// The entry of `voice` that uses pattern n after entry `afterIndex` (going round to
+// the first one), or null. Used to jump from the pattern list to where it plays.
+export function nextUse(song, n, voice, afterIndex) {
+  const uses = patternUsers(song, n).filter((user) => user.voice === voice);
+  if (!uses.length) return null;
+  return uses.find((user) => user.index > afterIndex) || uses[0];
+}
+
+// "0A tune", "0A" for a pattern without a name.
+export function patternTitle(n, name) {
+  return name ? `${hex(n)} ${name}` : hex(n);
+}
+
+// "01 Lead", "01 (empty)" for a slot without an instrument.
+export function instrumentTitle(n, instrument) {
+  return `${hex(n)} ${instrument ? instrument.name || '(unnamed)' : '(empty)'}`;
+}
+
+function hex(n) {
+  return n.toString(16).toUpperCase().padStart(2, '0');
+}
+
 // Which pattern number a hex digit typed on a pattern entry gives: the digit
 // slides in from the right ("1" then "0" gives 0x10), but only existing
 // patterns are accepted; if the two-digit value does not exist the digit alone
@@ -520,22 +819,35 @@ export function keyHelp() {
     ['Insert / Backspace', 'Insert a row / delete a row (later events move)'],
     ['Shift+Up / Shift+Down', 'Move the note under the cursor a semitone up / down'],
     ['l', 'Legato marker on / off for the note under the cursor'],
-    ['[ / ]', 'Previous / next instrument'],
-    ['i', 'Type an instrument number (two hex digits)'],
+    ['[ / ]', 'Previous / next current instrument (the one new notes get)'],
+    ['i', 'Type a current instrument number (two hex digits)'],
     ['Enter', 'Give the note under the cursor the current instrument'],
+    ['Shift+Enter', 'Give the note under the cursor and all notes after it in the pattern the current instrument'],
+    ['Shift+I', 'Open the instrument list for the note under the cursor (the same as clicking its instrument)'],
     ['Up / Down, PageUp / PageDown', 'Move the cursor (1 row, 16 rows)'],
     ['Home / End', 'First row / the end of the pattern'],
-    ['Left / Right, Tab / Shift+Tab', 'Switch voice'],
+    ['Left / Right, Tab / Shift+Tab', 'Switch voice (in the order list Left / Right move between the fields first)'],
     ['Alt+Up / Alt+Down', 'Previous / next entry in the order list of this voice'],
+    ['Alt+Shift+Up / Alt+Shift+Down', 'Move the order entry up / down in its list'],
     ['o', 'Switch between the pattern grid and the order list'],
-    ['Shift+N', 'New empty pattern for this order entry'],
-    ['Shift+D', 'Duplicate the pattern of this order entry as a new pattern'],
+    ['Shift+N', 'New empty pattern, put in this order entry'],
+    ['Shift+D', 'Duplicate the pattern of this order entry as a new pattern, put in this entry'],
     ['Shift+X', 'Delete the pattern of this order entry (refused while another entry uses it)'],
-    ['Order list: + / -', 'Next / previous pattern number (or loop target); hex digits type it'],
-    ['Order list: [ ] and { }', 'Transpose of the entry: 1 semitone / 1 octave down and up'],
+    ['Shift+P', 'Go to the Patterns list'],
+    ['Order list: Left / Right', 'Move between the fields of the entry: pattern, transpose (or loop target); at the edge go to the next voice'],
+    ['Order list: Up / Down', 'Change the field: next / previous pattern, transpose 1 semitone up / down, loop target'],
+    ['Order list: Shift+Up / Shift+Down', 'On the transpose field: one octave (12 semitones) up / down'],
+    ['Order list: 0-9, a-f', 'Type the pattern number (or the loop target) in hex'],
+    ['Order list: PageUp, PageDown, Home, End', 'Previous / next entry, first / last entry'],
+    ['Order list: + / -', 'Next / previous pattern number (or loop target), as Up / Down'],
+    ['Order list: [ ] and { }', 'Transpose of the entry: 1 semitone / 1 octave down and up (as Shift+Up / Down, kept from earlier versions)'],
     ['Order list: Insert, Backspace', 'Insert an entry after this one / delete this entry'],
     ['Order list: s, l, p', 'Make the entry STOP / LOOP to entry 00 / a pattern again'],
     ['Order list: Enter', 'Go to the pattern grid'],
-    ['Mouse', 'Click a row or an order entry to place the cursor'],
+    ['Patterns list: Up / Down', 'Select the previous / next pattern (Home and End jump)'],
+    ['Patterns list: Enter', 'Use the selected pattern in the current order entry'],
+    ['Patterns list: Shift+Enter or Insert', 'Insert the selected pattern as a new order entry after the current one'],
+    ['Patterns list: F2, Delete, Escape', 'Rename it / delete it (only when unused) / back to the editor'],
+    ['Mouse', 'Click a grid row to place the cursor, an instrument chip to change that note\'s instrument; use the controls on every order entry; click a pattern to select it, double-click to use it, drag it onto an order entry or between two entries'],
   ];
 }
