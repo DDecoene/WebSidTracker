@@ -46,3 +46,43 @@ test('pickRelease takes the newest release with the format', () => {
   assert.equal(pickRelease(releases, 1).release, '0.2.0');
   assert.equal(pickRelease(releases, 3), null);
 });
+
+// ---- the stamps in the exports and in the player
+
+import { readFileSync } from 'node:fs';
+import { FORMAT, RELEASE } from './version.js';
+import { demoProject } from './model/project.js';
+import { exportInstrumentsAsm, exportSongAsm, projectToJson, versionLine } from './model/export.js';
+
+const read = (path) => readFileSync(new URL(path, import.meta.url), 'utf8');
+const [MAJOR, MINOR, PATCH] = RELEASE.split('.').map(Number);
+
+test('versionLine names the format and the release', () => {
+  assert.equal(versionLine(), `; websidtracker format ${FORMAT}, release ${RELEASE}`);
+});
+
+test('the asm exports carry the version line as their second line', () => {
+  const project = demoProject();
+  assert.equal(exportInstrumentsAsm(project.instruments).split('\n')[1], versionLine());
+  assert.equal(exportSongAsm(project.song, 'demo').split('\n')[1], versionLine());
+});
+
+test('the project file carries format and release', () => {
+  const data = JSON.parse(projectToJson(demoProject()));
+  assert.equal(data.version, FORMAT);
+  assert.equal(data.release, RELEASE);
+});
+
+test('symbols.json carries the same numbers', () => {
+  const symbols = JSON.parse(read('./player/symbols.json'));
+  assert.equal(symbols.format_version, FORMAT);
+  assert.deepEqual([symbols.release_major, symbols.release_minor, symbols.release_patch], [MAJOR, MINOR, PATCH]);
+});
+
+test('music.asm carries the same numbers', () => {
+  const source = read('../src/music.asm');
+  assert.ok(source.includes(`; websidtracker format ${FORMAT}, release ${RELEASE}`));
+  for (const line of [`format_version = ${FORMAT}`, `release_major = ${MAJOR}`, `release_minor = ${MINOR}`, `release_patch = ${PATCH}`]) {
+    assert.ok(new RegExp(`^${line.replace(/ /g, '\\s*')}\\b`, 'm').test(source), line);
+  }
+});

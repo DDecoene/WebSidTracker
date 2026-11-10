@@ -14,6 +14,7 @@ import sys
 KEEP = re.compile(
     r"^(music_|inst_|st_|zp_|out_|freq_|song_|pat_|pattern_|order_)"
     r"|^(start|irq|multiply|divide|vibrato|play_voice)$"
+    r"|^(format_version|release_(major|minor|patch))$"
 )
 
 symbols = {}
