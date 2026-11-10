@@ -123,7 +123,7 @@ async function main() {
     symbols = await fetchJson('../player/symbols.json');
   } catch (error) {
     messages.show('symbols', 'warn', 'The player symbols could not be loaded.',
-      [`${error.message}. Playing may fail, and play-from-cursor and live speed changes will not work.`]);
+      [`${error.message}. Playing may fail, and play-from-cursor will not work.`]);
   }
 
   const session = createSession({

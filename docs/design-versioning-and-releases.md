@@ -1,6 +1,6 @@
 # Versioning and releases, version 1
 
-Status: design, not built yet. Companion to [the player format and timing model](design-player-format-and-timing.md) and [the web tracker architecture](design-web-tracker-architecture.md).
+Status: implemented, first released as v0.1.0 (format 1). The text below is the design as it was written; the steps to follow are in [releasing.md](releasing.md). Companion to [the player format and timing model](design-player-format-and-timing.md) and [the web tracker architecture](design-web-tracker-architecture.md).
 
 ## 1. Intent
 
