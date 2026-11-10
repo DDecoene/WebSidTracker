@@ -98,3 +98,27 @@ test('a tag whose version.js names another release is left out of the site', () 
   assert.equal(existsSync(join(out, 'v0.2.0')), false);
   assert.equal(readFileSync(join(out, 'page.txt'), 'utf8'), 'release one');
 });
+
+test('a tag that is not on the main branch is left out of the site', () => {
+  const repo = mkdtempSync(join(tmpdir(), 'wst-repo-'));
+  const out = join(mkdtempSync(join(tmpdir(), 'wst-out-')), 'site');
+  const git = (...args) => execFileSync('git', args, { cwd: repo, stdio: 'pipe' });
+  git('init', '-q', '-b', 'main');
+  git('config', 'user.email', 't@example.com');
+  git('config', 'user.name', 'test');
+  mkdirSync(join(repo, 'web'));
+  const version = (release) => `export const FORMAT = 1;\nexport const RELEASE = '${release}';\n`;
+  writeFileSync(join(repo, 'web', 'version.js'), version('0.1.0'));
+  git('add', '.');
+  git('commit', '-q', '-m', 'one');
+  git('tag', 'v0.1.0');
+  git('switch', '-q', '-c', 'side');
+  writeFileSync(join(repo, 'web', 'version.js'), version('0.2.0'));
+  git('commit', '-q', '-am', 'two');
+  git('tag', 'v0.2.0');
+
+  const entries = assemble(out, { cwd: repo, devRef: 'side', mainRef: 'main' });
+
+  assert.deepEqual(entries, [{ format: 1, release: '0.1.0' }]);
+  assert.equal(existsSync(join(out, 'v0.2.0')), false);
+});
