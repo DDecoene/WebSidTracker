@@ -14,8 +14,9 @@ export function askUpgrade(dialog, description) {
   part('upgrade-summary').textContent = description.summary;
   part('upgrade-note').textContent = description.note;
 
+  part('upgrade-loss-heading').textContent = description.lossHeading;
   const losses = part('upgrade-losses');
-  losses.replaceChildren(...(description.losses.length > 0 ? description.losses : ['Nothing is lost.']).map((text) => {
+  losses.replaceChildren(...description.lossLines.map((text) => {
     const item = document.createElement('li');
     item.textContent = text;
     return item;
@@ -32,8 +33,10 @@ export function askUpgrade(dialog, description) {
   const old = part('upgrade-old');
   port.textContent = 'Port to this version';
   port.disabled = !description.port.enabled;
+  port.title = description.port.reason ?? '';
   old.textContent = description.old.release ? `Open in the old tracker (release ${description.old.release})` : 'Open in the old tracker';
   old.disabled = !description.old.enabled;
+  old.title = description.old.reason ?? '';
 
   return new Promise((resolve) => {
     let choice = 'cancel';
