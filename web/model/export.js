@@ -8,6 +8,7 @@
 import { INSTRUMENT_TABLES, serialiseInstruments, serialiseSong } from './serialise.js';
 import { LIMITS, defaultInstrument, noteName, validate } from './project.js';
 import { FORMAT, RELEASE } from '../version.js';
+import { NewerFormatError, OlderFormatError, readFormat } from './format.js';
 
 const hex2 = (v) => '$' + v.toString(16).toUpperCase().padStart(2, '0');
 const signed = (v) => (v < 0 ? String(v) : '+' + v);
@@ -167,13 +168,8 @@ export function projectToJson(project) {
   return JSON.stringify({ format: PROJECT_FORMAT_NAME, version: FORMAT, release: RELEASE, instruments: project.instruments, song: project.song }, null, 1);
 }
 
-export function projectFromJson(text) {
-  let data;
-  try {
-    data = JSON.parse(text);
-  } catch (e) {
-    throw new Error('This is not a project file (not valid JSON).');
-  }
+/** Defaults and checks for project data of the current format (no version check). */
+export function projectFromData(data) {
   if (!data || typeof data !== 'object' || !Array.isArray(data.instruments) || !data.song || typeof data.song !== 'object') {
     throw new Error('This is not a project file (instruments or song missing).');
   }
@@ -188,4 +184,21 @@ export function projectFromJson(text) {
     throw new Error('The project file has problems: ' + problems.slice(0, 8).join('; ') + more);
   }
   return project;
+}
+
+export function parseProjectText(text) {
+  try {
+    return JSON.parse(text);
+  } catch (e) {
+    throw new Error('This is not a project file (not valid JSON).');
+  }
+}
+
+/** Opens a project file of exactly the current format. Other formats: see inspectProject in migrate.js. */
+export function projectFromJson(text) {
+  const data = parseProjectText(text);
+  const format = readFormat(data);
+  if (format > FORMAT) throw new NewerFormatError(format, typeof data.release === 'string' ? data.release : null);
+  if (format < FORMAT) throw new OlderFormatError(format);
+  return projectFromData(data);
 }
