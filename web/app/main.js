@@ -17,14 +17,15 @@ import { DEMOS, findDemo, demoLabel } from '../model/demos/index.js';
 import { createEngineClient } from '../engine/client.js';
 import { FORMAT, RELEASE, autosaveKeyFor, isDevChannel, pickRelease, siteRoot } from '../version.js';
 import { inspectProject } from '../model/migrate.js';
-import { NewerFormatError } from '../model/format.js';
+import { NewerFormatError, OlderFormatError } from '../model/format.js';
+import { readAutosave } from './autosave.js';
 import { putHandover, takeHandover } from './handover.js';
 import { frozenUrl, loadReleases } from './releases.js';
 import { describeUpgrade } from './upgrade.js';
 import { askUpgrade } from './upgrade-dialog.js';
 import { createAutosaveLock } from './autosave-lock.js';
 
-const AUTOSAVE_STORAGE_KEY = autosaveKeyFor(location.pathname);   // the development copy has its own
+const AUTOSAVE_STORAGE_KEY = autosaveKeyFor(location.pathname);   // one key per format; the development copy has its own
 const WELCOME_KEY = 'websidtracker.welcome.dismissed';
 const FIRST_START_DEMO = 'ode-to-joy';   // what a new visitor hears when they press Play
 const PAL_FRAMES_PER_SECOND = 985248 / 19656;
@@ -44,20 +45,11 @@ function sessionStore() {
   }
 }
 
-/** What the browser has saved: nothing, a project, an older file (to ask about) or a newer one (to leave alone). */
-function readAutosave() {
-  let text = null;
+function localStore() {
   try {
-    text = localStorage.getItem(AUTOSAVE_STORAGE_KEY);
+    return window.localStorage;
   } catch {
-    return { kind: 'none' };               // blocked storage: start from the first-start demo
-  }
-  if (!text) return { kind: 'none' };
-  try {
-    const info = inspectProject(text);
-    return info.status === 'current' ? { kind: 'project', project: info.project } : { kind: 'older', info, text };
-  } catch (error) {
-    return error instanceof NewerFormatError ? { kind: 'newer', error } : { kind: 'none' };   // a damaged save
+    return null;
   }
 }
 
@@ -98,7 +90,7 @@ async function main() {
   const messages = createMessages($('messages'));
   // Start: a demo asked for in the address (?demo=id), else the autosave, else the first-start demo.
   const link = parseDeepLink(location.search);
-  const autosave = readAutosave();
+  const autosave = readAutosave(localStore() ?? { getItem: () => { throw new Error('blocked'); } }, location.pathname);
   const saved = autosave.kind === 'project' ? autosave.project : null;
   // A file handed over by another release of the tracker (see handover.js) comes first.
   let handoverProject = null;
@@ -108,18 +100,20 @@ async function main() {
     try {
       handoverProject = exporter.projectFromJson(handoverText);
     } catch (error) {
-      handoverError = error.message;
+      // A leftover from an earlier visit has another format than this release: it is not for this tracker.
+      handoverError = error instanceof OlderFormatError || error instanceof NewerFormatError
+        ? 'It was meant for another release of the tracker, so it was ignored.'
+        : error.message;
     }
   }
   const linkedDemo = link.demo ? findDemo(link.demo) : null;
   const project = handoverProject ?? (linkedDemo ? linkedDemo.build() : saved ?? findDemo(FIRST_START_DEMO).build());
   // A demo link, a handed-over file or an autosave that is not understood must not overwrite the project this
   // browser has saved: nothing is autosaved until the person changes something (or opens, creates or loads
-  // something themselves). A newer autosave is never overwritten at all, see autosaveLock.
+  // something themselves).
   let autosaveHeld = autosave.kind !== 'none' && project !== saved;
-  if (autosave.kind === 'newer') autosaveLock.set('newer');
   // An older autosave stays untouched until the person has decided (the dialog opens only when the page is ready).
-  if (autosave.kind === 'older') autosaveLock.set('kept');
+  if (autosave.kind === 'older') autosaveLock.hold();
   const persist = (current) => { if (!autosaveHeld) saveAutosave(current); };
   const store = createStore(project);
   let savedJson = exporter.projectToJson(project);   // what is on disk (or the start), for the "unsaved" check
@@ -484,12 +478,6 @@ async function main() {
   } else if (handoverProject) {
     messages.show('file', 'info', `Your file is open in release ${RELEASE}, the release that matches its format.`, [], { timeoutMs: 6000 });
   }
-  if (autosave.kind === 'newer') {
-    messages.show('autosave', 'warn', 'Autosave is off in this release.', [
-      `The project saved in this browser was written by ${autosave.error.release ? `release ${autosave.error.release}` : 'a newer release'} (format ${autosave.error.format}), which this tracker (release ${RELEASE}) does not understand. It is left alone. Use Save to keep your work.`,
-    ], { dismissible: false });
-  }
-
   if (link.demo && !linkedDemo) {
     messages.show('demo', 'warn', `There is no demo called "${link.demo}".`,
       [`Showing ${saved ? 'your saved project' : 'the first demo'} instead. The Demos menu lists the demos: ${DEMOS.map((demo) => demo.id).join(', ')}.`]);
@@ -508,7 +496,9 @@ async function main() {
     ], { onDismiss: rememberWelcomeDismissed, actions: [{ label: 'Open the quick start', primary: true, run: () => openHelp('quick-start') }] });
   }
 
-  if (autosave.kind === 'older') await offerUpgrade(autosave.info, autosave.text, 'autosave');
+  // Only ask when the person came to open their own saved project: after a demo link or a handed-over file the
+  // older autosave is left alone (the lock stays on) and is offered at the next normal visit.
+  if (autosave.kind === 'older' && !handoverProject && !linkedDemo) await offerUpgrade(autosave.info, autosave.text, 'autosave');
 }
 
 main().catch((error) => {
