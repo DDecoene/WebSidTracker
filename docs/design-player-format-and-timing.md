@@ -129,7 +129,7 @@ An instrument is a set of fields. The file stores them as **one table per field*
 |---|---|
 | `inst_wave` | the control register value without the gate bit: waveform (bits 7 to 4), plus ring and sync if wanted |
 | `inst_ad` | attack/decay, as the SID register |
-| `inst_sr` | sustain/release, as the SID register |
+| `inst_sr` | sustain/release, as the SID register. The player uses only the sustain nibble (high); the release nibble is written as 0 (see 6.2) |
 | `inst_pw_lo`, `inst_pw_hi` | starting pulse width (12 bits) |
 | `inst_pw_step` | pulse sweep: signed amount added to the pulse width every frame; 0 = no sweep |
 | `inst_pw_min`, `inst_pw_max` | sweep limits, in units of 16 (that is, pulse width / 16); the sweep reverses at a limit |
@@ -139,7 +139,7 @@ An instrument is a set of fields. The file stores them as **one table per field*
 | `inst_arp` | arpeggio: signed semitone offset; the pitch alternates every frame between the note and the note plus this offset; 0 = off |
 | `inst_drum_noise` | drum: number of frames of noise at the start; 0 = not a drum |
 | `inst_drum_fall` | drum: after the noise, the tone (waveform in `inst_wave`) starts at the note's pitch and falls by this amount (frequency register units) every frame |
-| `inst_release` | frames at the end of every note reserved for the clean restart (see 6); standard value 2 |
+| `inst_release` | frames at the end of every note reserved for the clean restart (see 6); standard value 2. The player plays a value below 2 as 2 when the decay is above 0 (below 1 as 1 otherwise) |
 
 Vibrato is a fraction of the distance to the next semitone, so it sounds equally wide in bass and treble. It is not added to a drum.
 
@@ -157,10 +157,14 @@ Vibrato is a fraction of the distance to the next semitone, so it sounds equally
 This exists to fix a problem we heard in an earlier prototype: drum hits with random, irregular clicks and hiss. The SID envelope remembers its previous state, so starting a note while the old envelope is still running can start the new attack late or wrong. Two rules:
 
 1. **The last `inst_release` frames of every note are the clean-end frames.** At that moment the gate is cleared and attack/decay and sustain/release are written as zero, so the envelope is empty when the next note begins. The value is counted in **frames, not ticks**, so a 1-frame tick still gets a full restart.
-2. **A note start writes the envelope registers first and the gate last.**
+2. **A note start writes the envelope registers first and the gate last.** In detail: a control write with the waveform, the TEST bit and the gate low; frequency and pulse width; AD with the decay nibble set equal to the attack nibble; SR with the release nibble written as 0; the control register with the gate open; and then AD again with the real values.
+3. **Release minimum.** When the instrument's decay is above 0, an `inst_release` of 0 or 1 is played as 2; with decay 0 it is played as at least 1. Above 32 it is played as 32.
+4. **Short notes keep the gate.** With a decay above 0, the last frame of a note of 1 or 2 frames does not close the gate (a one-frame gate-off is too short); the next note restarts the gate itself.
+
+Why these rules: the SID envelope has a rate counter that is never reset when the rate changes. If a register write asks for a rate whose period is below the counter, the counter runs on to its wrap (up to about 33 ms, just under two frames) and the envelope does nothing meanwhile. A non-zero release nibble in SR before the gate opens, the decay rate that the SID uses for one cycle after the gate opens, and a gate-off shorter than that wait each caused notes that started up to two frames late. The rules above avoid all three. The full explanation and the measurements are in [player.md](player.md), section 5.
 
 Edge cases the implementation must settle and document:
-- If `inst_release` is as long as the note, clamp it so the note sounds at least 1 frame. With speed 1 and `inst_release` 2 a note needs 3 ticks to sound at all.
+- If `inst_release` is as long as the note, clamp it so the note sounds at least 1 frame. With speed 1, decay 0 and `inst_release` 2 a note needs 3 ticks to sound at all; with a decay above 0 a note of 1 or 2 frames keeps its gate open instead of closing it.
 - A legato note (event $62) skips rule 1 for the note before it and rule 2 for itself.
 - A rest starts the same clean end as a note.
 
@@ -218,7 +222,7 @@ The player follows this design. These are the places where the code differs from
 
 - **Pattern numbers.** The draft says "0 up to 255" in 4.1. The code allows 0 to 253 (`$FE` and `$FF` are the stop and loop codes in an order list), so a song has at most 254 patterns. The model (`LIMITS.maxPatterns`) and the serialiser enforce this.
 - **Size limits that come from one-byte positions.** A pattern can be at most 255 bytes including its `$FF`, because `st_pat_pos` is one byte. An order list can have at most 128 entries, because `st_order_pos` is one byte and counts in steps of 2. The draft does not state these. The tracker's validation does not check either limit yet (it allows 256 order entries per voice and does not measure pattern bytes), so a song that breaks them is accepted by the editor but would not play correctly.
-- **Release clamp.** `inst_release` 0 is treated as 1, and any value above 32 as 32 (`RELEASE_MAX`). The editor still lets you enter 0 to 255. The draft only said the value must be clamped so a note sounds at least one frame, which also holds: the first frame of a note always sounds.
+- **Release rule.** The release is limited to 1 to 32 frames (`RELEASE_MAX` is 32), and to at least 2 (`RELEASE_MIN`) when the instrument's decay is above 0, so `inst_release` 0 and 1 are played as 2 in that case and 0 as 1 when the decay is 0. A note of 1 or 2 frames with a decay above 0 keeps its gate open in its last frame. A new note writes the control register with the gate low and TEST set, frequency, pulse width, AD with the decay nibble equal to the attack nibble, SR with the release nibble as 0, the control register with the gate open, and then the real AD. Only the sustain nibble of `inst_sr` is used. All of this works around the SID's envelope rate counter, which is not reset when the rate changes (see [player.md](player.md), section 5). The editor still lets you enter 0 to 255 for the release. The draft only said the value must be clamped so a note sounds at least one frame, which also holds: the first frame of a note always sounds.
 - **Transpose.** The model and the tracker keep -96 to 96; the byte in the order list is a signed byte (-128 to 127). The result is clamped to pitches 0 to 95, and so is the arpeggio offset.
 - **Memory map.** The draft left addresses open. In the built image the program and BASIC line are at `$0801`, `music.asm` at `$1000`, the 15 instrument tables of 256 bytes each at `$2000` to `$2EFF` (in the order of `INSTRUMENT_TABLES`), and the song at `$3000`. The player is 1539 bytes (`music_size`). The tracker keeps a scratch song at `$C000` for note auditions, and a song must end below `$C000`.
 - **Zero page.** The draft says the pointers are chosen in `main.asm` or `hardware.asm`. In the code `music.asm` takes 14 bytes from `zp_music`, default `$E0` to `$ED`, and you can define `zp_music` before including it. `main.asm` only includes `runner.asm`.
