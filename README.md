@@ -94,7 +94,7 @@ node --test web/app/files.test.mjs web/app/live.test.mjs web/app/session.test.mj
 node --test web/ui/editor-logic.test.mjs web/ui/instruments-logic.test.mjs
 node --test web/cpu/test.mjs
 node --test web/version.test.mjs web/model/migrate.test.mjs web/model/golden.test.mjs
-node --test web/app/handover.test.mjs web/app/releases.test.mjs web/app/upgrade.test.mjs
+node --test web/app/handover.test.mjs web/app/releases.test.mjs web/app/upgrade.test.mjs web/app/autosave-lock.test.mjs
 node --test tools/release-tools.test.mjs
 node web/sid/test.mjs
 
