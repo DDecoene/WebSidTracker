@@ -1,6 +1,6 @@
 # Concept: a Hubbard-inspired music player and tracker for the C64
 
-Status: concept, nothing built yet. This is the starting document of WebSidTracker.
+Status: the starting document of WebSidTracker, written before anything was built. The player and the tracker now exist; see [player.md](player.md) and [the tracker guide](tracker-guide.md). The text below is kept as it was written.
 
 ## 1. Why this document exists
 
