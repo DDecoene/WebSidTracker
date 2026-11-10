@@ -179,7 +179,7 @@ Every project file says which format it has and which release wrote it. When you
 - **Open in the old tracker.** The tracker opens the newest release that has the file's format, with your file loaded. Your current project is saved in the browser first.
 - **Cancel.**
 
-If porting is not possible (the result would not be a valid project) the dialog says why and only the old tracker is offered. If the list of releases cannot be loaded, only porting is offered. A file from a newer tracker is refused with a message; open it in a newer release. In a release that is older than the project saved in the browser, autosave stays off so that project is not overwritten; use Save.
+If porting is not possible (the result would not be a valid project) the dialog says why and only the old tracker is offered. If the list of releases cannot be loaded, only porting is offered. A file from a newer tracker is refused with a message; open it in a newer release. Each format keeps its own autosave in the browser, so an older tracker never touches the saved project of a newer one. If the project saved in the browser is the older one, the same dialog is shown at start; choosing **Port** first downloads the original as a file, because it exists only in the browser.
 
 ## 6. Export, and using the files in a game
 

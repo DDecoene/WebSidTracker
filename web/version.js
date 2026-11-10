@@ -12,11 +12,6 @@ export const RELEASE = '0.1.0';
 
 /** sessionStorage key used to hand a project file to another release of the tracker. */
 export const HANDOVER_KEY = 'websidtracker.handover';
-/** localStorage key of the autosave; the same in every release, so releases see each other's autosave. */
-export const AUTOSAVE_KEY = 'websidtracker.autosave.v1';
-/** The development copy has its own autosave, so it cannot overwrite the autosave of a release. */
-export const DEV_AUTOSAVE_KEY = 'websidtracker.dev.autosave';
-
 /** @returns {[number, number, number] | null} the parts of a plain "major.minor.patch", else null */
 export function parseSemver(text) {
   const match = /^(\d+)\.(\d+)\.(\d+)$/.exec(String(text));
@@ -52,8 +47,20 @@ export function isDevChannel(pathname) {
   return parts[parts.length - 1] === 'dev';
 }
 
-export function autosaveKeyFor(pathname) {
-  return isDevChannel(pathname) ? DEV_AUTOSAVE_KEY : AUTOSAVE_KEY;
+/**
+ * The localStorage key of the autosave of one format. Every format has its own key, so a release never reads
+ * (or overwrites) the autosave of a newer format, and a newer release can still find the autosave of an older one.
+ * The development copy has its own set of keys.
+ */
+export function autosaveKeyFor(pathname, format = FORMAT) {
+  return isDevChannel(pathname) ? `websidtracker.dev.autosave.v${format}` : `websidtracker.autosave.v${format}`;
+}
+
+/** The autosave keys this release may read: its own format first, then the older formats, newest first. */
+export function autosaveKeysFor(pathname, format = FORMAT) {
+  const keys = [];
+  for (let n = format; n >= 1; n--) keys.push(autosaveKeyFor(pathname, n));
+  return keys;
 }
 
 /**

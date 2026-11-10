@@ -1,18 +1,15 @@
 // autosave-lock.js - says when the autosave in this browser must not be overwritten.
 //
-//   'newer': it was written by a newer release than this one (never touched in this session)
-//   'kept':  it is older than this tracker and the person has not decided yet, or chose to leave it
-//            alone (until they open, create or load something, or port it)
+// It is held while an older autosave waits for the person's decision (port it, open it in the old tracker,
+// or leave it), and stays held when they leave it, until they open, create or load something themselves.
 //
 // Part of the WebSidTracker web app, GPL version 3 or later (see ../LICENSE).
 
 export function createAutosaveLock() {
-  let reason = null;
+  let held = false;
   return {
-    get reason() { return reason; },
-    get blocked() { return reason !== null; },
-    set(why) { reason = why; },
-    /** Ends a 'kept' lock; a 'newer' lock stays. */
-    release() { if (reason === 'kept') reason = null; },
+    get blocked() { return held; },
+    hold() { held = true; },
+    release() { held = false; },
   };
 }
