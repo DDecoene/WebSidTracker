@@ -73,3 +73,28 @@ test('without tags the root is the development ref', () => {
   assert.deepEqual(JSON.parse(readFileSync(join(out, 'releases.json'), 'utf8')).releases, []);
   assert.equal(existsSync(join(out, 'dev', 'page.txt')), true);
 });
+
+test('a tag whose version.js names another release is left out of the site', () => {
+  const repo = mkdtempSync(join(tmpdir(), 'wst-repo-'));
+  const out = join(mkdtempSync(join(tmpdir(), 'wst-out-')), 'site');
+  const git = (...args) => execFileSync('git', args, { cwd: repo, stdio: 'pipe' });
+  git('init', '-q', '-b', 'develop');
+  git('config', 'user.email', 't@example.com');
+  git('config', 'user.name', 'test');
+  mkdirSync(join(repo, 'web'));
+  writeFileSync(join(repo, 'web', 'version.js'), "export const FORMAT = 1;\nexport const RELEASE = '0.1.0';\n");
+  writeFileSync(join(repo, 'web', 'page.txt'), 'release one');
+  git('add', '.');
+  git('commit', '-q', '-m', 'one');
+  git('tag', 'v0.1.0');
+  writeFileSync(join(repo, 'web', 'page.txt'), 'forgot to bump RELEASE');
+  git('commit', '-q', '-am', 'two');
+  git('tag', 'v0.2.0');
+
+  const entries = assemble(out, { cwd: repo, devRef: 'develop' });
+
+  assert.deepEqual(entries, [{ format: 1, release: '0.1.0' }]);
+  assert.equal(readFileSync(join(out, 'v0.1.0', 'page.txt'), 'utf8'), 'release one');
+  assert.equal(existsSync(join(out, 'v0.2.0')), false);
+  assert.equal(readFileSync(join(out, 'page.txt'), 'utf8'), 'release one');
+});

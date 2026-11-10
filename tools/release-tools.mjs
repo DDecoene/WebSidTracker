@@ -68,16 +68,22 @@ function refExists(cwd, ref) {
 export function assemble(outDir, { cwd = process.cwd(), devRef = 'origin/develop' } = {}) {
   const tags = releaseTags(git(cwd, 'tag', '--list', 'v*').toString().split('\n').map((t) => t.trim()).filter(Boolean));
   const entries = [];
+  let newestTag = null;
   rmSync(outDir, { recursive: true, force: true });
   mkdirSync(outDir, { recursive: true });
   for (const tag of tags) {
     const info = parseVersionJs(git(cwd, 'show', `${tag}:web/version.js`).toString());
+    if (tag !== `v${info.release}`) {
+      console.warn(`Skipping ${tag}: web/version.js at that tag says release ${info.release}.`);
+      continue;
+    }
     exportWeb(cwd, tag, join(outDir, `v${info.release}`));
     entries.push(info);
+    newestTag = tag;
   }
   const hasDev = refExists(cwd, devRef);
-  if (tags.length > 0) {
-    exportWeb(cwd, tags[tags.length - 1], outDir);
+  if (newestTag) {
+    exportWeb(cwd, newestTag, outDir);
   } else if (hasDev) {
     exportWeb(cwd, devRef, outDir);
   } else {
