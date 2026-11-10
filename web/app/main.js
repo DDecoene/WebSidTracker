@@ -473,6 +473,7 @@ async function main() {
   // ---- release label, development bar ----------------------------------------------------------------
 
   $('release').textContent = `v${RELEASE}`;
+  $('footer-version').textContent = `release ${RELEASE}, format ${FORMAT}${isDevChannel(location.pathname) ? ' (development)' : ''}`;
   $('dev-bar').hidden = !isDevChannel(location.pathname);
 
   // ---- first visit, deep links ---------------------------------------------------------------------
