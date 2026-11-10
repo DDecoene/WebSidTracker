@@ -71,13 +71,28 @@ test('the fingerprint does not change when the player code only moves', () => {
   assert.equal(formatFingerprint(shifted), formatFingerprint(symbols));
 });
 
+// An older set must end as the example project once the migrations ran. A migration may only change
+// what it declares in `losses`: with no losses declared, the result must equal the example project.
+function checkOlderSet(projectText, options) {
+  const info = inspectProject(projectText, options);
+  assert.equal(info.status, 'older');
+  assert.ok(info.project, info.problems.join('; '));
+  if (info.losses.length === 0) assert.deepEqual(info.project, goldenProject());
+  return info;
+}
+
 test('every older golden set still loads through the migrations to the example project', () => {
   const dirs = readdirSync(new URL('./golden/', import.meta.url)).filter((d) => /^format-\d+$/.test(d));
   for (const dir of dirs) {
     const n = Number(dir.slice('format-'.length));
-    if (n >= FORMAT) continue;
-    const info = inspectProject(text(golden(n, 'project.json')));
-    assert.equal(info.status, 'older', dir);
-    assert.ok(info.project, `${dir}: ${info.problems.join('; ')}`);
+    if (n < FORMAT) checkOlderSet(text(golden(n, 'project.json')));
   }
+});
+
+test('the older-set check catches a migration that changes data without declaring it', () => {
+  const asFormat1 = JSON.stringify({ ...JSON.parse(projectToJson(goldenProject())), version: 1 });
+  const honest = (data) => ({ data, losses: [] });
+  const sneaky = (data) => ({ data: { ...data, song: { ...data.song, speed: 1 } }, losses: [] });
+  checkOlderSet(asFormat1, { format: 2, migrations: [honest] });
+  assert.throws(() => checkOlderSet(asFormat1, { format: 2, migrations: [sneaky] }), assert.AssertionError);
 });
