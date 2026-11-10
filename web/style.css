@@ -222,6 +222,10 @@ dialog h2 { margin: 0 0 0.571rem; font-size: 1.286rem; }
 dialog h3 { margin: 1.286rem 0 0.429rem; font-size: 0.929rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
 .dialog-actions { display: flex; justify-content: flex-end; margin-top: 1.143rem; }
 .hint { color: var(--muted); margin: 0 0 0.857rem; }
+.upgrade-actions { flex-wrap: wrap; gap: 0.571rem; }
+#upgrade-reasons { padding-left: 1.2rem; }
+.release { margin-left: 0.5rem; font-weight: 400; color: var(--muted); }
+.dev-bar { padding: 0.286rem 1rem; text-align: center; font-weight: 600; color: #000; background: #e0b030; }
 
 .keys { display: grid; grid-template-columns: max-content 1fr; gap: 0.286rem 1rem; margin: 0; }
 .keys dt { text-align: right; white-space: nowrap; }

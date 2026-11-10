@@ -13,11 +13,13 @@
   <script type="module" src="app/main.js"></script>
 </head>
 <body>
+  <div id="dev-bar" class="dev-bar" hidden>Development version, not a release. Your work here is autosaved separately.</div>
   <header class="topbar">
     <div class="row">
       <div class="brand" aria-label="WebSidTracker">
         <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M2 12h3l2-7 3 14 3-10 2 5 2-2h5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
         <span>WebSid<b>Tracker</b></span>
+        <small id="release" class="release"></small>
       </div>
 
       <label class="field grow">
@@ -112,6 +114,22 @@
       <p class="hint">These files play your song in a game. Copy <code>music.asm</code> from the project's <code>src/</code> folder next to them; the .prg already contains the player.</p>
       <div id="export-body"></div>
       <div class="dialog-actions"><button value="close" class="primary">Close</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="upgrade-dialog" aria-labelledby="upgrade-title">
+    <form method="dialog">
+      <h2 id="upgrade-title"></h2>
+      <p id="upgrade-summary"></p>
+      <h3>What would be lost or changed</h3>
+      <ul id="upgrade-losses"></ul>
+      <ul id="upgrade-reasons" class="hint"></ul>
+      <p class="hint">Porting loads the result as an unsaved project; the file you opened is not changed.</p>
+      <div class="dialog-actions upgrade-actions">
+        <button type="button" id="upgrade-old"></button>
+        <button type="button" id="upgrade-port" class="primary"></button>
+        <button type="button" id="upgrade-cancel">Cancel</button>
+      </div>
     </form>
   </dialog>
 
