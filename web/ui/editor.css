@@ -1,5 +1,8 @@
 /* editor.css - the pattern and order editor.
+   The Patterns panel has its own file, patterns.css, pulled in here so that the page needs
+   only this one stylesheet.
    Part of the WebSidTracker web app, GPL version 3 or later (see ../LICENSE). */
+@import url("patterns.css");
 
 .ed {
   /* Colours are tokens so the light and dark themes only change these lines. */
@@ -19,6 +22,11 @@
   --ed-cursor-dim: #e6dcb2;
   --ed-accent: #1d6f5c;
   --ed-warn: #a83a1a;
+  --ed-ctl: #ffffff;          /* the little controls inside rows: drop-downs, boxes, buttons */
+  --ed-ctl-line: #cbc5b3;
+  --ed-ctl-hover: #e3f1ec;
+  --ed-chip: #fcefd9;         /* the instrument chip in the grid */
+  --ed-chip-line: #e2c59a;
   /* Sizes. --ed-row-size and --ed-head-size are what the stylesheet wants; the script measures
      them in pixels (they follow the root font size and the browser zoom) and pins the whole
      pixel values in --ed-row-h and --ed-head-h, so the virtual scrolling maths and the CSS
@@ -63,6 +71,8 @@
     --ed-cursor-dim: #4a4223;
     --ed-accent: #56d0b0;
     --ed-warn: #ff8f6b;
+    --ed-ctl: #232933; --ed-ctl-line: #3d4554; --ed-ctl-hover: #25403a;
+    --ed-chip: #3a2f20; --ed-chip-line: #6e5632;
   }
 }
 
@@ -71,33 +81,45 @@
   --ed-beat: #181c22; --ed-beat16: #20252d; --ed-note: #8fc1ff; --ed-inst: #ffb066; --ed-legato: #d79bff;
   --ed-play: #1f4a2c; --ed-cursor: #f2c230; --ed-cursor-text: #101010; --ed-cursor-dim: #4a4223;
   --ed-accent: #56d0b0; --ed-warn: #ff8f6b;
+  --ed-ctl: #232933; --ed-ctl-line: #3d4554; --ed-ctl-hover: #25403a;
+  --ed-chip: #3a2f20; --ed-chip-line: #6e5632;
 }
 
 .ed:focus-visible { box-shadow: 0 0 0 2px var(--ed-accent); }
 
 /* ---- toolbar ---- */
 .ed-bar {
-  display: flex; flex-wrap: wrap; align-items: center; gap: 0.429rem 1rem;
-  padding: 0.429rem 0.714rem; background: var(--ed-panel); border-bottom: 1px solid var(--ed-line);
+  display: flex; flex-wrap: wrap; align-items: center; gap: 0.286rem 1rem;
+  padding: 0.357rem 0.714rem; background: var(--ed-panel); border-bottom: 1px solid var(--ed-line);
   font-size: 0.857rem;
 }
 .ed-status { white-space: pre-wrap; color: var(--ed-text); }
-.ed-follow, .ed-name { display: inline-flex; align-items: center; gap: 0.286rem; color: var(--ed-dim); }
-.ed-name input { font: inherit; padding: 0.07rem 0.286rem; background: var(--ed-bg); color: var(--ed-text); border: 1px solid var(--ed-line); border-radius: 0.214rem; }
-.ed-buttons { display: inline-flex; gap: 0.286rem; flex-wrap: wrap; }
-.ed-buttons button {
-  font: inherit; padding: 0.07rem 0.571rem; color: var(--ed-text); background: var(--ed-bg);
-  border: 1px solid var(--ed-line); border-radius: 0.214rem; cursor: pointer;
+.ed-follow { display: inline-flex; align-items: center; gap: 0.286rem; color: var(--ed-dim); margin-left: auto; }
+.ed-instbar { display: inline-flex; align-items: center; gap: 0.357rem; flex-wrap: wrap; }
+.ed-inst { display: inline-flex; align-items: center; gap: 0.357rem; color: var(--ed-dim); }
+.ed-inst select { max-width: 14rem; }
+.ed-bar select, .ed-instbar button {
+  font: inherit; color: var(--ed-text); background: var(--ed-ctl); border: 1px solid var(--ed-ctl-line);
+  border-radius: 0.214rem; padding: 0.07rem 0.357rem; min-height: 1.5rem; cursor: pointer;
 }
-.ed-buttons button:hover { border-color: var(--ed-accent); }
-.ed-buttons button:focus-visible, .ed-name input:focus-visible, .ed-follow input:focus-visible { outline: 2px solid var(--ed-accent); outline-offset: 1px; }
+.ed-instbar button { padding: 0.07rem 0.571rem; }
+.ed-bar select:hover, .ed-instbar button:hover { border-color: var(--ed-accent); background: var(--ed-ctl-hover); }
+.ed-bar select:focus-visible, .ed-instbar button:focus-visible, .ed-follow input:focus-visible { outline: 2px solid var(--ed-accent); outline-offset: 1px; }
 .ed-msg { color: var(--ed-warn); flex-basis: 100%; min-height: 1.2em; }
 .ed-msg:empty { display: none; }
+
+/* ---- body: the Patterns panel on the left, the order lists and the grid on the right ---- */
+.ed-body {
+  display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-rows: minmax(0, 1fr);
+  flex: 1 1 auto; min-height: 30rem;
+}
+.ed-pats { min-height: 0; min-width: 0; display: flex; flex-direction: column; border-right: 1px solid var(--ed-line); }
+.ed-work { min-height: 0; min-width: 0; display: flex; flex-direction: column; }
 
 /* ---- shared column layout: a narrow gutter and three equal voices ---- */
 .ed-orders, .ed-head, .ed-row {
   display: grid;
-  grid-template-columns: 3.2em repeat(3, minmax(0, 1fr));
+  grid-template-columns: 2.6em repeat(3, minmax(0, 1fr));
 }
 
 /* Cell padding: 0.57rem, but a column wider than --ed-text-w centres its text instead of
@@ -105,23 +127,73 @@
 .ed-orders, .ed-head, .ed-row { --ed-pad-x: max(0.571rem, calc((100% - var(--ed-text-w)) / 2)); }
 
 /* ---- order lists ---- */
-.ed-orders { user-select: none; }
-.ed-gutter { padding: 0.286rem 0.429rem; color: var(--ed-dim); font-size: 0.786rem; }
+.ed-orders { user-select: none; flex: none; }
+.ed-gutter { padding: 0.286rem 0.286rem; color: var(--ed-dim); font-size: 0.714rem; }
 .ed-order {
-  max-height: calc(var(--ed-row-h) * var(--ed-order-rows) + 1.6rem); overflow-y: auto; position: relative;
+  max-height: calc(var(--ed-row-h) * var(--ed-order-rows) + 1.6rem); overflow-y: auto; overflow-x: hidden; position: relative;
   scrollbar-width: thin; scrollbar-color: var(--ed-line) transparent; overscroll-behavior: contain;
   border-left: 1px solid var(--ed-line); padding-bottom: 2px;
 }
-.ed-oh { padding: 0.14rem var(--ed-pad-x); color: var(--ed-dim); font-size: 0.786rem; position: sticky; top: 0; background: var(--ed-bg); z-index: 1; }
-.ed-oe { height: var(--ed-row-h); line-height: var(--ed-row-h); padding: 0 var(--ed-pad-x); white-space: pre; cursor: pointer; }
-.ed-oe .ix { color: var(--ed-dim); }
-.ed-oe.k-stop, .ed-oe.k-loop { color: var(--ed-legato); }
+.ed-oh { padding: 0.14rem 0.429rem; color: var(--ed-dim); font-size: 0.786rem; position: sticky; top: 0; background: var(--ed-bg); z-index: 1; }
+.ed-empty { padding: 0.286rem 0.429rem; color: var(--ed-dim); font-size: 0.857rem; }
+
+/* One entry: number, pattern drop-down, transpose (- value +). The entry under the cursor
+   gets a second line with the octave buttons and the buttons that insert, delete and move it. */
+.ed-oe { min-height: var(--ed-row-h); padding: 0 0.357rem 0 0.286rem; border-left: 0.214rem solid transparent; position: relative; }
+.oe-main, .oe-tools { display: flex; align-items: center; gap: 0.214rem; min-height: var(--ed-row-h); }
+.oe-tools { display: none; padding-bottom: 0.143rem; }
+.ed-oe.cur.seldim .oe-tools, .ed-oe.sel .oe-tools { display: flex; }
+.ed-oe .ix { color: var(--ed-dim); width: 1.3rem; flex: none; cursor: pointer; font-size: 0.857rem; }
+.ed-oe select, .ed-oe input, .ed-oe .oe-b {
+  font: inherit; font-size: 0.857rem; color: var(--ed-text); background: var(--ed-ctl); border: 1px solid var(--ed-ctl-line);
+  border-radius: 0.214rem; height: calc(var(--ed-row-h) - 0.214rem); min-height: 0; padding: 0 0.214rem; margin: 0;
+}
+.ed-oe select { flex: 1 1 0; min-width: 3.4rem; cursor: pointer; text-overflow: ellipsis; }
+.oe-tr { display: inline-flex; align-items: center; flex: none; }
+.oe-tr .oe-b { width: 1.2rem; padding: 0; cursor: pointer; line-height: 1; }
+.oe-tr .oe-b:first-child { border-radius: 0.214rem 0 0 0.214rem; }
+.oe-tr .oe-b:last-child { border-radius: 0 0.214rem 0.214rem 0; }
+.ed-oe .oe-num { width: 2.3rem; text-align: center; border-radius: 0; border-left: 0; border-right: 0; padding: 0; }
+.oe-lp { display: none; align-items: center; gap: 0.143rem; color: var(--ed-legato); flex: none; }
+.ed-oe .oe-hex { width: 2.1rem; text-align: center; }
+.ed-oe .oe-b { cursor: pointer; padding: 0 0.357rem; }
+.oe-tools { gap: 0.143rem; }
+.oe-tools .oe-b { padding: 0 0.214rem; }
+.oe-gap { flex: 1; }
+.ed-oe.k-stop .oe-tr, .ed-oe.k-loop .oe-tr, .ed-oe.k-stop .oe-oct, .ed-oe.k-loop .oe-oct { display: none; }
+.ed-oe.k-loop .oe-lp { display: inline-flex; }
+.ed-oe.k-stop select, .ed-oe.k-loop select { color: var(--ed-legato); font-weight: 600; }
+.ed-oe.dangling select { color: var(--ed-warn); }
+.ed-oe select:hover, .ed-oe input:hover, .ed-oe .oe-b:hover { border-color: var(--ed-accent); background: var(--ed-ctl-hover); }
+.ed-oe select:focus-visible, .ed-oe input:focus-visible, .ed-oe .oe-b:focus-visible { outline: 2px solid var(--ed-accent); outline-offset: 0; }
+.ed-oe .oe-b:active { transform: translateY(1px); }
+
+/* Which entry is shown (cur), which one has the keyboard (sel), which one the Patterns panel's
+   pattern is used by (uses), which one is playing. */
 .ed-oe.cur { background: var(--ed-beat16); }
-.ed-oe.seldim { background: var(--ed-cursor-dim); }
-.ed-oe.sel { background: var(--ed-cursor); color: var(--ed-cursor-text); }
-.ed-oe.sel .ix { color: inherit; }
-.ed-oe.play::after { content: " \25B6"; color: var(--ed-accent); }
-.ed-oe.sel.play::after { color: var(--ed-cursor-text); }
+.ed-oe.seldim { background: var(--ed-cursor-dim); border-left-color: var(--ed-cursor); }
+.ed-oe.sel { background: var(--ed-cursor-dim); border-left-color: var(--ed-cursor); box-shadow: inset 0 0 0 1px var(--ed-cursor); }
+.ed-oe.sel .ix { color: var(--ed-text); font-weight: 700; }
+.ed-oe.uses:not(.sel):not(.seldim) { border-left-color: var(--ed-accent); }
+.ed-oe.uses .ix { color: var(--ed-accent); font-weight: 700; }
+.ed-oe.play .ix::after { content: "\25B6"; color: var(--ed-accent); font-size: 0.6rem; margin-left: 0.07rem; }
+/* The field the arrow keys will change: shown with a strong ring (the real focus ring is the browser's). */
+.ed-oe.f-pattern .oe-pat, .ed-oe.f-transpose .oe-num, .ed-oe.f-transpose .oe-tr, .ed-oe.f-target .oe-hex {
+  box-shadow: 0 0 0 2px var(--ed-cursor), 0 0 0 3px var(--ed-cursor-text); position: relative; z-index: 1;
+}
+.ed-oe.f-transpose .oe-num { box-shadow: none; }
+.ed-oe.f-transpose .oe-tr { border-radius: 0.214rem; }
+
+/* Dragging a pattern from the Patterns panel: where it would land. */
+.ed-oe.drop-on { outline: 2px solid var(--ed-accent); outline-offset: -2px; background: var(--ed-ctl-hover); }
+.ed-oe.drop-before::before, .ed-oe.drop-after::after, .ed-order.drop-end::after {
+  content: ""; position: absolute; left: 0.286rem; right: 0.286rem; height: 0.286rem; background: var(--ed-accent);
+  border-radius: 0.143rem; pointer-events: none; z-index: 3;
+}
+.ed-oe.drop-before::before { top: -0.143rem; }
+.ed-oe.drop-after::after { bottom: -0.143rem; }
+.ed-order.drop-end::after { bottom: 0.14rem; }
+.ed-order.drop-end { box-shadow: inset 0 0 0 1px var(--ed-accent); }
 
 /* The grip under the order lists: drag it to show more or fewer order rows. */
 .ed-grip {
@@ -145,7 +217,7 @@
 }
 .ed-vh { padding: 0 var(--ed-pad-x); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ed-vh b { color: var(--ed-accent); margin-right: 0.286rem; }
-.ed-vh i { font-style: normal; color: var(--ed-dim); margin-left: 0.571rem; font-size: 0.786rem; }
+.ed-vh i { font-style: normal; color: var(--ed-dim); margin-left: 0.429rem; font-size: 0.714rem; }
 .ed-vh.sel { box-shadow: inset 0 -2px 0 var(--ed-accent); }
 
 .ed-rows { position: relative; }
@@ -157,6 +229,18 @@
 .ed-c .nt { color: var(--ed-note); font-weight: 600; }
 .ed-c .rs { color: var(--ed-dim); }
 .ed-c .in { color: var(--ed-inst); }
+/* The instrument of a note: a chip you can click. Dim and outlined when the note just keeps the
+   instrument before it. */
+.ed-c .chip {
+  display: inline-block; vertical-align: middle; max-width: 7.2em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  padding: 0 0.357em; line-height: 1.2; border: 1px solid var(--ed-chip-line); background: var(--ed-chip);
+  border-radius: 0.5em; color: var(--ed-inst); cursor: pointer; font-size: 0.857em;
+}
+.ed-c .chip b { font-weight: 700; }
+.ed-c .chip:hover { border-color: var(--ed-accent); box-shadow: 0 0 0 1px var(--ed-accent); }
+.ed-c .chip.inh { background: transparent; border-style: dashed; border-color: var(--ed-line); color: var(--ed-dim); }
+.ed-c .chip.inh:hover { color: var(--ed-inst); border-style: solid; }
+.ed-c .chip.bad { color: var(--ed-warn); border-color: var(--ed-warn); }
 .ed-c .lg { color: var(--ed-legato); font-weight: 600; }
 .ed-c .su { color: var(--ed-dim); }
 .ed-c .su.note { color: var(--ed-note); opacity: .55; }
@@ -166,6 +250,26 @@
 .ed-c.cursordim { box-shadow: inset 0 0 0 1px var(--ed-cursor); }
 .ed-c.cursor { background: var(--ed-cursor); box-shadow: inset 0 0 0 2px var(--ed-cursor-text); }
 .ed-c.cursor span { color: var(--ed-cursor-text); opacity: 1; }
+.ed-c.cursor .chip { background: transparent; border-color: var(--ed-cursor-text); color: var(--ed-cursor-text); }
+.ed-c.cursor .chip.inh { border-style: dashed; opacity: .75; }
+
+/* ---- the instrument list that opens from a chip ---- */
+.ed-pop {
+  position: fixed; z-index: 20; min-width: 12rem; max-width: 20rem; background: var(--ed-bg); color: var(--ed-text);
+  border: 1px solid var(--ed-accent); border-radius: 0.357rem; box-shadow: 0 0.5rem 1.5rem #0006; font-size: 0.929rem;
+  display: flex; flex-direction: column;
+}
+.pop-head { padding: 0.286rem 0.571rem; color: var(--ed-dim); font-size: 0.786rem; border-bottom: 1px solid var(--ed-line); }
+.pop-list { overflow-y: auto; max-height: min(24rem, 55vh); display: flex; flex-direction: column; padding: 0.143rem; }
+.pop-opt {
+  font: inherit; text-align: left; color: inherit; background: transparent; border: 0; border-radius: 0.214rem;
+  padding: 0.143rem 0.571rem; cursor: pointer; display: flex; gap: 0.571rem; align-items: baseline;
+}
+.pop-opt b { color: var(--ed-inst); }
+.pop-opt i { margin-left: auto; font-style: normal; color: var(--ed-accent); font-size: 0.786rem; }
+.pop-opt:hover, .pop-opt:focus-visible { background: var(--ed-ctl-hover); outline: 2px solid var(--ed-accent); outline-offset: -2px; }
+.pop-opt.current { background: var(--ed-beat16); font-weight: 700; }
+.pop-rest { padding: 0.286rem 0.571rem; border-top: 1px solid var(--ed-line); color: var(--ed-dim); font-size: 0.857rem; display: flex; gap: 0.357rem; align-items: center; cursor: pointer; }
 
 @media (max-width: 900px) {
   .ed { font-size: 0.929rem; }
