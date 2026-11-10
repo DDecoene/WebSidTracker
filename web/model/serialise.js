@@ -33,6 +33,11 @@ const EV_END = 0xFF;
 const ORD_STOP = 0xFE;
 const ORD_LOOP = 0xFF;
 
+// The byte values that mark events and order entries; part of the format (see web/model/fingerprint.js).
+export const EVENT_CODES = {
+  rest: EV_REST, inst: EV_INST, legato: EV_LEGATO, end: EV_END, orderStop: ORD_STOP, orderLoop: ORD_LOOP,
+};
+
 function checkInt(value, lo, hi, what) {
   if (!Number.isInteger(value) || value < lo || value > hi) {
     throw new RangeError(`${what} must be a whole number from ${lo} to ${hi}, got ${value}`);

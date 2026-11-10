@@ -127,6 +127,10 @@ All features run every frame. The values come from the instrument tables of the 
 - **Arpeggio.** On odd frames (bit 0 of `st_frames`, the same for all voices) the pitch is the note plus `inst_arp` semitones, clamped; on even frames it is the note. So the pitch alternates every frame, at 25 Hz.
 - **Drum.** `inst_drum_noise` > 0 makes the instrument a drum. For that many frames the control register has the noise waveform (and only that) at the frequency of the note. After that it has the waveform of `inst_wave` at the same frequency, and from the next frame on the frequency falls by `inst_drum_fall` (register units, about 17 per Hz) per frame, to a minimum of 0. Vibrato and arpeggio are not applied to a drum. The pulse sweep is (it matters if the drum waveform is pulse). If `inst_wave` is noise the "tone" is noise that gets darker.
 
+## 6b. Version
+
+`music.asm` has `format_version` and `release_major`, `release_minor`, `release_patch` as constants (they produce no bytes; `symbols.json` has them as labels) and a comment line `; websidtracker format N, release X.Y.Z`. The format version is shared with the project file and the exported asm files: it rises when anything in the byte formats changes (see [releasing.md](releasing.md)). A test hashes what defines the format (table names and order, event codes, header size, the layout of the state block relative to its first byte, the addresses of the instrument tables) and fails if the hash changes without a new format version. Bug fixes and sound changes do not change it. It cannot see a change of meaning that keeps the same bytes, such as how a field is read; that has to be caught in review.
+
 ## 7. Limits of the format as implemented
 
 | Limit | Value | Why |

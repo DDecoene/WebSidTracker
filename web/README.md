@@ -13,11 +13,15 @@ cd web
 python3 -m http.server 8010
 ```
 
-Open <http://127.0.0.1:8010/> for the landing page (`index.html` with `landing.css` and the screenshots in `img/`, plain HTML and CSS with no script), or <http://127.0.0.1:8010/tracker.html> for the tracker itself, which is the app. The published version is at <https://ddecoene.github.io/WebSidTracker/> (`.github/workflows/pages.yml` publishes this folder on every push to main that touches it). Audio starts at the first click or key press.
+Open <http://127.0.0.1:8010/> for the landing page (`index.html` with `landing.css` and the screenshots in `img/`, plain HTML and CSS with no script), or <http://127.0.0.1:8010/tracker.html> for the tracker itself, which is the app. The published version is at <https://ddecoene.github.io/WebSidTracker/>: the root is the newest release, `/v<release>/` the frozen copies, `/dev/` the `develop` branch (see [docs/releasing.md](../docs/releasing.md); `.github/workflows/pages.yml` builds the site from the release tags). Audio starts at the first click or key press.
 
 `sound-test.html` is the first piece of the project, kept as a check of the SID alone: a button and a 440 Hz pulse tone, a list to switch the chip model, and status text with the sample rate and peak level.
 
 To check the SID without a browser: `node web/sid/test.mjs`. It plays the same tone, measures its pitch, and checks both chip models and the cycle counting. Pass a folder name and it also writes the two sounds there as WAV files. All test commands are in the [main README](../README.md#running-the-tests).
+
+## Versions
+
+`version.js` holds `FORMAT` and `RELEASE` and the small helpers around them. `model/format.js` and `model/migrate.js` read the format of a project file and run the migrations (a dry run that lists what is lost); `app/upgrade.js` and `app/upgrade-dialog.js` are the dialog; `app/handover.js` and `app/releases.js` hand a file to another release and find it. `model/golden/` holds the golden files that stop a format change from going unnoticed.
 
 ## Layers
 

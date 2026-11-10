@@ -47,7 +47,12 @@ The full story (what made that approach special, what such a player contains, wh
 | `web/player/` | the built player image (`player.prg`, `symbols.json`) and its tests |
 | `tools/` | the player build script, a label converter, a small server for the browser C64 emulator |
 | `Makefile`, `project-config.json`, `.vscode/` | build and run |
-| `.github/workflows/pages.yml` | publishes `web/` on GitHub Pages |
+| `.github/workflows/pages.yml` | tests, makes the GitHub release for a tag and publishes the site on GitHub Pages |
+| `docs/releasing.md` | versions, branches and how to make a release |
+
+## Versions and releases
+
+Every file and part carries a format version (one number for the project json, the song and instrument asm files and the player) and a release version. A tracker that meets an older project file says what porting would lose and lets you choose between porting and the old tracker. The published site shows the newest release, every release stays under its own address, and the `develop` branch is previewed under `/dev/`. The branches and the steps of a release are in [docs/releasing.md](docs/releasing.md); the reasons in [the design](docs/design-versioning-and-releases.md).
 
 ## Running the tracker
 
@@ -88,6 +93,9 @@ node --test web/engine/test.mjs
 node --test web/app/files.test.mjs web/app/live.test.mjs web/app/session.test.mjs web/app/store.test.mjs
 node --test web/ui/editor-logic.test.mjs web/ui/instruments-logic.test.mjs
 node --test web/cpu/test.mjs
+node --test web/version.test.mjs web/model/migrate.test.mjs web/model/golden.test.mjs
+node --test web/app/handover.test.mjs web/app/releases.test.mjs web/app/upgrade.test.mjs web/app/autosave-lock.test.mjs
+node --test tools/release-tools.test.mjs
 node web/sid/test.mjs
 
 web/cpu/fetch-tests.sh              # once: downloads the public 6502 test material into web/cpu/.cache
