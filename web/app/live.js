@@ -220,8 +220,10 @@ export function createLive({ model, symbols = {}, songBase = SONG_BASE }) {
       const songWrites = diffBytes(previous.song.bytes, next.song.bytes, songBase);
       writes.push(...songWrites);
 
-      // The speed also lives in the player's state, copied from the header when the song
-      // starts. Changing the header alone would only be heard after a restart.
+      // The player reads the speed from the header at every tick, so the header write alone is
+      // heard from the next tick on. st_speed is the player's own copy, which it uses between
+      // ticks to count the frames a note has left (the clean end); writing it too keeps the
+      // two equal until that tick.
       if (previous.speed !== next.speed && symbols.st_speed !== undefined) {
         writes.push({ address: symbols.st_speed, bytes: Uint8Array.of(next.speed) });
       }
