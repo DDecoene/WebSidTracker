@@ -137,7 +137,9 @@ test('every preset has legal fields and a hint', () => {
     assert.equal(inst.wave & 0x80 && inst.wave & 0x70, 0, 'no noise mixed with a tone');
     assert.ok(inst.pwMin <= inst.pwMax);
     assert.equal(inst.release, 2);
+    assert.equal(L.releaseOf(inst.sr), 0, `${p.name}: the release nibble of sr is not used, so it is 0`);
   }
+  assert.equal(L.releaseOf(L.blankInstrument().sr), 0);
 });
 
 test('presets are musically what the hints say', () => {

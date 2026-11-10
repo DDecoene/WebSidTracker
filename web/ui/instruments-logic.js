@@ -192,7 +192,7 @@ export function blankInstrument(name = 'New') {
     name,
     wave: WAVE_BITS.pulse,
     ad: 0x08,
-    sr: 0xa2,
+    sr: 0xa0,
     pw: 0x0800,
     pwStep: 0,
     pwMin: 0x20,
@@ -215,18 +215,18 @@ export const PRESETS = [
   {
     name: 'Bass',
     hint: 'Pulse wave, instant attack, slowly sweeping pulse width for a fat sound.',
-    fields: { wave: 0x40, ad: 0x08, sr: 0xa2, pw: 0x0800, pwStep: 10, pwMin: 0x30, pwMax: 0xd0 },
+    fields: { wave: 0x40, ad: 0x08, sr: 0xa0, pw: 0x0800, pwStep: 10, pwMin: 0x30, pwMax: 0xd0 },
   },
   {
     name: 'Lead',
     hint: 'Pulse wave with a gentle sweep and a vibrato that starts a quarter second into the note.',
-    fields: { wave: 0x40, ad: 0x08, sr: 0xa4, pw: 0x0800, pwStep: 6, pwMin: 0x40, pwMax: 0xc0,
+    fields: { wave: 0x40, ad: 0x08, sr: 0xa0, pw: 0x0800, pwStep: 6, pwMin: 0x40, pwMax: 0xc0,
       vibDelay: 12, vibDepth: 5, vibSpeed: 4 },
   },
   {
     name: 'Pad',
     hint: 'Slow attack, high sustain, vibrato that comes in late.',
-    fields: { wave: 0x40, ad: 0x98, sr: 0xc6, pw: 0x0800, pwStep: 3, pwMin: 0x30, pwMax: 0xd0,
+    fields: { wave: 0x40, ad: 0x98, sr: 0xc0, pw: 0x0800, pwStep: 3, pwMin: 0x30, pwMax: 0xd0,
       vibDelay: 30, vibDepth: 4, vibSpeed: 5 },
   },
   {

@@ -143,6 +143,7 @@
 }
 .inst-section legend { padding: 0 0.4rem; font-weight: 600; }
 .inst-dim .inst-row, .inst-dim .inst-graph-wrap { opacity: 0.45; }
+.inst-inactive > label, .inst-inactive .inst-range, .inst-inactive .inst-number, .inst-inactive .inst-hex, .inst-inactive .inst-val { opacity: 0.5; }
 .inst-active { border-color: var(--i-accent); }
 .inst-summary { margin: 0.4rem 0 0; font-style: italic; }
 
@@ -158,6 +159,7 @@
   padding: 0.3rem 0;
 }
 .inst-row > .inst-hint { grid-column: 2 / -1; margin: 0; }
+.inst-row > .inst-btn { grid-column: 2; justify-self: start; }
 .inst-number { width: 100%; }
 .inst-hex { font-family: ui-monospace, Menlo, Consolas, monospace; color: var(--i-dim); }
 .inst-val { font-variant-numeric: tabular-nums; }

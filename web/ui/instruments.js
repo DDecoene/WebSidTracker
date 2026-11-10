@@ -76,8 +76,9 @@ const SECTIONS = [
         hint: 'The volume the note rests at while it is held. 0 lets the note die away by itself, 15 keeps it at full volume.' },
       { key: 'release', label: 'Release', min: 0, max: 15, digits: 1,
         get: (i) => L.releaseOf(i.sr), set: (i, v) => { i.sr = L.withRelease(i.sr, v); },
-        text: (v) => L.formatMs(L.RELEASE_MS[v]),
-        hint: 'Fade-out time after the note ends. The player also cuts every note cleanly at its end (see "Release frames" below), so this can be overridden there.' },
+        inactive: true,
+        text: (v) => (v === 0 ? 'not used' : `${v} is ignored`),
+        hint: 'Not used. The player ends every note with its own clean release (see "Release frames" below), so a release value here would never be heard. Keep it at 0.' },
     ],
   },
   {
@@ -154,7 +155,7 @@ const SECTIONS = [
       { key: 'releaseFrames', label: 'Release frames', field: 'release', min: 0, max: 255, sliderMax: 16, digits: 2,
         get: (i) => i.release, set: (i, v) => { i.release = v; },
         text: (v) => frames(v),
-        hint: 'The last frames of every note are used to switch the sound off cleanly, so that the next note starts without a click. The standard value is 2. Notes are never shortened below one frame.' },
+        hint: 'The last frames of every note are used to switch the sound off cleanly, so that the next note starts on time and without a click. The standard value is 2. With a decay above 0 the SID needs two frames for this, so 0 and 1 are played as 2, and a note of 1 or 2 frames keeps its gate open. The first frame of a note always sounds.' },
     ],
   },
 ];
@@ -372,6 +373,14 @@ export function mountInstruments(container, store) {
     const number = el('input', { type: 'number', min: spec.min, max: spec.max, step: 1, class: 'inst-number', 'aria-label': `${spec.label} (decimal)` });
     const hexEl = el('span', { class: 'inst-hex', title: 'Value as stored, in hex' });
     const valEl = el('span', { class: 'inst-val' });
+    // An inactive control (the release nibble of SR) is shown but cannot be moved. If an old file has a value
+    // there, a button sets it to 0; nothing is changed without the user pressing it.
+    const clear = spec.inactive ? el('button', { type: 'button', class: 'inst-btn', text: 'Set to 0', hidden: true }) : null;
+    if (spec.inactive) {
+      range.disabled = true;
+      number.disabled = true;
+      clear.addEventListener('click', () => commit(spec.field || spec.key, (inst) => spec.set(inst, 0)));
+    }
     const field = spec.field || spec.key;
     const write = (raw) => {
       const v = L.clampInt(raw, spec.min, spec.max);
@@ -382,7 +391,9 @@ export function mountInstruments(container, store) {
     number.addEventListener('change', () => { if (number.value === '') refresh(); });
     const row = el('div', { class: 'inst-row' },
       el('label', { for: cid, text: spec.label }), range, number, hexEl, valEl,
-      el('p', { class: 'inst-hint', text: spec.hint }));
+      el('p', { class: 'inst-hint', text: spec.hint }),
+      ...(clear ? [clear] : []));
+    if (spec.inactive) row.classList.add('inst-inactive');
     function refresh() {
       const inst = current();
       if (!inst) return;
@@ -391,6 +402,7 @@ export function mountInstruments(container, store) {
       if (number.value !== String(v)) number.value = v;
       hexEl.textContent = `$${L.hex(v, spec.digits)}`;
       valEl.textContent = spec.text(v, inst);
+      if (clear) clear.hidden = v === 0;
     }
     refreshers.push(refresh);
     return row;
@@ -409,7 +421,7 @@ export function mountInstruments(container, store) {
       const width = (ms) => 10 + 18 * Math.log10(ms);
       const a = width(L.ATTACK_MS[L.attackOf(inst.ad)]);
       const d = width(L.DECAY_MS[L.decayOf(inst.ad)]);
-      const r = width(L.RELEASE_MS[L.releaseOf(inst.sr)]);
+      const r = width(L.RELEASE_MS[0]);   // the player always releases with SR = 0: the fastest fall
       const hold = 40;
       const k = W / (a + d + hold + r);
       const xs = [0, a * k, (a + d) * k, (a + d + hold) * k, W];
