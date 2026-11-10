@@ -22,6 +22,7 @@ import { putHandover, takeHandover } from './handover.js';
 import { frozenUrl, loadReleases } from './releases.js';
 import { describeUpgrade } from './upgrade.js';
 import { askUpgrade } from './upgrade-dialog.js';
+import { createAutosaveLock } from './autosave-lock.js';
 
 const AUTOSAVE_STORAGE_KEY = autosaveKeyFor(location.pathname);   // the development copy has its own
 const WELCOME_KEY = 'websidtracker.welcome.dismissed';
@@ -32,10 +33,8 @@ const $ = (id) => document.getElementById(id);
 
 // ---- storage that may be blocked -------------------------------------------
 
-// While the autosave in this browser must not be overwritten, saveAutosave does nothing:
-//   'newer': it was written by a newer release than this one (never touched in this session)
-//   'kept':  it is older than this tracker and the person chose to leave it alone (until they open something)
-let autosaveLock = null;
+// While the autosave in this browser must not be overwritten, saveAutosave does nothing (see autosave-lock.js).
+const autosaveLock = createAutosaveLock();
 
 function sessionStore() {
   try {
@@ -63,7 +62,7 @@ function readAutosave() {
 }
 
 function saveAutosave(project) {
-  if (autosaveLock) return;
+  if (autosaveLock.blocked) return;
   try {
     localStorage.setItem(AUTOSAVE_STORAGE_KEY, exporter.projectToJson(project));
   } catch {
@@ -118,7 +117,9 @@ async function main() {
   // browser has saved: nothing is autosaved until the person changes something (or opens, creates or loads
   // something themselves). A newer autosave is never overwritten at all, see autosaveLock.
   let autosaveHeld = autosave.kind !== 'none' && project !== saved;
-  if (autosave.kind === 'newer') autosaveLock = 'newer';
+  if (autosave.kind === 'newer') autosaveLock.set('newer');
+  // An older autosave stays untouched until the person has decided (the dialog opens only when the page is ready).
+  if (autosave.kind === 'older') autosaveLock.set('kept');
   const persist = (current) => { if (!autosaveHeld) saveAutosave(current); };
   const store = createStore(project);
   let savedJson = exporter.projectToJson(project);   // what is on disk (or the start), for the "unsaved" check
@@ -247,7 +248,7 @@ async function main() {
   const isDirty = () => exporter.projectToJson(store.project) !== savedJson;
 
   function replaceProject(next, notice) {
-    if (autosaveLock === 'kept') autosaveLock = null;
+    autosaveLock.release();
     store.load(next);
     savedJson = exporter.projectToJson(next);
     autosaveHeld = false;
@@ -264,10 +265,11 @@ async function main() {
     const storage = sessionStore();
     const canHandOver = putHandover(storage, '') && takeHandover(storage) !== null;
     const description = describeUpgrade(info, {
-      currentFormat: FORMAT, currentRelease: RELEASE, oldRelease: oldRelease ? oldRelease.release : null, canHandOver,
+      currentFormat: FORMAT, currentRelease: RELEASE, oldRelease: oldRelease ? oldRelease.release : null, canHandOver, source,
     });
     const choice = await askUpgrade($('upgrade-dialog'), description);
     if (choice === 'port') {
+      if (description.saveOriginal) download(`${slug(info.project.song.name, 'project')}-format-${info.fromFormat}.json`, originalText, 'application/json');
       store.stop();
       replaceProject(info.project, `Ported from format ${info.fromFormat} to format ${FORMAT}. The file you opened is not changed; Save makes a new file.`);
       savedJson = '';                                   // not on disk yet: counts as unsaved
@@ -279,7 +281,6 @@ async function main() {
       }
       location.assign(frozenUrl(root, oldRelease.release));
     } else if (source === 'autosave') {
-      autosaveLock = 'kept';
       messages.show('autosave', 'info', 'Your saved project is kept as it is.',
         ['It is older than this tracker. Autosave stays off until you open, create or load something.']);
     }

@@ -46,3 +46,15 @@ test('a file that does not say which release wrote it is still described', () =>
   const d = describeUpgrade({ ...info, release: null }, env);
   assert.match(d.summary, /format 1/);
 });
+
+test('porting a file from disk says the file is not changed', () => {
+  const d = describeUpgrade(info, { ...env, source: 'file' });
+  assert.match(d.note, /not changed/);
+  assert.equal(d.saveOriginal, false);
+});
+
+test('porting the project saved in the browser first saves the original as a file', () => {
+  const d = describeUpgrade(info, { ...env, source: 'autosave' });
+  assert.match(d.note, /only in this browser/);
+  assert.equal(d.saveOriginal, true);
+});

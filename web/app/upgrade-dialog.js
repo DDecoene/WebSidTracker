@@ -12,6 +12,7 @@ export function askUpgrade(dialog, description) {
   const part = (id) => dialog.querySelector(`#${id}`);
   part('upgrade-title').textContent = description.heading;
   part('upgrade-summary').textContent = description.summary;
+  part('upgrade-note').textContent = description.note;
 
   const losses = part('upgrade-losses');
   losses.replaceChildren(...(description.losses.length > 0 ? description.losses : ['Nothing is lost.']).map((text) => {

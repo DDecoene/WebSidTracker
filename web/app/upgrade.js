@@ -6,9 +6,10 @@
 /**
  * @param {{fromFormat: number, release: string|null, losses: string[], problems: string[], project: object|null}} info
  *   what inspectProject returned for an older file
- * @param {{currentFormat: number, currentRelease: string, oldRelease: string|null, canHandOver: boolean}} env
+ * @param {{currentFormat: number, currentRelease: string, oldRelease: string|null, canHandOver: boolean, source?: 'file'|'autosave'}} env
  *   `oldRelease` is the newest release with the file's format (null if none is known),
- *   `canHandOver` says whether the browser lets the page hand the file to another page.
+ *   `canHandOver` says whether the browser lets the page hand the file to another page,
+ *   `source` where the project text came from ('file' by default).
  */
 export function describeUpgrade(info, env) {
   const writer = info.release ? ` (written by release ${info.release})` : '';
@@ -27,8 +28,14 @@ export function describeUpgrade(info, env) {
     old = { enabled: true, reason: null, release: env.oldRelease };
   }
 
+  const saveOriginal = env.source === 'autosave';
+
   return {
     heading: 'This project file is older than the tracker',
+    note: saveOriginal
+      ? 'The project exists only in this browser. Porting first saves the original as a file, then loads the ported project as an unsaved one.'
+      : 'Porting loads the result as an unsaved project; the file you opened is not changed.',
+    saveOriginal,
     summary,
     losses: info.losses,
     problems: info.problems,
