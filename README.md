@@ -2,7 +2,7 @@
 
 A SID music tracker for the browser, built clean-room, with a small player you can drop into your own Commodore 64 game.
 
-> **Status: working, not finished.** The C64 player is built and measured, the browser tracker runs it live: a 6502 core, reSIDfp as WebAssembly, the song model with export, the pattern and order editor and the instrument editor all exist. Try it at <https://ddecoene.github.io/WebSidTracker/>. What is still open is listed in the [roadmap](#roadmap). How to use the tracker: [docs/tracker-guide.md](docs/tracker-guide.md).
+> **Status: working, not finished (alpha, release 0.1.0).** The C64 player is built and measured, the browser tracker runs it live: a 6502 core, reSIDfp as WebAssembly, the song model with export, the pattern and order editor and the instrument editor all exist. Try it at <https://ddecoene.github.io/WebSidTracker/>. What is still open is listed in the [roadmap](#roadmap). How to use the tracker: [docs/tracker-guide.md](docs/tracker-guide.md).
 
 ## Why
 
@@ -94,7 +94,7 @@ node --test web/app/files.test.mjs web/app/live.test.mjs web/app/session.test.mj
 node --test web/ui/editor-logic.test.mjs web/ui/instruments-logic.test.mjs
 node --test web/cpu/test.mjs
 node --test web/version.test.mjs web/model/migrate.test.mjs web/model/golden.test.mjs
-node --test web/app/handover.test.mjs web/app/releases.test.mjs web/app/upgrade.test.mjs web/app/autosave-lock.test.mjs
+node --test web/app/handover.test.mjs web/app/releases.test.mjs web/app/upgrade.test.mjs web/app/autosave-lock.test.mjs web/app/autosave.test.mjs
 node --test tools/release-tools.test.mjs
 node web/sid/test.mjs
 
@@ -118,6 +118,7 @@ Done:
 - [x] Browser: song model, serialiser, live editing with playhead fix-up, undo, autosave, project files
 - [x] Browser: the pattern and order editor and the instrument editor
 - [x] Export to assembler source and `.prg`
+- [x] Versions and releases: a format version in every file, porting of older project files, releases published on Pages ([design](docs/design-versioning-and-releases.md), [how to release](docs/releasing.md))
 
 Open:
 
@@ -127,6 +128,7 @@ Open:
 - [ ] Filter (and other later features: portamento, volume per voice)
 - [ ] Mouse selection and copy/paste in the pattern editor (the mouse only places the cursor now)
 - [ ] `.sid` export
+- [ ] Open `song_<name>.asm` and `instruments.asm` in the tracker (only the project file can be opened now)
 
 ## Licence
 

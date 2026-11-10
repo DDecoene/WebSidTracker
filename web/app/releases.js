@@ -2,6 +2,8 @@
 //
 // Part of the WebSidTracker web app, GPL version 3 or later (see ../LICENSE).
 
+import { parseSemver } from '../version.js';
+
 /** @param {string} root  the site root, ending in "/" (see siteRoot in version.js)
  *  @returns {Promise<{release: string, format: number}[] | null>} null when the list cannot be had */
 export async function loadReleases(root, fetchFn = fetch) {
@@ -11,7 +13,7 @@ export async function loadReleases(root, fetchFn = fetch) {
     const body = await response.json();
     const list = body && body.releases;
     if (!Array.isArray(list)) return null;
-    if (!list.every((entry) => entry && typeof entry.release === 'string' && Number.isInteger(entry.format))) return null;
+    if (!list.every((entry) => entry && parseSemver(entry.release) !== null && Number.isInteger(entry.format))) return null;
     return list;
   } catch {
     return null;

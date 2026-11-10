@@ -1,0 +1,30 @@
+# Makes the GitHub release for a tag v<release>, with the player files (see docs/releasing.md).
+# The site itself is published by pages.yml. Re-running this workflow after a failure is safe.
+
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: The tag must match the release in web/version.js
+        run: node tools/release-tools.mjs check-tag "$GITHUB_REF_NAME"
+      - name: The format must be what the golden files say
+        run: node --test web/version.test.mjs web/model/golden.test.mjs
+      - name: GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        # a re-run must not fail on an existing release
+        run: gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 || gh release create "$GITHUB_REF_NAME" src/music.asm web/player/player.prg web/player/symbols.json --title "$GITHUB_REF_NAME" --generate-notes

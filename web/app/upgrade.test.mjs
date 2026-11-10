@@ -58,3 +58,15 @@ test('porting the project saved in the browser first saves the original as a fil
   assert.match(d.note, /only in this browser/);
   assert.equal(d.saveOriginal, true);
 });
+
+test('a portable file lists what is lost, or says nothing is', () => {
+  assert.deepEqual(describeUpgrade(info, env).lossLines, info.losses);
+  assert.equal(describeUpgrade(info, env).lossHeading, 'What would be lost or changed');
+  assert.deepEqual(describeUpgrade({ ...info, losses: [] }, env).lossLines, ['Nothing is lost.']);
+});
+
+test('a file that cannot be ported lists the problems instead of "Nothing is lost."', () => {
+  const d = describeUpgrade({ ...info, losses: [], project: null, problems: ['pattern 3 is too long'] }, env);
+  assert.equal(d.lossHeading, 'Why the file cannot be ported');
+  assert.deepEqual(d.lossLines, ['pattern 3 is too long']);
+});

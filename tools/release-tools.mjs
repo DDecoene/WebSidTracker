@@ -1,11 +1,11 @@
 // release-tools.mjs - what the Pages workflow needs to publish releases (MIT licence, see ../LICENSE).
 //
 //   node tools/release-tools.mjs check-tag <tag>                 fails unless <tag> is v<RELEASE of web/version.js>
-//   node tools/release-tools.mjs assemble <outDir> [--dev-ref R]  builds the whole site from the release tags
+//   node tools/release-tools.mjs assemble <outDir> [--dev-ref R] [--main-ref M]  builds the whole site from the release tags
 //
 // The site: the newest release in <outDir>/, every release in <outDir>/v<release>/, the development
 // branch (R, default origin/develop) in <outDir>/dev/, and <outDir>/releases.json. With no release tags
-// yet, the root is the development ref. See docs/design-versioning-and-releases.md, section 7.
+// yet, the root is the development ref. With --main-ref, a tag that is not on that branch is left out. See docs/design-versioning-and-releases.md, section 7.
 
 import { execFileSync } from 'node:child_process';
 import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -64,8 +64,17 @@ function refExists(cwd, ref) {
   }
 }
 
+function isAncestor(cwd, ref, descendant) {
+  try {
+    git(cwd, 'merge-base', '--is-ancestor', ref, descendant);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /** Builds the whole site in outDir from the release tags of the repository in cwd. */
-export function assemble(outDir, { cwd = process.cwd(), devRef = 'origin/develop' } = {}) {
+export function assemble(outDir, { cwd = process.cwd(), devRef = 'origin/develop', mainRef = null } = {}) {
   const tags = releaseTags(git(cwd, 'tag', '--list', 'v*').toString().split('\n').map((t) => t.trim()).filter(Boolean));
   const entries = [];
   let newestTag = null;
@@ -73,6 +82,10 @@ export function assemble(outDir, { cwd = process.cwd(), devRef = 'origin/develop
   mkdirSync(outDir, { recursive: true });
   for (const tag of tags) {
     const info = parseVersionJs(git(cwd, 'show', `${tag}:web/version.js`).toString());
+    if (mainRef && !isAncestor(cwd, tag, mainRef)) {
+      console.warn(`Skipping ${tag}: it is not on ${mainRef}.`);
+      continue;
+    }
     if (tag !== `v${info.release}`) {
       console.warn(`Skipping ${tag}: web/version.js at that tag says release ${info.release}.`);
       continue;
@@ -103,7 +116,8 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
       console.log(`tag ${args[0]} matches release ${release}`);
     } else if (command === 'assemble' && args[0]) {
       const at = args.indexOf('--dev-ref');
-      const entries = assemble(args[0], at >= 0 ? { devRef: args[at + 1] } : {});
+      const main = args.indexOf('--main-ref');
+      const entries = assemble(args[0], { ...(at >= 0 ? { devRef: args[at + 1] } : {}), ...(main >= 0 ? { mainRef: args[main + 1] } : {}) });
       console.log(`site written to ${args[0]}: ${entries.length} release(s)`);
     } else {
       console.error('usage: release-tools.mjs check-tag <tag> | assemble <outDir> [--dev-ref <ref>]');

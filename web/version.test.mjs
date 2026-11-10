@@ -6,7 +6,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
-  AUTOSAVE_KEY, DEV_AUTOSAVE_KEY, autosaveKeyFor, compareSemver, isDevChannel, parseSemver, pickRelease, siteRoot,
+  autosaveKeyFor, autosaveKeysFor, compareSemver, isDevChannel, parseSemver, pickRelease, siteRoot,
 } from './version.js';
 
 test('parseSemver accepts plain major.minor.patch only', () => {
@@ -30,11 +30,20 @@ test('siteRoot strips the file and a release or dev folder', () => {
   assert.equal(siteRoot('/'), '/');
 });
 
-test('isDevChannel and autosaveKeyFor tell the development copy apart', () => {
+test('isDevChannel tells the development copy apart', () => {
   assert.equal(isDevChannel('/WebSidTracker/dev/tracker.html'), true);
   assert.equal(isDevChannel('/WebSidTracker/tracker.html'), false);
-  assert.equal(autosaveKeyFor('/WebSidTracker/dev/tracker.html'), DEV_AUTOSAVE_KEY);
-  assert.equal(autosaveKeyFor('/WebSidTracker/v0.1.0/tracker.html'), AUTOSAVE_KEY);
+});
+
+test('every format has its own autosave key, the development copy has its own set', () => {
+  assert.equal(autosaveKeyFor('/WebSidTracker/tracker.html', 1), 'websidtracker.autosave.v1');
+  assert.equal(autosaveKeyFor('/WebSidTracker/v0.2.0/tracker.html', 2), 'websidtracker.autosave.v2');
+  assert.equal(autosaveKeyFor('/WebSidTracker/dev/tracker.html', 2), 'websidtracker.dev.autosave.v2');
+});
+
+test('autosaveKeysFor lists the own key first, then the keys of older formats', () => {
+  assert.deepEqual(autosaveKeysFor('/x/tracker.html', 3), ['websidtracker.autosave.v3', 'websidtracker.autosave.v2', 'websidtracker.autosave.v1']);
+  assert.deepEqual(autosaveKeysFor('/x/dev/tracker.html', 1), ['websidtracker.dev.autosave.v1']);
 });
 
 test('pickRelease takes the newest release with the format', () => {

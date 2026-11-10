@@ -21,6 +21,7 @@ test('loadReleases gives null when anything goes wrong', async () => {
   assert.equal(await loadReleases('/', respond({}, false)), null);
   assert.equal(await loadReleases('/', respond({ releases: 'x' })), null);
   assert.equal(await loadReleases('/', respond({ releases: [{ release: '0.1.0' }] })), null);
+  assert.equal(await loadReleases('/', respond({ releases: [{ release: 'latest', format: 1 }] })), null);
   assert.equal(await loadReleases('/', async () => { throw new Error('offline'); }), null);
   assert.equal(await loadReleases('/', async () => ({ ok: true, json: async () => { throw new Error('bad json'); } })), null);
 });

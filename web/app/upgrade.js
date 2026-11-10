@@ -37,6 +37,8 @@ export function describeUpgrade(info, env) {
       : 'Porting loads the result as an unsaved project; the file you opened is not changed.',
     saveOriginal,
     summary,
+    lossHeading: info.project ? 'What would be lost or changed' : 'Why the file cannot be ported',
+    lossLines: info.project ? (info.losses.length > 0 ? info.losses : ['Nothing is lost.']) : info.problems,
     losses: info.losses,
     problems: info.problems,
     port,
