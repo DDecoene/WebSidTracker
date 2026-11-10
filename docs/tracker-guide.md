@@ -166,8 +166,8 @@ All of this runs on the real player, on every frame of the note (except where no
 | instruments | 256 |
 | transpose | -96 to 96 semitones in the tracker |
 | song size | it must end below `$C000`; the header line shows the space left |
-| one pattern | the player reads a pattern with a one-byte position, so a pattern can be at most 255 bytes including its end marker (the tracker does not check this yet, so keep patterns short) |
-| order list | the player can address 128 entries per voice (stop and loop entries included); the tracker's check allows more, so keep your lists below 128 |
+| one pattern | the player reads a pattern with a one-byte position, so a pattern can be at most 255 bytes including its end marker; a longer one is flagged, split it into two patterns |
+| order list | 128 entries per voice, stop and loop entries included (a list that does not end in STOP or LOOP gets a STOP, which counts) |
 
 A song that breaks a limit the tracker checks is flagged in the strip below the header and cannot be exported.
 
