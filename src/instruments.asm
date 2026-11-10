@@ -241,7 +241,7 @@ inst_drum_noise
         !byte 0                 ; 3  Pluck
         !byte 1                 ; 4  Kick
         !byte 1                 ; 5  Snare
-        !byte 1                 ; 6  Hat
+        !byte 2                 ; 6  Hat
         !byte 0                 ; 7  Arp 5th
         !byte 1                 ; 8  Tom
         !byte 1                 ; 9  Open hat
@@ -268,7 +268,8 @@ inst_drum_fall
         !byte 0                 ; 12 Octave arp
         +end_of_table inst_drum_fall
 
-; release: how many frames at the end of every note the gate stays closed, so the next note starts clean
+; release: how many frames at the end of every note the gate stays closed, so the next note starts clean.
+; With a decay above 0 the player plays 0 and 1 as 2 (the SID needs two frames to finish a release), see check_release.
 inst_release
         !byte 2                 ; 0  Bass
         !byte 2                 ; 1  Lead

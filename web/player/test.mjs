@@ -240,16 +240,22 @@ test('a note: pitch, envelope, gate and the timing of the clean end (speed 4, 2 
   assert.deepEqual(m.voices()[0].gate, 0);
 });
 
-test('a note starts like this: test+waveform with gate low first, the envelope before the final gate write', () => {
+test('a note starts like this: test+waveform with gate low first, the envelope before the final gate write, decay = attack at first', () => {
   const m = new Machine();
   setInstrument(m, 0, { ad: 0x29, sr: 0xB0 });
   m.start(oneVoice([A4, 2, END], 4));
   m.frame();
   const voice1 = m.log.filter((e) => e.reg < 7);
-  assert.deepEqual(voice1.map((e) => e.reg), [4, 0, 1, 2, 3, 5, 6, 4], 'ctrl, freq, pw, ad, sr, ctrl');
+  assert.deepEqual(voice1.map((e) => e.reg), [4, 0, 1, 2, 3, 5, 6, 4, 5], 'ctrl, freq, pw, ad, sr, ctrl (gate), ad again');
   assert.equal(voice1[0].value, 0x48, 'first write: pulse + TEST, gate low');
-  assert.equal(voice1[7].value, 0x41, 'last write: pulse + gate');
+  assert.equal(voice1[7].value, 0x41, 'the gate opens: pulse + gate');
   assert.ok(voice1[7].cycle > voice1[6].cycle);
+  // the SID briefly uses the decay rate when the gate opens: before the gate AD has decay = attack ($29 -> $22) ...
+  assert.equal(voice1[5].value, 0x22, 'ad before the gate: decay nibble equal to the attack nibble');
+  assert.equal(voice1[6].value, 0xB0, 'sr: sustain only');
+  // ... and the real AD follows right after the gate
+  assert.equal(voice1[8].value, 0x29, 'the real ad after the gate');
+  assert.ok(voice1[8].cycle > voice1[7].cycle);
   // between notes the voice is written in the same order, without the test write
   m.frame();
   assert.deepEqual(m.log.filter((e) => e.reg < 7).map((e) => e.reg), [0, 1, 2, 3, 5, 6, 4]);
@@ -274,15 +280,24 @@ test('a rest is silent, the next note starts after it', () => {
   assert.deepEqual(gates(frames), [0, 0, 0, 0, 0, 0, 1, 0, 0], 'a rest of 2 ticks, then a 1-tick note (3 frames, the last 2 are the clean end)');
 });
 
-test('edge case speed 1: a 3-tick note sounds for one frame; a 1-tick note is one frame', () => {
+test('edge case speed 1: a 3-tick note sounds for one frame; with decay 0 a 1-tick note is one frame', () => {
   const m = new Machine();
+  setInstrument(m, 0, { ad: 0x00, release: 2 });
   m.start(oneVoice([C4, 3, C5, 1, C4, 2, END], 1));
   const frames = m.run(7);
-  assert.deepEqual(gates(frames), [1, 0, 0, 1, 1, 0, 0].map((g, i) => (i === 3 ? 1 : g)));
+  assert.deepEqual(gates(frames), [1, 0, 0, 1, 1, 0, 0]);
   // the 1-tick note (frame 3) has no frame left for the clean end, so it just sounds for that frame
   assert.equal(frames[3][0].freq, freqOf(C5));
   assert.equal(frames[4][0].freq, freqOf(C4));
   assert.equal(frames[0][0].freq, freqOf(C4));
+});
+
+test('with a decay above 0 a note of 1 or 2 frames keeps its gate open (a gate-off of one frame is too short for the SID)', () => {
+  const m = new Machine();
+  setInstrument(m, 0, { ad: 0x06 });
+  m.start(oneVoice([C4, 3, C5, 1, C4, 2, END], 1));
+  const frames = m.run(7);
+  assert.deepEqual(gates(frames), [1, 0, 0, 1, 1, 1, 0]);
 });
 
 test('edge case: inst_release longer than the note still sounds for the first frame', () => {
@@ -293,11 +308,19 @@ test('edge case: inst_release longer than the note still sounds for the first fr
   assert.deepEqual(gates(frames), [1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0]);
 });
 
-test('inst_release 0 is treated as 1', () => {
-  const m = new Machine();
-  setInstrument(m, 0, { release: 0 });
-  m.start(oneVoice([C4, 1, END], 4));
-  assert.deepEqual(gates(m.run(4)), [1, 1, 1, 0]);
+test('inst_release below 2 is played as 2 when the decay is above 0; with decay 0 only 0 is raised, to 1', () => {
+  for (const release of [0, 1, 2]) {
+    const m = new Machine();
+    setInstrument(m, 0, { ad: 0x03, release });
+    m.start(oneVoice([C4, 1, END], 4));
+    assert.deepEqual(gates(m.run(4)), [1, 1, 0, 0], `decay 3, release ${release}`);
+  }
+  for (const [release, want] of [[0, [1, 1, 1, 0]], [1, [1, 1, 1, 0]], [2, [1, 1, 0, 0]]]) {
+    const m = new Machine();
+    setInstrument(m, 0, { ad: 0x30, release });
+    m.start(oneVoice([C4, 1, END], 4));
+    assert.deepEqual(gates(m.run(4)), want, `decay 0, release ${release}`);
+  }
 });
 
 test('an instrument event switches the instrument for the following notes', () => {
@@ -547,8 +570,9 @@ test('legato: the next note only changes the pitch; no gate, no envelope, no res
     m.frame();
     frames.push({ ...m.voices()[0], writes: m.log.filter((e) => e.reg < 7) });
   }
-  // C-4 for 4 frames without a gate-off before the legato note, A-4 for 4 frames with its clean end in the last two
-  assert.deepEqual(frames.map((f) => f.gate), [1, 1, 1, 1, 1, 1, 0, 0, 1, 0]);
+  // C-4 for 4 frames without a gate-off before the legato note, A-4 for 4 frames with its clean end in the last two,
+  // C-5 for 2 frames: too short for a clean end, so the gate stays open
+  assert.deepEqual(frames.map((f) => f.gate), [1, 1, 1, 1, 1, 1, 0, 0, 1, 1]);
   assert.deepEqual(frames.map((f) => f.freq), [...Array(4).fill(freqOf(C4)), ...Array(4).fill(freqOf(A4)), freqOf(C5), freqOf(C5)]);
   assert.equal(frames[3].ad, 0x29, 'the envelope registers are not touched');
   assert.equal(frames[4].pw, 0x800 + 40, 'the pulse sweep carries on, it does not restart at $800');
@@ -645,7 +669,7 @@ test('run time: the worst case (vibrato starts on all voices at once, speed 1)',
   const normal = worstCase(2);
   const extreme = worstCase(255);                   // limited to 32 frames by the player
   console.log(`music_play, worst case: ${normal} cycles with inst_release 2, ${extreme} with inst_release 255 (=32)`);
-  assert.ok(normal < FRAME_CYCLES / 4, `${normal} cycles`);
+  assert.ok(normal < FRAME_CYCLES / 3.5, `${normal} cycles`);   // about 5000: 25 % of a frame
   assert.ok(extreme < FRAME_CYCLES / 2, `${extreme} cycles`);
 });
 
@@ -734,4 +758,90 @@ test('audio: the demo song plays, makes sound on all three voices, does not clip
   assert.ok(peak > 2000, `peak ${peak}`);
   assert.ok(peak < 32000, `peak ${peak} clips`);
   if (process.env.WAV_DIR) writeFileSync(`${process.env.WAV_DIR}/demo-js.wav`, wav(samples));
+});
+
+// ---------------------------------------------------------------------------------------------------
+// The clean end and the start of a note on the real SID (see check_release and write_voice in music.asm)
+// ---------------------------------------------------------------------------------------------------
+
+test('the release nibble of inst_sr is never written to the SID', () => {
+  const m = new Machine();
+  setInstrument(m, 0, { ad: 0x29, sr: 0xBF });
+  m.start(oneVoice([C4, 2, C5, 2, REST, 1, A4, 1, END], 3));
+  for (let i = 0; i < 24; i++) {
+    m.frame();
+    for (const e of m.log.filter((w) => w.reg === 6)) assert.equal(e.value & 15, 0, `frame ${i}: sr ${e.value.toString(16)}`);
+  }
+});
+
+test('a note of 3 frames or more is always preceded by 2 or more frames with the gate low', () => {
+  // Every speed 1 to 6, notes of 1 to 4 ticks in a row, each as long as the one before or not. The SID
+  // needs the 2 frames to finish the previous release, so a note that follows a clean end starts on time.
+  for (let speed = 1; speed <= 6; speed++) {
+    const m = new Machine();
+    setInstrument(m, 0, { ad: 0x06, sr: 0xF0, release: 2 });
+    const lengths = [1, 2, 3, 4, 4, 3, 2, 1, 3, 3, 4];
+    m.start(oneVoice(lengths.flatMap((l, i) => [C4 + (i % 5), l]).concat([END]), speed));
+    const frames = m.run(lengths.reduce((a, b) => a + b) * speed);
+    let at = 0;                                      // first frame of the current note
+    lengths.forEach((l, i) => {
+      const frameCount = l * speed;
+      if (i > 0 && frameCount >= 3) {
+        // the frames just before this note belong to the previous note: its last 2 must have the gate low
+        // when that note was long enough for a clean end
+        const prevFrames = lengths[i - 1] * speed;
+        if (prevFrames >= 3) {
+          assert.equal(frames[at - 1][0].gate, 0, `speed ${speed}, note ${i}: gate low in the frame before`);
+          assert.equal(frames[at - 2][0].gate, 0, `speed ${speed}, note ${i}: and the frame before that`);
+        }
+      }
+      if (frameCount >= 3) assert.equal(frames[at][0].gate, 1, `speed ${speed}, note ${i} sounds in its first frame`);
+      at += frameCount;
+    });
+  }
+});
+
+// Onset of a sound: the first millisecond whose mean absolute sample step is above 25 % of the first note's peak.
+// Returns the onset (ms after the note's first frame) of every note after the first one.
+function onsets(samples, noteFrames, count) {
+  const perMs = 48;
+  const env = new Float32Array(Math.floor(samples.length / perMs));
+  for (let m = 0; m < env.length; m++) {
+    let a = 0;
+    for (let j = 1; j < perMs; j++) a += Math.abs(samples[m * perMs + j] - samples[m * perMs + j - 1]);
+    env[m] = a / (perMs - 1);
+  }
+  const msPerFrame = FRAME_CYCLES / PAL_CLOCK * 1000;
+  const window = (k) => [Math.round(k * noteFrames * msPerFrame), Math.round((k + 1) * noteFrames * msPerFrame)];
+  const [a0, b0] = window(0);
+  let peak = 0;
+  for (let i = a0; i < b0; i++) peak = Math.max(peak, env[i]);
+  const result = [];
+  for (let k = 1; k < count; k++) {
+    const [a, b] = window(k);
+    let on = -1;
+    for (let i = a; i < b; i++) if (env[i] > peak * 0.25) { on = i - a; break; }
+    result.push(on);
+  }
+  return { first: (() => { for (let i = a0; i < b0; i++) if (env[i] > peak * 0.25) return i - a0; return -1; })(), rest: result };
+}
+
+test('audio: every repeated note starts on its tick (the SID envelope delay bug does not hit)', () => {
+  // With attack 0 and a decay above 0, about one note in nine used to start two frames late: the gate opened
+  // in the one cycle in which the SID's rate counter was one step from its 9-cycle limit. Sustain with a
+  // release nibble made it worse. 24 notes per instrument; the chip must make sound within a frame of the first note's onset.
+  // (the last three have decay 0: the sustain already runs at the fastest rate, so even a release of 1 frame works)
+  const cases = [[0x06, 0xF0, 2], [0x06, 0xFF, 2], [0x06, 0xF0, 1], [0x16, 0xF0, 2], [0x56, 0xA0, 2], [0x02, 0x80, 2],
+    [0x08, 0xF4, 0], [0x10, 0xF0, 1], [0x00, 0xF0, 1]];
+  for (const [ad, sr, release] of cases) {
+    const m = new Machine();
+    setInstrument(m, 0, { ad, sr, release });
+    const count = 24;
+    m.start(oneVoice(Array.from({ length: count }, () => [A4, 2]).flat().concat([END]), 3));
+    const samples = renderAudio(m, count * 6);
+    const { first, rest } = onsets(samples, 6 * 1, count);
+    assert.ok(first >= 0 && first < 10, `first note, ad ${ad.toString(16)}: onset ${first} ms`);
+    const late = rest.filter((on) => on < 0 || on > first + 20);
+    assert.deepEqual(late, [], `ad ${ad.toString(16)} sr ${sr.toString(16)} release ${release}: onsets ${rest}`);
+  }
 });

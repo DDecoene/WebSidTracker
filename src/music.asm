@@ -54,7 +54,10 @@ ORDER_LOOP      = $FF                   ; $FF n: go on at entry n
 HEADER_ORDER    = 1                     ; offset of the order list address of voice 1 (voice 2 at +2, voice 3 at +4)
 HEADER_PATTERNS = 7                     ; offset of the address of the pattern table
 
-; The most frames the clean end can take (inst_release is limited to this).
+; The clean end of a note (see check_release) takes at most RELEASE_MAX frames, and at least 1; at least
+; RELEASE_MIN when the instrument's decay is above 0: the SID needs up to 33 ms (just under two frames)
+; before a gate-off with AD = SR = 0 has really started, see check_release.
+RELEASE_MIN     = 2
 RELEASE_MAX     = 32
 
 ; A broken song (for example a loop that jumps to a loop) must not hang the player.
@@ -391,6 +394,17 @@ play_voice
 ;   frames left in the note, this one included  =  (ticks_left - 1) * speed + st_frame_in_tick + 1
 ; The loop below adds up one speed per tick that is left, and stops as soon as the sum is more than
 ; inst_release, so it only runs a few times.
+;
+; WHY TWO FRAMES (when the decay is above 0). The SID's envelope counts time with a 15-bit "rate counter" that is never reset
+; when the rate changes. Writing AD = SR = 0 asks for the fastest rate (a step every 9 cycles). If the counter
+; is already past 9 (it nearly always is, after a longer decay or sustain), it first has to count on to
+; 32768 and wrap around: up to 33 ms (1.7 frames) in which nothing happens, not even the release.
+; If the next note opened its gate in that time, its attack would be stuck behind the same wait and the
+; note would start up to two frames late. Two frames of gate-off give the wait time to pass, and the
+; envelope is empty when the next note begins. So with a decay above 0 a release of 0 or 1 is played as 2,
+; and a note of 1 or 2 frames keeps its gate open to its end (the next note restarts it). With decay 0 the
+; counter is never past 9 (the sustain already runs at the fastest rate), nothing has to wait, and one
+; frame of release works.
 check_release
         lda st_gate,x
         beq @done                       ; nothing sounds
@@ -399,13 +413,23 @@ check_release
         lda st_hold,x
         bne @done                       ; a legato note follows: keep the gate open
         ldy st_instr,x
+        lda inst_ad,y
+        and #$0F                        ; the decay nibble
+        beq @one
+        lda #RELEASE_MIN                ; decay above 0: the release is at least 2 frames, see above
+        bne @least                      ; (always jumps)
+@one    lda #1                          ; decay 0 never needs the wait, so 1 frame is enough. (It is a
+                                        ; must: the gate has to go down at least once between two notes)
+@least  sta zp_t0                       ; zp_t0 = the smallest release that is allowed
         lda inst_release,y
-        bne @not0
-        lda #1                          ; a release of 0 is treated as 1 (the gate must go down at least once)
-@not0   cmp #RELEASE_MAX + 1
+        cmp zp_t0
+        bcs @not_min
+        lda zp_t0                       ; a smaller inst_release is played as the smallest
+@not_min
+        cmp #RELEASE_MAX + 1
         bcc @rel_ok
         lda #RELEASE_MAX                ; a larger value would only make the loop below slow
-@rel_ok sta zp_t0                       ; zp_t0 = inst_release, 1 to RELEASE_MAX
+@rel_ok sta zp_t0                       ; zp_t0 = inst_release, limited to the allowed range
         lda st_frame_in_tick
         clc
         adc #1
@@ -428,7 +452,13 @@ check_release
         sta zp_frames_left
         bcc @more                       ; (a sum over 255 is certainly more than inst_release)
 @done   rts
-@end    lda #0
+@end    lda zp_frames_left              ; all ticks are added now: the frames that are left in the note
+        cmp #2
+        bcs @close
+        lda inst_ad,y                   ; only this frame is left (a note of 1 or 2 frames). With a decay above 0
+        and #$0F                        ; a gate-off of one frame is too short, see above: keep the gate open
+        bne @done
+@close  lda #0
         sta st_gate,x
         rts
 
@@ -462,6 +492,14 @@ advance_voice
 ; envelope, and the control register (with the gate) last. A new note first gets a control write with the
 ; gate low and the TEST bit set: the oscillator starts from zero, so every note begins in the same way, and
 ; the gate can open even if it was still open.
+;
+; A new note also writes AD twice. When the gate opens, the SID uses the DECAY rate for one cycle before it
+; switches to the attack rate (a quirk of the chip). The rate counter is at some value below 9 at that moment
+; (the voice has been waiting in the fastest release). If attack is 0 the attack rate is the same fast rate,
+; and when the counter is at its last step before 9 the one cycle with the slower decay rate makes it miss
+; that step: the counter then has to run all the way round (up to 33 ms) and the note starts that much late.
+; About one note in nine would be hit. The cure: before the gate opens write AD with the decay nibble set
+; equal to the attack nibble, so the rate does not change, and write the real AD a few cycles after the gate.
 write_voice
         ldx zp_voice
         lda sid_offset,x
@@ -481,12 +519,26 @@ write_voice
         lda out_pw_hi
         sta SID_BASE + SID_PW_HI,x
         lda out_ad
-        sta SID_BASE + SID_AD,x
+        ldy zp_start
+        beq @ad                         ; not a new note: AD as it is
+        lsr
+        lsr
+        lsr
+        lsr                             ; the attack nibble, moved to the low nibble
+        sta zp_t0
+        lda out_ad
+        and #$F0
+        ora zp_t0                       ; AD with decay = attack, for the moment
+@ad     sta SID_BASE + SID_AD,x
         lda out_sr
         sta SID_BASE + SID_SR,x
         lda out_ctrl
-        sta SID_BASE + SID_CTRL,x       ; last: this opens (or closes) the gate
-        rts
+        sta SID_BASE + SID_CTRL,x       ; this opens (or closes) the gate
+        lda zp_start
+        beq @done
+        lda out_ad
+        sta SID_BASE + SID_AD,x         ; a new note: now the real decay
+@done   rts
 
 sid_offset
         !byte 0, 7, 14                  ; first SID register of voice 1, 2 and 3
@@ -497,6 +549,9 @@ sid_offset
 
 ; calc_control: out_ctrl (waveform and gate), out_ad, out_sr. X = voice.
 ; While the gate is closed the envelope values are 0, so the sound fades out at once.
+; Only the sustain nibble of inst_sr is used. The release nibble is never heard: the gate only closes with
+; AD = SR = 0 (above), and a release value left in SR makes the SID's rate counter run past the fast rate
+; that the next attack needs, which delays the next note (see check_release). So it is written as 0.
 ; A drum plays noise for the first inst_drum_noise frames and its own waveform after that.
 calc_control
         ldy st_instr,x
@@ -518,6 +573,7 @@ calc_control
         lda inst_ad,y
         sta out_ad
         lda inst_sr,y
+        and #$F0                        ; sustain only, the release nibble is cleared
         sta out_sr
         rts
 @closed lda #0
