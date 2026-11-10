@@ -342,7 +342,7 @@ export function build() {
       ...defaultInstrument(), name: 'Bass', wave: 0x40, ad: 0x06, sr: 0x70, pw: 0x0600, release: 2,
     },
     { // 2 bass for the quick strummed grace notes: shortest gap between notes
-      ...defaultInstrument(), name: 'Bass strum', wave: 0x40, ad: 0x06, sr: 0x70, pw: 0x0600, release: 1,
+      ...defaultInstrument(), name: 'Bass strum', wave: 0x40, ad: 0x06, sr: 0x70, pw: 0x0600, release: 2,
     },
     chord(2),
     chord(3),

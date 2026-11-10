@@ -32,6 +32,9 @@ export const LIMITS = {
 };
 
 const RELEASE_MAX = 32;   // the player treats a larger inst_release as 32
+// The smallest release the player plays: 2 frames when the decay is above 0 (the SID needs that long to finish
+// a release, see docs/player.md section 5), otherwise 1.
+const smallestRelease = (inst) => ((inst.ad & 0x0F) ? 2 : 1);
 
 const NOTE_NAMES = ['C-', 'C#', 'D-', 'D#', 'E-', 'F-', 'F#', 'G-', 'G#', 'A-', 'A#', 'B-'];
 
@@ -56,7 +59,7 @@ export function transposedPitch(pitch, transpose) {
 
 export function defaultInstrument() {
   return {
-    name: 'New instrument', wave: 0x40, ad: 0x09, sr: 0xA4, pw: 0x0800, pwStep: 0, pwMin: 0x20, pwMax: 0xE0,
+    name: 'New instrument', wave: 0x40, ad: 0x09, sr: 0xA0, pw: 0x0800, pwStep: 0, pwMin: 0x20, pwMax: 0xE0,
     vibDelay: 0, vibDepth: 0, vibSpeed: 0, arp: 0, drumNoise: 0, drumFall: 0, release: 2,
   };
 }
@@ -188,7 +191,8 @@ export function lint(project) {
     const w = (text) => warnings.push(`instrument ${n} (${inst.name}): ${text}`);
     if (inst.wave & 0x09) w('the gate bit (bit 0) and test bit (bit 3) of wave are cleared by the player, they are ignored');
     if (!(inst.wave & 0xF0) && !inst.drumNoise) w('no waveform bit (triangle, saw, pulse or noise) is set: the voice is silent');
-    if (inst.release === 0) w('release 0 is played as 1: the gate must go down at least once between two notes');
+    if (inst.sr & 0x0F) w('the release nibble of sr is ignored: the player ends every note with its own clean release (see release frames)');
+    if (inst.release < smallestRelease(inst)) w(`release ${inst.release} is played as ${smallestRelease(inst)}${inst.ad & 0x0F ? ': with a decay above 0 the SID needs two frames to finish a release before the next note' : ''}`);
     if (inst.release > RELEASE_MAX) w(`release above ${RELEASE_MAX} is played as ${RELEASE_MAX}`);
     if (inst.vibDepth > 127) w('vibrato depth above 127 is played as 127');
     if (inst.vibDepth && (inst.vibSpeed < 2 || inst.vibSpeed % 2)) w(`vibrato speed ${inst.vibSpeed} is played as ${Math.max(2, inst.vibSpeed & 0xFE)} (even numbers from 2)`);
@@ -229,11 +233,15 @@ export function lint(project) {
         const inst = instruments[instrument];
         const next = pattern.events[k + 1];
         if (!inst || (next && next.type === 'legato')) return;   // a legato note keeps its gate open
-        const release = Math.min(RELEASE_MAX, Math.max(1, inst.release));
+        const release = Math.min(RELEASE_MAX, Math.max(smallestRelease(inst), inst.release));
+        const frames = ev.length * song.speed;
         const key = `${entry.pattern}/${k}/${instrument}`;
-        if (release >= ev.length * song.speed && !seen.has(key)) {
+        // Decay 0: only the first frame sounds when the release is as long as the note. Decay above 0: a note of
+        // 1 or 2 frames has no clean end (its gate stays open), a longer one keeps its first frame and loses the rest.
+        const firstFrameOnly = (inst.ad & 0x0F) === 0 ? release >= frames : frames >= 3 && release >= frames - 1;
+        if (firstFrameOnly && !seen.has(key)) {
           seen.add(key);
-          warnings.push(`pattern ${entry.pattern} event ${k}: a note of ${ev.length * song.speed} frames with instrument ${instrument} (release ${release}) sounds for its first frame only`);
+          warnings.push(`pattern ${entry.pattern} event ${k}: a note of ${frames} frames with instrument ${instrument} (release ${release}) sounds for its first frame only`);
         }
       });
     }
@@ -290,11 +298,11 @@ export function demoProject() {
 
   const instruments = [
     { // 0 bass: pulse that slowly sweeps, short and punchy
-      ...defaultInstrument(), name: 'Bass', wave: 0x40, ad: 0x08, sr: 0xA4, pw: 0x0800,
+      ...defaultInstrument(), name: 'Bass', wave: 0x40, ad: 0x08, sr: 0xA0, pw: 0x0800,
       pwStep: 14, pwMin: 0x30, pwMax: 0xD0, release: 2,
     },
     { // 1 lead: pulse, slower attack, vibrato that starts late
-      ...defaultInstrument(), name: 'Lead', wave: 0x40, ad: 0x28, sr: 0xA6, pw: 0x0600,
+      ...defaultInstrument(), name: 'Lead', wave: 0x40, ad: 0x28, sr: 0xA0, pw: 0x0600,
       pwStep: 6, pwMin: 0x30, pwMax: 0xC0, vibDelay: 10, vibDepth: 6, vibSpeed: 4, release: 2,
     },
     { // 2 kick: one frame of noise, then a triangle that falls fast
@@ -307,10 +315,10 @@ export function demoProject() {
     },
     { // 4 hat: noise only, very short
       ...defaultInstrument(), name: 'Hat', wave: 0x80, ad: 0x02, sr: 0x00,
-      drumNoise: 255, drumFall: 0, release: 1,
+      drumNoise: 255, drumFall: 0, release: 2,
     },
     { // 5 arp: pulse that jumps between the note and its fifth on every frame (a chord shimmer)
-      ...defaultInstrument(), name: 'Arp', wave: 0x40, ad: 0x09, sr: 0xA8, pw: 0x0400,
+      ...defaultInstrument(), name: 'Arp', wave: 0x40, ad: 0x09, sr: 0xA0, pw: 0x0400,
       pwStep: 4, pwMin: 0x20, pwMax: 0xE0, arp: 7, release: 2,
     },
   ];

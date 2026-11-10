@@ -52,6 +52,8 @@ export function serialiseInstruments(instruments) {
     const at = (field, lo, hi) => checkInt(inst[field], lo, hi, `instrument ${n} ${field}`);
     tables.inst_wave[n] = at('wave', 0, 255);
     tables.inst_ad[n] = at('ad', 0, 255);
+    // The byte is written as it is. The player only uses the sustain nibble (high); its release nibble is
+    // ignored, and lint() warns when it is not 0. We do not change the user's data here.
     tables.inst_sr[n] = at('sr', 0, 255);
     const pw = at('pw', 0, 4095);
     tables.inst_pw_lo[n] = pw & 0xFF;

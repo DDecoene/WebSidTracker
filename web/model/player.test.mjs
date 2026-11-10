@@ -301,8 +301,15 @@ test('player semantics that the model warns about', () => {
   bad.song.patterns[0].events = [{ type: 'note', pitch: 40, length: 1 }];
   bad.song.speed = 2;
   bad.instruments[0].release = 2;
+  assert.deepEqual(lint(bad), [], 'a note of 2 frames has no clean end and sounds in full');
+  bad.song.speed = 3;
   assert.match(lint(bad)[0], /first frame only/);
   bad.instruments[0].wave = 0x49;
   assert.match(lint(bad).join('\n'), /gate bit/);
+  bad.instruments[0].sr = 0xA4;
+  assert.match(lint(bad).join('\n'), /release nibble of sr is ignored/);
+  bad.instruments[0].sr = 0xA0;
+  bad.instruments[0].release = 1;
+  assert.match(lint(bad).join('\n'), /release 1 is played as 2/);
   assert.deepEqual(lint(demoProject()), []);
 });
