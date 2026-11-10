@@ -41,8 +41,13 @@ The test cannot see a change of *meaning* where the bytes stay the same; that is
 ## The site on Pages
 
 - Root: the newest release (a copy of `web/` at the newest tag). `/v<release>/`: every release, never changed. `/dev/`: the `develop` branch, with a "development version" bar and its own autosave. `releases.json` in the root lists the releases with their format.
-- Every run of the workflow builds the whole site again from the tags (`node tools/release-tools.mjs assemble site`).
+- Every run of the workflow builds the whole site again from the tags on `main` (`node tools/release-tools.mjs assemble site --main-ref origin/main`). A tag that is not on `main`, or whose `web/version.js` names another release, is left out with a warning.
+- The GitHub release is made by a separate workflow (`release.yml`), so a queued or cancelled site run never loses it.
 - One setting on GitHub is needed: Settings → Environments → `github-pages` → Deployment branches and tags must allow the branch `develop` and the tags `v*`.
+
+## Autosave
+
+Every format has its own key in the browser (`websidtracker.autosave.v<format>`, for `/dev/` `websidtracker.dev.autosave.v<format>`). A release reads its own key and the keys of older formats, never newer ones. Keep that when you add a format.
 
 ## What the tracker does with an older file
 
