@@ -205,15 +205,35 @@ If porting is not possible (the result would not be a valid project) the dialog 
 
 ## 6. Export, and using the files in a game
 
-**Export** shows three files, each with a Download button (and a Show and Copy button for the text files). The second line of each assembler file names the format and the release that wrote it:
+**Export** shows four files, each with a Download button (and a Show and Copy button for the text files). The second line of each assembler file names the format and the release that wrote it:
 
 | File | What |
 |---|---|
 | `instruments.asm` | the instrument tables, one table per field, shared by all your songs. Only as many entries as your highest used instrument needs |
 | `song_<name>.asm` | the song, with the label `song_<name>` at its header. `<name>` is the song name made safe for a label |
 | `<name>.prg` | a ready-to-run program (BASIC line, player, instruments, your song). Load it on a C64 or in VICE and RUN it |
+| `<name>.sid` | the song for SID players (VICE's `vsid`, sidplayfp, DeepSID) and for sharing: the player, the instruments and your song, with no program around it |
 
-The files are ACME assembler source. The player itself, `music.asm`, does not change per song: copy it from `src/music.asm` in this repository. All three files are MIT licensed, the player is MIT, and so is the `.prg`.
+The `.asm` files are ACME assembler source. The player itself, `music.asm`, does not change per song: copy it from `src/music.asm` in this repository. All four files are MIT licensed, and so is the player.
+
+### The .sid file
+
+A `.sid` file is the usual way to pass C64 music around. It is a short header (title, author, a release line, and the addresses a SID player has to call) followed by a piece of C64 memory. The tracker writes PSID version 2, for PAL, played once per frame.
+
+Under the file name in the Export dialog are four boxes:
+
+| Box | What |
+|---|---|
+| Title | starts as the song name |
+| Author | who made the song |
+| Released | by custom a year and who released it, for example `2026 My Group` |
+| Chip | the SID chip the song is made for: MOS 6581, CSG 8580 or Either. It starts on the chip you are listening to. A SID player uses it to choose its emulation |
+
+A text is at most 32 characters of the Latin-1 set (plain letters, digits, punctuation and Western European accents); other characters become `?`. A box left empty is written as `<?>`, which SID collections use for "unknown". Author and Released are remembered in your browser for the next export. They are not part of the project file, so fill them in again on another computer.
+
+What is in the memory part: seven bytes of start code at `$0FF9` (they load the address of the song and jump to `music_init`, because a SID player cannot pass that address), the player at `$1000`, the instrument tables at `$2000` and the song at `$3000`: the same bytes as in the `.prg` from `$1000` on. The SID player calls `$0FF9` once and `music_play` once per frame.
+
+**In a game, use the assembler files, not the .sid.** A `.sid` sits at fixed addresses (`$0FF9` up to the end of the song), carries all 15 instrument tables at their full 256 bytes (3840 bytes, where `instruments.asm` only has the instruments you use), and holds its own copy of the player, so two songs as two `.sid` files cannot be in memory together. With the assembler files the player, the tables and the songs go wherever your game has room, several songs share one player and one instrument set, and you can move the zero page bytes. The `.sid` is for listening and sharing.
 
 Put the files in your game project and include them:
 
@@ -262,7 +282,7 @@ In the tracker and in the exported `.prg`:
 
 | Range | Content |
 |---|---|
-| `$0801-$0FFF` | the BASIC line `10 SYS 2064` and the small program that sets up the raster interrupt (line 250) |
+| `$0801-$0FFF` | the BASIC line `10 SYS 2064` and the small program that sets up the raster interrupt (line 250). The `.sid` file has only seven bytes of start code here, at `$0FF9` |
 | `$1000-$1FFF` | the player: code, frequency table, state block (about 1.5 KB) |
 | `$2000-$2EFF` | the 15 instrument tables of 256 bytes, in this order: `inst_wave`, `inst_ad`, `inst_sr`, `inst_pw_lo`, `inst_pw_hi`, `inst_pw_step`, `inst_pw_min`, `inst_pw_max`, `inst_vib_delay`, `inst_vib_depth`, `inst_vib_speed`, `inst_arp`, `inst_drum_noise`, `inst_drum_fall`, `inst_release` |
 | `$3000-$BFFF` | the song (header at `$3000`); it must end below `$C000` |

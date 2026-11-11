@@ -160,7 +160,7 @@
         <div><dt>Instruments</dt><dd>Waveforms, ADSR with the real SID times, a pulse width sweep, vibrato that starts late, an arpeggio, and drums on any voice.</dd></div>
         <div><dt>Patterns and order lists</dt><dd>A grid with one row per tick, a keyboard layout like other trackers, undo and redo for every edit.</dd></div>
         <div><dt>Six demo songs</dt><dd>Open one, press play, and change things to see what each field does.</dd></div>
-        <div><dt>Exports</dt><dd><code>music.asm</code> (the player), <code>instruments.asm</code> and <code>song_name.asm</code> as ACME source, and a ready-to-run <code>.prg</code>.</dd></div>
+        <div><dt>Exports</dt><dd><code>music.asm</code> (the player), <code>instruments.asm</code> and <code>song_name.asm</code> as ACME source, a ready-to-run <code>.prg</code>, and a <code>.sid</code> file for SID players.</dd></div>
         <div><dt>Projects as JSON</dt><dd>Save and open your work as a file. The tracker also keeps an autosave in the browser.</dd></div>
         <div><dt>Runs in the browser</dt><dd>No server, no account. Once loaded it works offline. Chip model 6581 or 8580.</dd></div>
       </dl>
@@ -257,7 +257,7 @@ irq     jsr music_play       ; once per frame, from the raster interrupt
     <div class="body">
       <p>The licence is split by what you use in your game.</p>
       <ul class="plain">
-        <li><strong>The player and everything the tracker exports</strong> (<code>music.asm</code>, <code>instruments.asm</code>, the song files, the <code>.prg</code>) are MIT. Your game can have any licence you like. A line in your credits is enough, for example: <em>Music player by Dennis Decoene (WebSidTracker, MIT licence)</em>.</li>
+        <li><strong>The player and everything the tracker exports</strong> (<code>music.asm</code>, <code>instruments.asm</code>, the song files, the <code>.prg</code>, the <code>.sid</code>) are MIT. Your game can have any licence you like. A line in your credits is enough, for example: <em>Music player by Dennis Decoene (WebSidTracker, MIT licence)</em>.</li>
         <li><strong>The web app</strong> is GPL-3.0-or-later, because it contains reSIDfp. That concerns the tracker itself, not your game and not the files you export from it.</li>
       </ul>
       <p><strong>Clean room.</strong> The player is an original design. It does not contain code, data, labels or byte formats from any other player or tracker, and it is not compatible with their formats on purpose.</p>
