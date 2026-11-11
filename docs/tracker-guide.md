@@ -63,7 +63,16 @@ Keys work when the pattern editor or the page has the focus, not when you are ty
 | `- / =` | Make the note or rest under the cursor one tick shorter / longer |
 | Delete or . | Clear the note under the cursor (it becomes a rest of the same length) |
 | Insert / Backspace | Insert a row / delete a row (later events move) |
-| Shift+Up / Shift+Down | Move the note under the cursor a semitone up / down |
+| Ctrl+Up / Ctrl+Down (Cmd on a Mac) | Move the note under the cursor a semitone up / down; with Shift an octave |
+| Shift+Up / Down, Shift+PageUp / PageDown, Shift+Home / End | Select a block of rows, from where you started to the cursor |
+| Ctrl+A / Cmd+A | Select the whole pattern |
+| Escape | Drop the selection |
+| Ctrl+C / Cmd+C | Copy the block (without a block: the note or rest under the cursor) |
+| Ctrl+X / Cmd+X | Cut: copy the block and make its rows a rest |
+| Ctrl+V / Cmd+V | Paste over the rows from the cursor (or from the start of the block); later rows keep their place |
+| Ctrl+Shift+V / Cmd+Shift+V | Paste and move the later rows down |
+| With a block: Delete, Backspace | Make the rows of the block a rest / delete the rows (later events move up) |
+| With a block: Ctrl+Up / Ctrl+Down, Enter | Move every note of the block a semitone (with Shift an octave) / give every note the current instrument |
 | `l` | Legato marker on / off for the note under the cursor |
 | `[ / ]` | Previous / next current instrument (the one new notes get) |
 | `i` | Type a current instrument number (two hex digits) |
@@ -80,7 +89,7 @@ Keys work when the pattern editor or the page has the focus, not when you are ty
 | Shift+D | Duplicate the pattern of this order entry as a new pattern, put in this entry |
 | Shift+X | Delete the pattern of this order entry (refused while another entry uses it) |
 | Shift+P | Go to the Patterns list |
-| Mouse | Click a grid row to place the cursor, an instrument chip to change that note's instrument; use the controls on every order entry; click a pattern to select it, double-click to use it, drag it onto an order entry or between two entries |
+| Mouse | Click a grid row to place the cursor, drag over rows or Shift+click to select a block, click an instrument chip to change that note's instrument; use the controls on every order entry; click a pattern to select it, double-click to use it, drag it onto an order entry or between two entries |
 
 The Patterns panel on the left holds the buttons New, Delete unused, Use in entry, Add entry, Duplicate, Rename and Delete (see section 4). Click an instrument chip in the grid to change that note's instrument. The Instrument selector in the bar above the grid chooses the current instrument; To note and To rest of pattern apply it.
 
@@ -127,6 +136,19 @@ The Patterns panel on the left lists every pattern with its name, size (ticks, n
 - **Reuse a pattern in another voice or position.** Select it and press Use in entry (it replaces the pattern of the current order entry) or Add entry (a new entry after the current one). You can also drag its number onto an order entry, or between two entries. Then set that entry's transpose: the same pattern then plays higher or lower, and it exists only once.
 - **Duplicate and vary.** Select a pattern and press Duplicate. The copy is a new, unused pattern; put it in an entry with Use in entry, change it, and give it a name with Rename. The original stays as it was.
 - **Delete unused.** Delete removes the selected pattern, but not while an entry uses it (the message names the entries). Delete unused removes all unused patterns at once and asks you to press it a second time. The remaining patterns are renumbered and the order entries follow, so the music does not change.
+
+### Blocks: select, copy and paste
+
+A block is a run of rows in one pattern, in one voice. Hold Shift and move the cursor to select from where you started to the cursor, or drag over the rows with the mouse; Shift+click extends the block to the row you click. Ctrl+A selects the whole pattern, Escape drops the selection. The first line of the editor shows the rows of the block. On a Mac use Cmd where this section says Ctrl.
+
+- **Copy and cut.** Ctrl+C copies the block. Ctrl+X cuts it: the rows become a rest, so later notes keep their place. Without a block both take the whole note or rest under the cursor.
+- **Paste.** Ctrl+V pastes over the rows from the cursor (or from the first row of a block): those rows are replaced, and what comes after them stays where it is. A paste that runs past the end makes the pattern longer. The cursor ends after the pasted rows, so pasting again repeats the phrase.
+- **Paste and insert.** Ctrl+Shift+V pastes in front of the cursor row and moves everything after it down.
+- **Work on the whole block.** Delete turns its rows into a rest, Backspace removes the rows (later events move up), Ctrl+Up and Ctrl+Down move all its notes a semitone (with Shift an octave), and Enter or the To note button gives all its notes the current instrument.
+
+A copied note takes its instrument with it, so a block sounds the same in another pattern, another voice or another project (open the other project in the same tab). The copy is kept by the tracker, not by the clipboard of your computer, and is gone when you close the page. If a block starts in the middle of a note or rest, those first rows are copied as a rest. A note that a paste or a cut divides ends there; what is left of it after the block becomes a rest. A paste can make a pattern larger than the 255 bytes the player can read (section 5); the tracker says so, and the song cannot be exported until you split the pattern.
+
+Since release 0.2.0 Shift+Up and Shift+Down select; in 0.1.0 they moved the note a semitone, which is now Ctrl+Up and Ctrl+Down.
 
 ### Changing the instrument of a note
 

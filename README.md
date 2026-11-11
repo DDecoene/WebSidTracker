@@ -121,6 +121,7 @@ Done:
 - [x] Browser: song model, serialiser, live editing with playhead fix-up, undo, autosave, project files
 - [x] Browser: the pattern and order editor and the instrument editor
 - [x] Export to assembler source and `.prg`
+- [x] Block selection with the keyboard and the mouse, copy, cut and paste in the pattern editor
 - [x] Versions and releases: a format version in every file, porting of older project files, releases published on Pages ([design](docs/design-versioning-and-releases.md), [how to release](docs/releasing.md))
 
 Open:
@@ -129,7 +130,6 @@ Open:
 - [ ] NTSC (frequency table and 60 Hz timing)
 - [ ] Sound effects that borrow a voice
 - [ ] Filter (and other later features: portamento, volume per voice)
-- [ ] Mouse selection and copy/paste in the pattern editor (the mouse only places the cursor now)
 - [ ] `.sid` export
 - [ ] Open `song_<name>.asm` and `instruments.asm` in the tracker (only the project file can be opened now)
 
