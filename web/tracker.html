@@ -31,7 +31,7 @@
         <button id="btn-new" type="button" title="Start a new, empty project">New</button>
         <button id="btn-open" type="button" title="Open a project file (JSON)">Open</button>
         <button id="btn-save" type="button" title="Save the project as a JSON file (Ctrl/Cmd+S)">Save</button>
-        <button id="btn-export" type="button" class="primary" title="Export assembler files and a ready-to-run .prg">Export</button>
+        <button id="btn-export" type="button" class="primary" title="Export assembler files, a ready-to-run .prg and a .sid file">Export</button>
         <input id="file-input" type="file" accept=".json,application/json" hidden>
       </div>
 
@@ -112,7 +112,7 @@
   <dialog id="export-dialog" aria-labelledby="export-title">
     <form method="dialog">
       <h2 id="export-title">Export</h2>
-      <p class="hint">These files play your song in a game. Copy <code>music.asm</code> from the project's <code>src/</code> folder next to them; the .prg already contains the player.</p>
+      <p class="hint">The .asm files play your song in a game: copy <code>music.asm</code> from the project's <code>src/</code> folder next to them. The .prg and the .sid already contain the player.</p>
       <div id="export-body"></div>
       <div class="dialog-actions"><button value="close" class="primary">Close</button></div>
     </form>

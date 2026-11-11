@@ -237,6 +237,10 @@ dialog h3 { margin: 1.286rem 0 0.429rem; font-size: 0.929rem; text-transform: up
 .file-row .size { color: var(--muted); font-size: 0.857rem; }
 .file-row .what { flex-basis: 100%; color: var(--muted); font-size: 0.857rem; margin-top: -0.286rem; }
 .file-row .spacer { flex: 1; }
+.file-fields { flex-basis: 100%; display: grid; grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr)); gap: 0.429rem 0.857rem; }
+.file-fields label { display: flex; align-items: center; gap: 0.429rem; font-size: 0.857rem; color: var(--muted); }
+.file-fields label span { flex: none; min-width: 4.2rem; }
+.file-fields input, .file-fields select { flex: 1; min-width: 0; }
 .file-preview {
   flex-basis: 100%; margin: 0.286rem 0 0; padding: 0.571rem 0.714rem; max-height: 14rem; overflow: auto;
   background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius);
