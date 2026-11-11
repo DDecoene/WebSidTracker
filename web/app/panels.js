@@ -197,18 +197,33 @@ export function createManualDialog({ dialog, sections, getKeySources, fallbackFo
 /**
  * Fill the export dialog. `files` = [{ name, data (string | Uint8Array), what, text: bool, mime }].
  * Text files get a preview and a copy button.
+ *
+ * A file can have details the person fills in before the download (the credits of a .sid file):
+ * then it has `fields` = [{ key, label, value, maxLength, placeholder, title, options }] (with
+ * `options` = [[value, text]] it is a drop-down, else a text box) and `build(values)`, which
+ * makes the data from what the boxes hold, instead of `data`. `changed(values)` is called when
+ * a box changes.
  */
 export function renderExport(body, files, notify) {
   body.replaceChildren();
   for (const file of files) {
-    const size = file.data.length;
+    const values = {};
+    for (const field of file.fields || []) values[field.key] = field.value ?? '';
+    const data = () => (file.build ? file.build(values) : file.data);
+    const sizeEl = el('span', { class: 'size', text: `${data().length} bytes` });
     const row = el('div', { class: 'file-row' },
       el('span', { class: 'name', text: file.name }),
-      el('span', { class: 'size', text: `${size} bytes` }),
+      sizeEl,
       el('span', { class: 'spacer' }));
 
     const save = el('button', { type: 'button', text: 'Download' });
-    save.addEventListener('click', () => download(file.name, file.data, file.mime));
+    save.addEventListener('click', () => {
+      try {
+        download(file.name, data(), file.mime);
+      } catch (error) {
+        notify(`${file.name} could not be made: ${error.message}`);
+      }
+    });
     row.append(save);
 
     if (file.text) {
@@ -229,6 +244,30 @@ export function renderExport(body, files, notify) {
       row.append(el('span', { class: 'what', text: file.what }), preview);
     } else {
       row.append(el('span', { class: 'what', text: file.what }));
+    }
+    if (file.fields && file.fields.length) {
+      const box = el('div', { class: 'file-fields' });
+      for (const field of file.fields) {
+        let input;
+        if (field.options) {
+          input = el('select', {});
+          for (const [value, text] of field.options) input.append(el('option', { value: String(value), text }));
+        } else {
+          input = el('input', { type: 'text', spellcheck: 'false', autocomplete: 'off' });
+          if (field.maxLength) input.setAttribute('maxlength', String(field.maxLength));
+          if (field.placeholder) input.setAttribute('placeholder', field.placeholder);
+        }
+        input.value = String(values[field.key]);
+        if (field.title) input.setAttribute('title', field.title);
+        input.addEventListener('input', () => {
+          values[field.key] = input.value;
+          if (file.changed) file.changed({ ...values });
+        });
+        // Enter in a box must not close the dialog (the form's only submit button is Close).
+        input.addEventListener('keydown', (event) => { if (event.key === 'Enter') event.preventDefault(); });
+        box.append(el('label', {}, el('span', { text: field.label }), input));
+      }
+      row.append(box);
     }
     body.append(row);
   }

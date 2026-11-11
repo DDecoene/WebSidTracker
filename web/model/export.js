@@ -1,4 +1,4 @@
-// export.js - assembler text (ACME syntax), the ready-to-run .prg, and the project file (JSON).
+// export.js - assembler text (ACME syntax), the ready-to-run .prg, the .sid file, and the project file (JSON).
 //
 // The assembler text has exactly the layout of serialise.js, so a song file assembled
 // at some address gives the same bytes as serialiseSong(song, thatAddress).
@@ -157,6 +157,82 @@ export function exportPrg(project, playerPrg) {
   out[0] = load & 0xFF;
   out[1] = load >> 8;
   out.set(ram.subarray(load, end), 2);
+  return out;
+}
+
+// ---------------------------------------------------------------- .sid
+
+// A .sid file (PSID version 2) is a header of 124 bytes followed by a piece of C64 memory. A SID
+// player program loads the memory, calls the init address once and then the play address once
+// per frame. Our player wants the address of the song in A and X when it is started, and a SID
+// player cannot give that, so seven bytes of code go in front of the player:
+//         lda #<song : ldx #>song : jmp music_init
+// The memory in the file is those seven bytes, the player, the instrument tables and the song:
+// the same bytes as in the .prg, without the BASIC line and the raster interrupt program (a SID
+// player does the timing itself).
+export const SID_HEADER_SIZE = 0x7C;
+export const SID_TEXT_LENGTH = 32;                  // title, author and released: 32 bytes each
+const SID_STUB_SIZE = 7;
+const SID_FLAG_PAL = 0x04;                          // bits 2-3: the song is made for a PAL machine
+const SID_FLAG_MODEL = { 6581: 0x10, 8580: 0x20, any: 0x30 };   // bits 4-5: the chip it is made for
+
+/**
+ * The text fields of the header are 32 bytes of ISO 8859-1 (Latin-1). Characters outside it
+ * become "?"; longer text is cut off.
+ */
+export function sidText(text) {
+  const out = new Uint8Array(SID_TEXT_LENGTH);
+  const clean = String(text ?? '').replace(/\s+/g, ' ').trim();
+  let n = 0;
+  for (const char of clean) {
+    if (n === SID_TEXT_LENGTH) break;
+    const code = char.codePointAt(0);
+    out[n++] = (code >= 0x20 && code <= 0x7E) || (code >= 0xA0 && code <= 0xFF) ? code : 0x3F;
+  }
+  return out;
+}
+
+/**
+ * The song as a .sid file. `symbols` are the player's addresses (web/player/symbols.json).
+ * `info` = { title, author, released, model }: the three text fields (title: the song name when
+ * left out; "<?>" is what the SID collections write for unknown) and the chip the song is
+ * made for: 6581, 8580 or 'any'.
+ */
+export function exportSid(project, playerPrg, symbols, info = {}) {
+  const init = symbols && symbols.music_init;
+  const play = symbols && symbols.music_play;
+  const start = symbols && (symbols.music_start ?? symbols.music_init);
+  if (![init, play, start].every(Number.isInteger)) throw new Error('the player symbols (music_init, music_play) are missing');
+  const prg = exportPrg(project, playerPrg);
+  const prgLoad = prg[0] | (prg[1] << 8);
+  if (start < prgLoad + SID_STUB_SIZE) throw new Error('the player image has no room for the start code in front of the player');
+  const flags = SID_FLAG_MODEL[info.model ?? 'any'];
+  if (flags === undefined) throw new Error(`unknown SID model "${info.model}" (use 6581, 8580 or 'any')`);
+
+  const load = start - SID_STUB_SIZE;
+  const memory = prg.subarray(2 + start - prgLoad);
+  const out = new Uint8Array(SID_HEADER_SIZE + 2 + SID_STUB_SIZE + memory.length);
+  const word = (at, value) => { out[at] = value >> 8; out[at + 1] = value & 0xFF; };   // the header is big-endian
+  out.set([0x50, 0x53, 0x49, 0x44], 0);             // "PSID"
+  word(0x04, 2);                                    // version
+  word(0x06, SID_HEADER_SIZE);                      // where the memory starts in the file
+  word(0x08, 0);                                    // load address 0: it is the first two bytes of the memory, as in a .prg
+  word(0x0A, load);                                 // init
+  word(0x0C, play);                                 // play
+  word(0x0E, 1);                                    // number of songs
+  word(0x10, 1);                                    // the song to start with
+  // 0x12: speed, 4 bytes of 0 = play is called once per frame (50 Hz on PAL)
+  out.set(sidText(info.title ?? project.song.name), 0x16);
+  out.set(sidText(info.author || '<?>'), 0x36);
+  out.set(sidText(info.released || '<?>'), 0x56);
+  word(0x76, SID_FLAG_PAL | flags);
+  // 0x78: no relocation information, no second or third SID: 4 bytes of 0
+
+  let at = SID_HEADER_SIZE;
+  out[at++] = load & 0xFF;
+  out[at++] = load >> 8;
+  out.set([0xA9, LIMITS.songBase & 0xFF, 0xA2, LIMITS.songBase >> 8, 0x4C, init & 0xFF, init >> 8], at);
+  out.set(memory, at + SID_STUB_SIZE);
   return out;
 }
 

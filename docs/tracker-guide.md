@@ -63,7 +63,16 @@ Keys work when the pattern editor or the page has the focus, not when you are ty
 | `- / =` | Make the note or rest under the cursor one tick shorter / longer |
 | Delete or . | Clear the note under the cursor (it becomes a rest of the same length) |
 | Insert / Backspace | Insert a row / delete a row (later events move) |
-| Shift+Up / Shift+Down | Move the note under the cursor a semitone up / down |
+| Ctrl+Up / Ctrl+Down (Cmd on a Mac) | Move the note under the cursor a semitone up / down; with Shift an octave |
+| Shift+Up / Down, Shift+PageUp / PageDown, Shift+Home / End | Select a block of rows, from where you started to the cursor |
+| Ctrl+A / Cmd+A | Select the whole pattern |
+| Escape | Drop the selection |
+| Ctrl+C / Cmd+C | Copy the block (without a block: the note or rest under the cursor) |
+| Ctrl+X / Cmd+X | Cut: copy the block and make its rows a rest |
+| Ctrl+V / Cmd+V | Paste over the rows from the cursor (or from the start of the block); later rows keep their place |
+| Ctrl+Shift+V / Cmd+Shift+V | Paste and move the later rows down |
+| With a block: Delete, Backspace | Make the rows of the block a rest / delete the rows (later events move up) |
+| With a block: Ctrl+Up / Ctrl+Down, Enter | Move every note of the block a semitone (with Shift an octave) / give every note the current instrument |
 | `l` | Legato marker on / off for the note under the cursor |
 | `[ / ]` | Previous / next current instrument (the one new notes get) |
 | `i` | Type a current instrument number (two hex digits) |
@@ -80,7 +89,7 @@ Keys work when the pattern editor or the page has the focus, not when you are ty
 | Shift+D | Duplicate the pattern of this order entry as a new pattern, put in this entry |
 | Shift+X | Delete the pattern of this order entry (refused while another entry uses it) |
 | Shift+P | Go to the Patterns list |
-| Mouse | Click a grid row to place the cursor, an instrument chip to change that note's instrument; use the controls on every order entry; click a pattern to select it, double-click to use it, drag it onto an order entry or between two entries |
+| Mouse | Click a grid row to place the cursor, drag over rows or Shift+click to select a block, click an instrument chip to change that note's instrument; use the controls on every order entry; click a pattern to select it, double-click to use it, drag it onto an order entry or between two entries |
 
 The Patterns panel on the left holds the buttons New, Delete unused, Use in entry, Add entry, Duplicate, Rename and Delete (see section 4). Click an instrument chip in the grid to change that note's instrument. The Instrument selector in the bar above the grid chooses the current instrument; To note and To rest of pattern apply it.
 
@@ -127,6 +136,19 @@ The Patterns panel on the left lists every pattern with its name, size (ticks, n
 - **Reuse a pattern in another voice or position.** Select it and press Use in entry (it replaces the pattern of the current order entry) or Add entry (a new entry after the current one). You can also drag its number onto an order entry, or between two entries. Then set that entry's transpose: the same pattern then plays higher or lower, and it exists only once.
 - **Duplicate and vary.** Select a pattern and press Duplicate. The copy is a new, unused pattern; put it in an entry with Use in entry, change it, and give it a name with Rename. The original stays as it was.
 - **Delete unused.** Delete removes the selected pattern, but not while an entry uses it (the message names the entries). Delete unused removes all unused patterns at once and asks you to press it a second time. The remaining patterns are renumbered and the order entries follow, so the music does not change.
+
+### Blocks: select, copy and paste
+
+A block is a run of rows in one pattern, in one voice. Hold Shift and move the cursor to select from where you started to the cursor, or drag over the rows with the mouse; Shift+click extends the block to the row you click. Ctrl+A selects the whole pattern, Escape drops the selection. The first line of the editor shows the rows of the block. On a Mac use Cmd where this section says Ctrl.
+
+- **Copy and cut.** Ctrl+C copies the block. Ctrl+X cuts it: the rows become a rest, so later notes keep their place. Without a block both take the whole note or rest under the cursor.
+- **Paste.** Ctrl+V pastes over the rows from the cursor (or from the first row of a block): those rows are replaced, and what comes after them stays where it is. A paste that runs past the end makes the pattern longer. The cursor ends after the pasted rows, so pasting again repeats the phrase.
+- **Paste and insert.** Ctrl+Shift+V pastes in front of the cursor row and moves everything after it down.
+- **Work on the whole block.** Delete turns its rows into a rest, Backspace removes the rows (later events move up), Ctrl+Up and Ctrl+Down move all its notes a semitone (with Shift an octave), and Enter or the To note button gives all its notes the current instrument.
+
+A copied note takes its instrument with it, so a block sounds the same in another pattern, another voice or another project (open the other project in the same tab). The copy is kept by the tracker, not by the clipboard of your computer, and is gone when you close the page. If a block starts in the middle of a note or rest, those first rows are copied as a rest. A note that a paste or a cut divides ends there; what is left of it after the block becomes a rest. A paste can make a pattern larger than the 255 bytes the player can read (section 5); the tracker says so, and the song cannot be exported until you split the pattern.
+
+Since release 0.2.0 Shift+Up and Shift+Down select; in 0.1.0 they moved the note a semitone, which is now Ctrl+Up and Ctrl+Down.
 
 ### Changing the instrument of a note
 
@@ -183,15 +205,35 @@ If porting is not possible (the result would not be a valid project) the dialog 
 
 ## 6. Export, and using the files in a game
 
-**Export** shows three files, each with a Download button (and a Show and Copy button for the text files). The second line of each assembler file names the format and the release that wrote it:
+**Export** shows four files, each with a Download button (and a Show and Copy button for the text files). The second line of each assembler file names the format and the release that wrote it:
 
 | File | What |
 |---|---|
 | `instruments.asm` | the instrument tables, one table per field, shared by all your songs. Only as many entries as your highest used instrument needs |
 | `song_<name>.asm` | the song, with the label `song_<name>` at its header. `<name>` is the song name made safe for a label |
 | `<name>.prg` | a ready-to-run program (BASIC line, player, instruments, your song). Load it on a C64 or in VICE and RUN it |
+| `<name>.sid` | the song for SID players (VICE's `vsid`, sidplayfp, DeepSID) and for sharing: the player, the instruments and your song, with no program around it |
 
-The files are ACME assembler source. The player itself, `music.asm`, does not change per song: copy it from `src/music.asm` in this repository. All three files are MIT licensed, the player is MIT, and so is the `.prg`.
+The `.asm` files are ACME assembler source. The player itself, `music.asm`, does not change per song: copy it from `src/music.asm` in this repository. All four files are MIT licensed, and so is the player.
+
+### The .sid file
+
+A `.sid` file is the usual way to pass C64 music around. It is a short header (title, author, a release line, and the addresses a SID player has to call) followed by a piece of C64 memory. The tracker writes PSID version 2, for PAL, played once per frame.
+
+Under the file name in the Export dialog are four boxes:
+
+| Box | What |
+|---|---|
+| Title | starts as the song name |
+| Author | who made the song |
+| Released | by custom a year and who released it, for example `2026 My Group` |
+| Chip | the SID chip the song is made for: MOS 6581, CSG 8580 or Either. It starts on the chip you are listening to. A SID player uses it to choose its emulation |
+
+A text is at most 32 characters of the Latin-1 set (plain letters, digits, punctuation and Western European accents); other characters become `?`. A box left empty is written as `<?>`, which SID collections use for "unknown". Author and Released are remembered in your browser for the next export. They are not part of the project file, so fill them in again on another computer.
+
+What is in the memory part: seven bytes of start code at `$0FF9` (they load the address of the song and jump to `music_init`, because a SID player cannot pass that address), the player at `$1000`, the instrument tables at `$2000` and the song at `$3000`: the same bytes as in the `.prg` from `$1000` on. The SID player calls `$0FF9` once and `music_play` once per frame.
+
+**In a game, use the assembler files, not the .sid.** A `.sid` sits at fixed addresses (`$0FF9` up to the end of the song), carries all 15 instrument tables at their full 256 bytes (3840 bytes, where `instruments.asm` only has the instruments you use), and holds its own copy of the player, so two songs as two `.sid` files cannot be in memory together. With the assembler files the player, the tables and the songs go wherever your game has room, several songs share one player and one instrument set, and you can move the zero page bytes. The `.sid` is for listening and sharing.
 
 Put the files in your game project and include them:
 
@@ -240,7 +282,7 @@ In the tracker and in the exported `.prg`:
 
 | Range | Content |
 |---|---|
-| `$0801-$0FFF` | the BASIC line `10 SYS 2064` and the small program that sets up the raster interrupt (line 250) |
+| `$0801-$0FFF` | the BASIC line `10 SYS 2064` and the small program that sets up the raster interrupt (line 250). The `.sid` file has only seven bytes of start code here, at `$0FF9` |
 | `$1000-$1FFF` | the player: code, frequency table, state block (about 1.5 KB) |
 | `$2000-$2EFF` | the 15 instrument tables of 256 bytes, in this order: `inst_wave`, `inst_ad`, `inst_sr`, `inst_pw_lo`, `inst_pw_hi`, `inst_pw_step`, `inst_pw_min`, `inst_pw_max`, `inst_vib_delay`, `inst_vib_depth`, `inst_vib_speed`, `inst_arp`, `inst_drum_noise`, `inst_drum_fall`, `inst_release` |
 | `$3000-$BFFF` | the song (header at `$3000`); it must end below `$C000` |

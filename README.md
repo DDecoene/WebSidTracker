@@ -16,7 +16,7 @@ The full story (what made that approach special, what such a player contains, wh
 
 1. **A player in 6502 assembly**, original work, about 1.5 KB: three voices, patterns and an order list per voice, instruments as parameter records, per-frame effects (pulse sweep, vibrato, arpeggio, drums). Built, see [docs/player.md](docs/player.md).
 2. **A tracker in the browser**: a grid with three voice columns, an instrument editor, and live playback where every edit is heard at once. The tracker runs the real 6502 player in its own small emulator and sends the SID writes to a SID emulation that sounds like the real chip (reSIDfp, compiled to WebAssembly). Built.
-3. **Export**: assembler source for song and instruments (drop it next to the player in your game), and a ready-to-run `.prg`. Built. Maybe a `.sid` file later.
+3. **Export**: assembler source for song and instruments (drop it next to the player in your game), a ready-to-run `.prg`, and a `.sid` file for SID players. Built.
 
 ## Rules of this project
 
@@ -121,6 +121,8 @@ Done:
 - [x] Browser: song model, serialiser, live editing with playhead fix-up, undo, autosave, project files
 - [x] Browser: the pattern and order editor and the instrument editor
 - [x] Export to assembler source and `.prg`
+- [x] Export to a `.sid` file (PSID version 2)
+- [x] Block selection with the keyboard and the mouse, copy, cut and paste in the pattern editor
 - [x] Versions and releases: a format version in every file, porting of older project files, releases published on Pages ([design](docs/design-versioning-and-releases.md), [how to release](docs/releasing.md))
 
 Open:
@@ -129,15 +131,13 @@ Open:
 - [ ] NTSC (frequency table and 60 Hz timing)
 - [ ] Sound effects that borrow a voice
 - [ ] Filter (and other later features: portamento, volume per voice)
-- [ ] Mouse selection and copy/paste in the pattern editor (the mouse only places the cursor now)
-- [ ] `.sid` export
 - [ ] Open `song_<name>.asm` and `instruments.asm` in the tracker (only the project file can be opened now)
 
 ## Licence
 
 This project has two licences, split by what you use in your game.
 
-**The player and everything the tracker exports: [MIT](LICENSE).** That is `src/` (the player and its tables), `docs/`, and the files you take from the tracker: `music.asm`, `instruments.asm`, `song_<name>.asm` and the `.prg`. Use it for anything, in free or commercial games and demos, as long as the copyright notice and the licence text stay with the parts of this project you use.
+**The player and everything the tracker exports: [MIT](LICENSE).** That is `src/` (the player and its tables), `docs/`, and the files you take from the tracker: `music.asm`, `instruments.asm`, `song_<name>.asm`, the `.prg` and the `.sid`. Use it for anything, in free or commercial games and demos, as long as the copyright notice and the licence text stay with the parts of this project you use.
 
 - Your game or demo is your own work and can have any licence you like. Only the WebSidTracker parts you include (the player) keep the MIT terms.
 - In practice that means a line in your credits or readme, for example: *Music player by Dennis Decoene (WebSidTracker, MIT licence)*.

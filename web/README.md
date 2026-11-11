@@ -78,7 +78,7 @@ Two things worth knowing:
 | `app/*.test.mjs` | tests for `files`, `live`, `session` and `store` |
 | `model/project.js` | the song model: shapes, limits, validation, size info, the demo tune |
 | `model/serialise.js` | model to the exact bytes of the player format, and back; the playhead maps |
-| `model/export.js` | `instruments.asm`, `song_<name>.asm`, the `.prg`, and the project file (JSON) |
+| `model/export.js` | `instruments.asm`, `song_<name>.asm`, the `.prg`, the `.sid` file (PSID version 2), and the project file (JSON) |
 | `model/test.mjs` | tests for the three files above |
 | `ui/editor.js`, `ui/editor.css` | the pattern and order editor (DOM, keyboard, mouse) |
 | `ui/editor-logic.js` | its pure part: grid layout and every edit |

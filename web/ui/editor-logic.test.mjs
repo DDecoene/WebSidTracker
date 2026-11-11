@@ -615,3 +615,112 @@ test('keyHelp lists pairs of strings', () => {
   assert.ok(help.length > 10);
   for (const [k, d] of help) { assert.equal(typeof k, 'string'); assert.equal(typeof d, 'string'); }
 });
+
+// ---- blocks ------------------------------------------------------------------------
+
+test('blockRange: anchor and cursor in either order, the end row is left out', () => {
+  assert.deepEqual(L.blockRange(2, 5, 8), { from: 2, to: 6 });
+  assert.deepEqual(L.blockRange(5, 2, 8), { from: 2, to: 6 });
+  assert.deepEqual(L.blockRange(3, 3, 8), { from: 3, to: 4 });
+  assert.deepEqual(L.blockRange(6, 8, 8), { from: 6, to: 8 });      // cursor on the end row
+  assert.equal(L.blockRange(8, 8, 8), null);                        // only the end row
+  assert.equal(L.blockRange(-1, 3, 8), null);                       // no selection
+  assert.equal(L.blockRange(0, 0, 0), null);                        // empty pattern
+});
+
+test('copyBlock: every note carries its instrument, a cut-off start becomes rest', () => {
+  const events = [inst(2), note(48, 2), note(50, 2), inst(3), legato(), note(52, 1), rest(1)];
+  const clip = L.copyBlock(events, 2, 6);
+  assert.equal(clip.ticks, 4);
+  assert.deepEqual(clip.cells, [{ pitch: 50, inst: 2 }, { cont: true }, { pitch: 52, inst: 3, leg: true }, { pitch: -1 }]);
+  // starting on the second tick of a note: that tick is a rest in the clip
+  assert.deepEqual(L.copyBlock(events, 1, 3).cells, [{ pitch: -1 }, { pitch: 50, inst: 2 }]);
+  // no instrument event in the pattern: the one coming in from the order list is used
+  assert.deepEqual(L.copyBlock([note(48, 1)], 0, 1, 7).cells, [{ pitch: 48, inst: 7 }]);
+  assert.deepEqual(L.copyBlock([note(48, 1)], 0, 1).cells, [{ pitch: 48 }]);
+  assert.equal(L.copyBlock(events, 3, 3), null);
+  assert.equal(L.copyBlock(events, 4, 99), null);
+});
+
+test('copyBlock does not change the events', () => {
+  const events = [inst(2), note(48, 2), note(50, 2)];
+  const before = JSON.stringify(events);
+  L.copyBlock(events, 0, 4);
+  assert.equal(JSON.stringify(events), before);
+});
+
+test('pasteBlock: replaces the ticks, later notes keep place and instrument', () => {
+  const source = [inst(1), note(48, 1), note(50, 1)];
+  const clip = L.copyBlock(source, 0, 2);
+  const target = [inst(5), note(60, 1), note(62, 1), note(64, 1), note(65, 1)];
+  assert.equal(fmt(L.pasteBlock(target, 1, clip)), 'i5 C-5:1 i1 C-4:1 D-4:1 i5 F-5:1');
+  // the same instrument as the one in force: no event is written
+  assert.equal(fmt(L.pasteBlock([inst(1), note(60, 4)], 0, clip)), 'i1 C-4:1 D-4:1 r2');
+});
+
+test('pasteBlock: pasting a copy in place changes nothing', () => {
+  const events = [inst(2), note(48, 2), note(50, 2), inst(3), note(52, 1), rest(1), note(53, 2)];
+  const clip = L.copyBlock(events, 2, 6);
+  assert.equal(fmt(L.pasteBlock(events, 2, clip)), fmt(events));
+});
+
+test('pasteBlock: into the middle of a note, and past the end', () => {
+  const clip = L.copyBlock([inst(1), note(48, 2)], 0, 2);
+  // the long note ends where the clip starts; what is left of it after the clip is rest
+  assert.equal(fmt(L.pasteBlock([inst(1), note(60, 6)], 2, clip)), 'i1 C-5:2 C-4:2 r2');
+  // past the end: the pattern grows
+  assert.equal(fmt(L.pasteBlock([inst(1), note(60, 3)], 2, clip)), 'i1 C-5:2 C-4:2');
+  // on the end row: appended
+  assert.equal(fmt(L.pasteBlock([inst(1), note(60, 1)], 1, clip)), 'i1 C-5:1 C-4:2');
+  assert.equal(fmt(L.pasteBlock([], 0, clip)), 'i1 C-4:2');
+  assert.equal(L.pasteBlock([note(60, 1)], 0, null), null);
+  assert.equal(L.pasteBlock([note(60, 1)], 0, { cells: [] }), null);
+});
+
+test('pasteBlock keeps the total length when it fits', () => {
+  const events = [inst(1), note(60, 3), rest(5), note(62, 8)];
+  const clip = L.copyBlock(events, 0, 5);
+  assert.equal(L.patternTicks(L.pasteBlock(events, 9, clip)), 16);
+});
+
+test('insertBlock: later events move down', () => {
+  const clip = L.copyBlock([inst(1), note(48, 2)], 0, 2);
+  assert.equal(fmt(L.insertBlock([inst(5), note(60, 1), note(62, 1)], 1, clip)), 'i5 C-5:1 i1 C-4:2 i5 D-5:1');
+  // inside a note: the note is cut, its remainder is rest
+  assert.equal(fmt(L.insertBlock([inst(1), note(60, 4)], 1, clip)), 'i1 C-5:1 C-4:2 r3');
+  assert.equal(L.patternTicks(L.insertBlock([inst(1), note(60, 4)], 1, clip)), 6);
+});
+
+test('clearBlock: the block becomes rest, timing stays', () => {
+  const events = [inst(1), note(48, 2), inst(2), note(50, 2), note(52, 2)];
+  assert.equal(fmt(L.clearBlock(events, 1, 4)), 'i1 C-4:1 r3 i2 E-4:2');
+  assert.equal(L.patternTicks(L.clearBlock(events, 1, 4)), 6);
+  // a block that ends inside a note: the rest of that note is rest too
+  assert.equal(fmt(L.clearBlock(events, 2, 3)), 'i1 C-4:2 r2 i2 E-4:2');
+  assert.equal(L.clearBlock([rest(4)], 1, 3), null);
+  assert.equal(L.clearBlock(events, 4, 4), null);
+});
+
+test('deleteBlock: the rows go, later events move up', () => {
+  const events = [inst(1), note(48, 2), inst(2), note(50, 2), note(52, 2)];
+  assert.equal(fmt(L.deleteBlock(events, 2, 4)), 'i1 C-4:2 i2 E-4:2');
+  // a note that starts in the block and goes on after it keeps its last ticks
+  assert.equal(fmt(L.deleteBlock(events, 1, 3)), 'i1 C-4:1 i2 D-4:1 E-4:2');
+  // a note from before the block that goes on after it just gets shorter
+  assert.equal(fmt(L.deleteBlock([note(48, 6)], 2, 4)), 'C-4:4');
+  assert.equal(fmt(L.deleteBlock(events, 0, 6)), '');
+});
+
+test('transposeBlock: only notes that start in the block', () => {
+  const events = [note(48, 2), rest(1), note(50, 1), note(95, 1), note(52, 1)];
+  assert.equal(fmt(L.transposeBlock(events, 1, 5, 2)), 'C-4:2 r1 E-4:1 B-7:1 E-4:1');
+  assert.equal(L.transposeBlock(events, 1, 3, 1), null);            // no note starts there
+  assert.equal(L.transposeBlock([note(95, 1)], 0, 1, 1), null);     // already at the top
+});
+
+test('setBlockInstrument: the notes in the block change, the ones after keep theirs', () => {
+  const events = [inst(1), note(48, 1), note(50, 1), inst(2), note(52, 1), note(53, 1)];
+  assert.equal(fmt(L.setBlockInstrument(events, 1, 3, 4)), 'i1 C-4:1 i4 D-4:1 E-4:1 i2 F-4:1');
+  assert.equal(L.setBlockInstrument(events, 0, 2, 1), null);        // already instrument 1
+  assert.equal(L.setBlockInstrument([rest(4)], 0, 4, 1), null);
+});
