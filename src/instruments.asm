@@ -1,6 +1,6 @@
 ; instruments.asm - the default instrument set (MIT licence, see ../LICENSE)
 ;
-; An instrument is one entry in each of 15 tables. The tables are 256 bytes long and sit one after
+; An instrument is one entry in each of 16 tables. The tables are 256 bytes long and sit one after
 ; the other, starting at $2000 (the runner puts the assembler there). The player reaches field F of
 ; instrument N with   ldy N : lda F,y   so no instrument needs more than the same index in every table.
 ; The tracker writes this layout; the exported game files may use shorter tables.
@@ -216,7 +216,8 @@ inst_vib_speed
         !byte 0                 ; 12 Octave arp
         +end_of_table inst_vib_speed
 
-; arpeggio: on every second frame the pitch is raised by this many semitones (signed, 0 = off)
+; arpeggio, first offset: semitones above the note (signed, 0 = off). With inst_arp2 = 0 the pitch is raised
+; by this much on every second frame; with a second offset it is step 1 of three, see inst_arp2.
 inst_arp
         !byte 0                 ; 0  Bass
         !byte 0                 ; 1  Lead
@@ -285,3 +286,23 @@ inst_release
         !byte 2                 ; 11 Tri bass
         !byte 2                 ; 12 Octave arp
         +end_of_table inst_release
+
+; arpeggio, second offset (signed, 0 = a two-note arpeggio as described at inst_arp). When this is not 0 the
+; arpeggio has three steps of one frame each: the note, the note + inst_arp, the note + inst_arp2. With 4 and 7
+; that is a major chord, with 3 and 7 a minor chord. This table is the last one: it was added in format 2,
+; and at the end it leaves the addresses of the other tables as they were.
+inst_arp2
+        !byte 0                 ; 0  Bass
+        !byte 0                 ; 1  Lead
+        !byte 0                 ; 2  Pad
+        !byte 0                 ; 3  Pluck
+        !byte 0                 ; 4  Kick
+        !byte 0                 ; 5  Snare
+        !byte 0                 ; 6  Hat
+        !byte 0                 ; 7  Arp 5th
+        !byte 0                 ; 8  Tom
+        !byte 0                 ; 9  Open hat
+        !byte 0                 ; 10 Saw lead
+        !byte 0                 ; 11 Tri bass
+        !byte 0                 ; 12 Octave arp
+        +end_of_table inst_arp2

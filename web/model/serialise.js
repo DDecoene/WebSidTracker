@@ -19,11 +19,12 @@ export const HEADER_SIZE = 9;
 export const MAX_PATTERN_BYTES = 255;   // a pattern, its $FF end marker included
 export const MAX_ORDER_ENTRIES = 128;   // one order list, an added STOP entry included (offset 2*i must fit a byte)
 
-// Names of the 15 instrument tables, in the order of the memory map (table k lives at $2000 + k*$100).
+// Names of the 16 instrument tables, in the order of the memory map (table k lives at $2000 + k*$100).
+// inst_arp2 came with format 2 and is the last one, so the tables before it kept their addresses.
 export const INSTRUMENT_TABLES = [
   'inst_wave', 'inst_ad', 'inst_sr', 'inst_pw_lo', 'inst_pw_hi', 'inst_pw_step', 'inst_pw_min',
   'inst_pw_max', 'inst_vib_delay', 'inst_vib_depth', 'inst_vib_speed', 'inst_arp',
-  'inst_drum_noise', 'inst_drum_fall', 'inst_release',
+  'inst_drum_noise', 'inst_drum_fall', 'inst_release', 'inst_arp2',
 ];
 
 const EV_REST = 0x60;
@@ -73,6 +74,7 @@ export function serialiseInstruments(instruments) {
     tables.inst_drum_noise[n] = at('drumNoise', 0, 255);
     tables.inst_drum_fall[n] = at('drumFall', 0, 255);
     tables.inst_release[n] = at('release', 0, 255);
+    tables.inst_arp2[n] = at('arp2', -128, 127) & 0xFF;
   });
   return tables;
 }

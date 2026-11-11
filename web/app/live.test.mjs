@@ -52,9 +52,9 @@ test('tableAddress prefers the symbols, falls back to the fixed layout', () => {
 
 test('instrumentBytes counts up to the highest used slot, sizeInfo gives the free space', () => {
   assert.equal(instrumentBytes([]), 0);
-  assert.equal(instrumentBytes([{}, null, {}, null]), 3 * 15);
+  assert.equal(instrumentBytes([{}, null, {}, null]), 3 * 16);
   const info = sizeInfo({ instruments: [{}, {}] }, 100);
-  assert.deepEqual(info, { song: 100, instruments: 30, free: 0xC000 - 0x3000 - 100 });
+  assert.deepEqual(info, { song: 100, instruments: 32, free: 0xC000 - 0x3000 - 100 });
 });
 
 // ---- the live object -----------------------------------------------------
@@ -218,7 +218,7 @@ test('with the real serialiser: insert a note, the playhead lands on the same ev
     return;
   }
   const instrument = { name: 'b', wave: 0x40, ad: 0x09, sr: 0, pw: 0x800, pwStep: 0, pwMin: 0x20, pwMax: 0xE0,
-    vibDelay: 0, vibDepth: 0, vibSpeed: 0, arp: 0, drumNoise: 0, drumFall: 0, release: 2 };
+    vibDelay: 0, vibDepth: 0, vibSpeed: 0, arp: 0, arp2: 0, drumNoise: 0, drumFall: 0, release: 2 };
   const base = {
     instruments: [instrument],
     song: {

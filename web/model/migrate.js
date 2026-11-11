@@ -8,10 +8,22 @@
 
 import { FORMAT } from '../version.js';
 import { NewerFormatError, readFormat } from './format.js';
-import { parseProjectText, projectFromData } from './export.js';
+import { checkProjectShape, parseProjectText, projectFromData } from './export.js';
 
-/** @type {Array<(data: object) => { data: object, losses: string[] }>} none yet: format 1 is the first. */
-export const MIGRATIONS = [];
+/**
+ * Format 1 to 2: the arpeggio got a second offset (instrument field `arp2`, table inst_arp2). A format 1
+ * instrument has a two-note arpeggio, and that is what arp2 = 0 means, so every instrument gets 0 and
+ * sounds as it did. Nothing is lost.
+ */
+function addSecondArpeggioOffset(data) {
+  const instruments = Array.isArray(data.instruments)
+    ? data.instruments.map((inst) => (inst && typeof inst === 'object' ? { ...inst, arp2: 0 } : inst))
+    : data.instruments;
+  return { data: { ...data, version: 2, instruments }, losses: [] };
+}
+
+/** @type {Array<(data: object) => { data: object, losses: string[] }>} */
+export const MIGRATIONS = [addSecondArpeggioOffset];
 
 /**
  * @param {string} text  the project file
@@ -25,6 +37,7 @@ export function inspectProject(text, { format = FORMAT, migrations = MIGRATIONS 
   const fromFormat = readFormat(data);
   const release = typeof data.release === 'string' ? data.release : null;
   if (fromFormat > format) throw new NewerFormatError(fromFormat, release);
+  checkProjectShape(data);
   if (fromFormat === format) return { status: 'current', project: projectFromData(data) };
 
   const losses = [];

@@ -75,3 +75,20 @@ test('projectFromJson opens the current format and refuses other formats', () =>
   assert.throws(() => projectFromJson(textWith({ version: FORMAT + 1 })), NewerFormatError);
   if (FORMAT > 1) assert.throws(() => projectFromJson(textWith({ version: FORMAT - 1 })), OlderFormatError);
 });
+
+test('format 1 to 2: every instrument gets a second arpeggio offset of 0 and nothing is lost', () => {
+  const data = JSON.parse(projectToJson(newProject()));
+  data.version = 1;
+  data.instruments = [{ ...data.instruments[0], arp: 7 }, null, { ...data.instruments[0], arp: -12, arp2: 5 }];
+  for (const inst of data.instruments.slice(0, 1)) delete inst.arp2;        // a real format 1 file has no such field
+  const info = inspectProject(JSON.stringify(data), { format: 2 });
+  assert.equal(info.status, 'older');
+  assert.deepEqual(info.losses, []);
+  assert.deepEqual(info.problems, []);
+  assert.deepEqual(info.project.instruments.map((inst) => inst && [inst.arp, inst.arp2]), [[7, 0], null, [-12, 0]]);
+});
+
+test('json that is not a project is refused as such, not offered for porting', () => {
+  assert.throws(() => inspectProject('{"a":1}', { format: 2 }), /not a project file/);
+  assert.throws(() => inspectProject('{"version":1,"instruments":[]}', { format: 2 }), /not a project file/);
+});

@@ -23,7 +23,7 @@ const FRAME_CYCLES = 19656;
 const SONG = 0x3000;                    // where the tracker puts its song
 const TABLE_NAMES = ['inst_wave', 'inst_ad', 'inst_sr', 'inst_pw_lo', 'inst_pw_hi', 'inst_pw_step', 'inst_pw_min',
   'inst_pw_max', 'inst_vib_delay', 'inst_vib_depth', 'inst_vib_speed', 'inst_arp', 'inst_drum_noise',
-  'inst_drum_fall', 'inst_release'];
+  'inst_drum_fall', 'inst_release', 'inst_arp2'];
 
 // The note names used in the tests: pitch = 12 * octave + semitone, C-0 = 0, A-4 = 57
 const C3 = 36, E3 = 40, A3 = 45, C4 = 48, A4 = 57, C5 = 60;
@@ -124,10 +124,10 @@ class Machine {
 function setInstrument(machine, number, fields = {}) {
   const f = {
     wave: 0x40, ad: 0x00, sr: 0xF0, pw: 0x0800, pwStep: 0, pwMin: 0, pwMax: 255,
-    vibDelay: 0, vibDepth: 0, vibSpeed: 0, arp: 0, drumNoise: 0, drumFall: 0, release: 2, ...fields,
+    vibDelay: 0, vibDepth: 0, vibSpeed: 0, arp: 0, arp2: 0, drumNoise: 0, drumFall: 0, release: 2, ...fields,
   };
   const values = [f.wave, f.ad, f.sr, f.pw & 255, f.pw >> 8, f.pwStep & 255, f.pwMin, f.pwMax, f.vibDelay,
-    f.vibDepth, f.vibSpeed, f.arp & 255, f.drumNoise, f.drumFall, f.release];
+    f.vibDepth, f.vibSpeed, f.arp & 255, f.drumNoise, f.drumFall, f.release, f.arp2 & 255];
   TABLE_NAMES.forEach((name, i) => { machine.ram[symbols[name] + number] = values[i]; });
 }
 
@@ -533,6 +533,66 @@ test('arpeggio: on every second frame the pitch is raised by the offset', () => 
   assert.deepEqual(new Set(frames.map((f) => f[1].freq)), new Set([freqOf(A3), freqOf(A3 - 12)]));
 });
 
+test('three-note arpeggio: the note, the first offset, the second offset, one frame each', () => {
+  const m = new Machine();
+  setInstrument(m, 0, { arp: 4, arp2: 7, release: 1 });
+  setInstrument(m, 1, { arp: -12, arp2: 12, release: 1 });
+  m.start(song({ speed: 1, voices: [[[0, 0], 'stop'], [[1, 0], 'stop']], patterns: [[A3, 20, END], [INSTR, 1, A3, 20, END]] }));
+  const frames = m.run(9);
+  const cycle = [freqOf(A3), freqOf(A3 + 4), freqOf(A3 + 7)];
+  const up = frames.map((f) => f[0].freq);
+  const first = cycle.indexOf(up[0]);
+  assert.ok(first >= 0, 'the first frame is one of the three pitches');
+  assert.deepEqual(up, [0, 1, 2, 3, 4, 5, 6, 7, 8].map((i) => cycle[(i + first) % 3]));
+  // the second voice is on the same step in every frame (one counter for all voices)
+  const other = [freqOf(A3), freqOf(A3 - 12), freqOf(A3 + 12)];
+  assert.deepEqual(frames.map((f) => f[1].freq), [0, 1, 2, 3, 4, 5, 6, 7, 8].map((i) => other[(i + first) % 3]));
+});
+
+test('three-note arpeggio: the step counter goes 0, 1, 2 and music_init clears it', () => {
+  const m = new Machine();
+  setInstrument(m, 0, { arp: 3, arp2: 7, release: 1 });
+  m.start(oneVoice([C4, 40, END], 1));
+  const steps = [];
+  const freq = [];
+  for (let i = 0; i < 7; i++) { m.frame(); steps.push(m.state('st_arp_step')); freq.push(m.voices()[0].freq); }
+  assert.deepEqual(steps, [1, 2, 0, 1, 2, 0, 1]);
+  assert.deepEqual(freq, steps.map((step) => freqOf(C4 + [0, 3, 7][step])));
+  m.start(oneVoice([C4, 40, END], 1));
+  assert.equal(m.state('st_arp_step'), 0);
+});
+
+test('three-note arpeggio: a first offset of 0 plays the note twice, and the offsets are clamped', () => {
+  const m = new Machine();
+  setInstrument(m, 0, { arp: 0, arp2: 12, release: 1 });
+  setInstrument(m, 1, { arp: 7, arp2: 12, release: 1 });
+  m.start(song({ speed: 1, voices: [[[0, 0], 'stop'], [[1, 0], 'stop']], patterns: [[C4, 20, END], [INSTR, 1, 90, 20, END]] }));
+  const frames = m.run(6);
+  const step = (i) => (i + 1) % 3;                 // the counter is 1 in the first frame
+  assert.deepEqual(frames.map((f) => f[0].freq), [0, 1, 2, 3, 4, 5].map((i) => freqOf(C4 + [0, 0, 12][step(i)])));
+  assert.deepEqual(frames.map((f) => f[1].freq), [0, 1, 2, 3, 4, 5].map((i) => freqOf([90, 95, 95][step(i)])), 'above pitch 95 it stays at 95');
+});
+
+test('a second offset of 0 keeps the two-note arpeggio, frame for frame', () => {
+  const run = (arp2) => {
+    const m = new Machine();
+    setInstrument(m, 0, { arp: 7, arp2, vibDelay: 4, vibDepth: 6, vibSpeed: 4, pwStep: 9, pwMin: 4, pwMax: 100 });
+    m.start(oneVoice([A3, 6, C4, 6, REST, 2, E3, 10, END], 2));
+    return m.run(48).map((f) => f[0].freq);
+  };
+  const two = run(0);
+  const noteOrFifth = new Set([A3, C4, E3].flatMap((p) => [p, p + 7]));
+  assert.ok(two.some((f, i) => i > 0 && f !== two[i - 1]));
+  assert.notDeepEqual(run(4), two, 'a second offset changes the sound');
+  // with the vibrato off, every frame is the note or the note plus the first offset, never anything else
+  const m = new Machine();
+  setInstrument(m, 0, { arp: 7, arp2: 0, release: 1 });
+  m.start(oneVoice([A3, 6, C4, 6, E3, 10, END], 1));
+  const plain = m.run(22).map((f) => f[0].freq);
+  assert.ok(plain.every((f) => [...noteOrFifth].some((p) => freqOf(p) === f)));
+  assert.ok(plain.every((f, i) => i === 0 || i === 6 || i === 12 || f !== plain[i - 1]), 'it alternates on every frame within a note');
+});
+
 test('a drum: noise first, then the tone starts at the note and falls every frame', () => {
   const m = new Machine();
   setInstrument(m, 0, { wave: 0x10, drumNoise: 3, drumFall: 100, ad: 0x00, sr: 0xF0, release: 2 });
@@ -555,7 +615,7 @@ test('a drum tone that has fallen to 0 stays at 0', () => {
 
 test('vibrato and arpeggio do not touch a drum', () => {
   const m = new Machine();
-  setInstrument(m, 0, { wave: 0x10, drumNoise: 1, drumFall: 10, vibDepth: 40, vibSpeed: 4, arp: 7, release: 1 });
+  setInstrument(m, 0, { wave: 0x10, drumNoise: 1, drumFall: 10, vibDepth: 40, vibSpeed: 4, arp: 7, arp2: 12, release: 1 });
   m.start(oneVoice([C4, 10, END], 1));
   const freq = m.run(6).map((f) => f[0].freq);
   assert.deepEqual(freq, [0, 1, 2, 3, 4, 5].map((i) => freqOf(C4) - 10 * Math.max(0, i - 1)));
