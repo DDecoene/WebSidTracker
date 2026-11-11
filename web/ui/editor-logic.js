@@ -448,6 +448,154 @@ export function transposeNote(events, row, delta) {
   return fromTimeline(cells, trail);
 }
 
+// ---- blocks: a selection of rows, copy, cut, paste ---------------------------------
+//
+// A block is a run of rows (ticks) in one pattern: `from` is the first row, `to` the row
+// after the last one. A clip is what Copy makes of a block: timeline cells, with the
+// instrument of every note written on the note itself, so a clip sounds the same wherever
+// it is pasted. Ticks at the start of a block that belong to a note or rest which began
+// before the block are copied as rest.
+
+// The block between the row where a selection started (`anchor`) and the cursor row, both
+// included: { from, to }, or null when it holds no ticks. The end row is not part of it.
+export function blockRange(anchor, row, total) {
+  if (!Number.isInteger(anchor) || !Number.isInteger(row) || anchor < 0) return null;
+  const from = clamp(Math.min(anchor, row), 0, total);
+  const to = clamp(Math.max(anchor, row) + 1, 0, total);
+  return to > from ? { from, to } : null;
+}
+
+const validRange = (cells, from, to) => Number.isInteger(from) && Number.isInteger(to) && from >= 0 && to <= cells.length && to > from;
+
+// Copy rows from..to-1 as a clip: { ticks, cells }. `incoming` is the instrument in force
+// when the pattern starts (from the order list), used for notes that no instrument event
+// in the pattern covers. Returns null for an empty block.
+export function copyBlock(events, from, to, incoming) {
+  const { cells } = toTimeline(events);
+  if (!validRange(cells, from, to)) return null;
+  const { before } = instrumentsBefore(cells);
+  const out = [];
+  for (let i = from; i < to; i++) {
+    const cell = cells[i];
+    if (cell.cont) { out.push(out.length ? { cont: true } : restHead()); continue; }
+    const head = { pitch: cell.pitch };
+    if (cell.pitch >= 0) {
+      const inForce = cell.inst !== undefined ? cell.inst : before.get(cell);
+      const instrument = inForce !== null && inForce !== undefined ? inForce : incoming;
+      if (Number.isInteger(instrument)) head.inst = instrument;
+      if (cell.leg) head.leg = true;
+    }
+    out.push(head);
+  }
+  return { ticks: out.length, cells: out };
+}
+
+// Put the cells of a clip into a timeline at `row` (the caller made room or removed what
+// was there) and give every pasted note its instrument.
+function placeClip(cells, row, clip, oldBefore) {
+  const pasted = clip.cells.map((cell) => (cell.cont ? { cont: true } : { pitch: cell.pitch, ...(cell.leg ? { leg: true } : {}) }));
+  cells.splice(row, 0, ...pasted);
+  const after = row + pasted.length;
+  if (cells[after] && cells[after].cont) cells[after] = restHead();
+  pasted.forEach((head, i) => {
+    if (head.cont || head.pitch < 0) return;
+    setInstrument(cells, head, clip.cells[i].inst);
+  });
+  repair(cells, oldBefore, after);
+}
+
+const validClip = (clip) => Boolean(clip && Array.isArray(clip.cells) && clip.cells.length && !clip.cells[0].cont);
+
+// Paste a clip over the rows from `row`: those ticks are replaced, later events keep their
+// place. A paste that runs past the end makes the pattern longer.
+export function pasteBlock(events, row, clip) {
+  if (!validClip(clip)) return null;
+  const { cells, trail } = toTimeline(events);
+  const oldBefore = instrumentsBefore(cells).before;
+  row = clamp(row, 0, cells.length);
+  cells.splice(row, clip.cells.length);
+  placeClip(cells, row, clip, oldBefore);
+  return fromTimeline(cells, trail);
+}
+
+// Paste a clip in front of `row`: everything from that row on moves down. A note or rest
+// that is cut in two by it ends there; what is left of it after the clip becomes rest.
+export function insertBlock(events, row, clip) {
+  if (!validClip(clip)) return null;
+  const { cells, trail } = toTimeline(events);
+  const oldBefore = instrumentsBefore(cells).before;
+  row = clamp(row, 0, cells.length);
+  placeClip(cells, row, clip, oldBefore);
+  return fromTimeline(cells, trail);
+}
+
+// Rows from..to-1 become one rest; the timing of everything after them stays. A note that
+// began before the block ends where the block starts.
+export function clearBlock(events, from, to) {
+  const { cells, trail } = toTimeline(events);
+  if (!validRange(cells, from, to)) return null;
+  const oldBefore = instrumentsBefore(cells).before;
+  writeRegion(cells, from, restHead(), to - from);
+  repair(cells, oldBefore, to);
+  const result = fromTimeline(cells, trail);
+  return JSON.stringify(result) === JSON.stringify(events) ? null : result;
+}
+
+// Rows from..to-1 disappear and everything after them moves up. A note that starts inside
+// the block and goes on after it keeps the ticks after the block (as deleteRow does).
+export function deleteBlock(events, from, to) {
+  const { cells, trail } = toTimeline(events);
+  if (!validRange(cells, from, to)) return null;
+  const oldBefore = instrumentsBefore(cells).before;
+  let survivor = null;
+  if (to < cells.length && cells[to].cont) {
+    const start = runStart(cells, to);
+    if (start >= from) survivor = cells[start];
+  }
+  cells.splice(from, to - from);
+  if (survivor) {
+    const head = { ...survivor };
+    oldBefore.set(head, oldBefore.get(survivor));
+    cells[from] = head;
+  }
+  repair(cells, oldBefore, from);
+  return fromTimeline(cells, trail);
+}
+
+// Move every note that starts in rows from..to-1 by `delta` semitones (kept in range).
+export function transposeBlock(events, from, to, delta) {
+  const { cells, trail } = toTimeline(events);
+  if (!validRange(cells, from, to)) return null;
+  let changed = false;
+  for (let i = from; i < to; i++) {
+    const cell = cells[i];
+    if (cell.cont || cell.pitch < 0) continue;
+    const pitch = clamp(cell.pitch + delta, 0, MAX_PITCH);
+    if (pitch !== cell.pitch) { cell.pitch = pitch; changed = true; }
+  }
+  return changed ? fromTimeline(cells, trail) : null;
+}
+
+// Every note that starts in rows from..to-1 plays with `instrument`; the notes after the
+// block keep theirs.
+export function setBlockInstrument(events, from, to, instrument) {
+  const { cells, trail } = toTimeline(events);
+  if (!validRange(cells, from, to)) return null;
+  const oldBefore = instrumentsBefore(cells).before;
+  let notes = 0;
+  for (let i = from; i < to; i++) {
+    const cell = cells[i];
+    if (cell.cont || cell.pitch < 0) continue;
+    setInstrument(cells, cell, instrument);
+    notes++;
+  }
+  if (!notes) return null;
+  repair(cells, oldBefore, to);
+  dropRedundant(cells);
+  const result = fromTimeline(cells, trail);
+  return JSON.stringify(result) === JSON.stringify(events) ? null : result;
+}
+
 // ---- order list and pattern list edits (in place on a song) ---------------------
 
 export function entryKind(entry) {
