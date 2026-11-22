@@ -65,6 +65,8 @@
     <div class="body">
       <p>The sound of the classic C64 game composers comes from playing the SID chip every frame: the pulse width sweeps while a note sounds, vibrato starts late like a hand on a string, one voice runs through a chord, a drum is a puff of noise followed by a falling tone. A tiny player and a few hundred bytes of data do all of that.</p>
       <p>This project has two parts. The <strong>player</strong> is about 2 KB of 6502 assembly, written to be read in an afternoon. The <strong>tracker</strong> is a web page where you write songs for it. The page contains a 6502 core in JavaScript and the reSIDfp chip emulation, and it runs the real player code on them. Nothing is imitated: if it sounds right in the tracker, the same bytes sound right on the machine.</p>
+      <h3>How it started</h3>
+      <p>It began with a game. <a href="https://github.com/DDecoene/raster-rumble">raster-rumble</a>, a small C64 game, had a few hand-written sound effects and a simple tune, and they dragged it down. The classic players that sound right are not free to copy, and none of them came with a tracker where you can see the music while you write it. So both were built from scratch. raster-rumble now plays all of its sound through this player, and its music is a project you can open in the tracker.</p>
       <h3>Who it is for</h3>
       <ul class="plain">
         <li>Makers of C64 games and demos who want music without a big player in the way.</li>
