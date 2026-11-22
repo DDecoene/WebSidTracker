@@ -9,7 +9,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { FORMAT } from '../../version.js';
 import { serialiseSong } from '../serialise.js';
-import { exportInstrumentsAsm, exportSongAsm, projectToJson } from '../export.js';
+import { exportInstrumentsAsm, exportSfxAsm, exportSongAsm, projectToJson } from '../export.js';
 import { formatFingerprint } from '../fingerprint.js';
 import { goldenProject } from './example.js';
 
@@ -26,5 +26,6 @@ writeFileSync(new URL('project.json', dir), projectToJson(project));
 writeFileSync(new URL('instruments.asm', dir), exportInstrumentsAsm(project.instruments));
 writeFileSync(new URL('song_golden.asm', dir), exportSongAsm(project.song, 'golden'));
 writeFileSync(new URL('song.bin', dir), serialiseSong(project.song, 0x3000).bytes);
+writeFileSync(new URL('sfx.asm', dir), exportSfxAsm(project.effects));
 writeFileSync(new URL('fingerprint.txt', dir), formatFingerprint(symbols) + '\n');
 console.log(`golden set of format ${format} written to ${dir.pathname}`);

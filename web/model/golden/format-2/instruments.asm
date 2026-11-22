@@ -70,3 +70,7 @@ inst_release
 ; arpeggio: second offset in semitones (signed, 0 = a two-note arpeggio)
 inst_arp2
         !byte $00, $FB, $00    ; 0-2
+
+; pitch slide: frequency change per frame in units of 8 (signed, 0 = no slide)
+inst_slide
+        !byte $00, $00, $F9    ; 0-2

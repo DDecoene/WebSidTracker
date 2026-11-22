@@ -8,13 +8,16 @@ import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
 
 import {
-  LIMITS, clone, defaultInstrument, defaultSong, demoProject, newProject, noteName, parseNoteName,
+  LIMITS, clone, defaultEffect, defaultInstrument, defaultSong, demoProject, lint, newProject, noteName, parseNoteName,
   previewSong, songSizeInfo, transposedPitch, validate,
 } from './project.js';
 import {
-  INSTRUMENT_TABLES, locatePlayhead, parseSong, playheadFromLocation, serialiseInstruments, serialiseSong,
+  EFFECT_TABLES_SIZE, INSTRUMENT_TABLES, MAX_EFFECTS, locatePlayhead, parseSong, playheadFromLocation, serialiseEffects,
+  serialiseInstruments, serialiseSong,
 } from './serialise.js';
-import { exportInstrumentsAsm, exportPrg, exportSongAsm, projectFromJson, projectToJson } from './export.js';
+import {
+  effectConstants, exportInstrumentsAsm, exportPrg, exportSfxAsm, exportSongAsm, projectFromJson, projectToJson,
+} from './export.js';
 
 const hex = (bytes) => Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join(' ');
 const stripNames = (song) => ({ ...song, name: '', patterns: song.patterns.map((p) => ({ ...p, name: '' })) });
@@ -166,11 +169,11 @@ test('song size limit: info, validate and exportPrg fail clearly', () => {
   const project = newProject();
   const info0 = songSizeInfo(project);
   assert.equal(info0.fits, true);
-  assert.equal(info0.capacity, 0xC000 - 0x3000);
-  assert.equal(info0.songBytes, serialiseSong(project.song, 0x3000).size);
-  assert.equal(info0.instrumentBytes, 15);
+  assert.equal(info0.capacity, 0xC000 - 0x3800);
+  assert.equal(info0.songBytes, serialiseSong(project.song, 0x3800).size);
+  assert.equal(info0.instrumentBytes, 17);
 
-  // 150 patterns of 255 bytes overflow $3000-$BFFF
+  // 150 patterns of 255 bytes overflow $3800-$BFFF
   const events = Array.from({ length: 127 }, () => ({ type: 'note', pitch: 1, length: 1 }));
   project.song.patterns = Array.from({ length: 150 }, () => ({ name: '', events: events.map((e) => ({ ...e })) }));
   project.song.orders[0] = project.song.patterns.slice(0, 100).map((_, i) => ({ pattern: i, transpose: 0 })).concat([{ stop: true }]);
@@ -290,6 +293,8 @@ function assemble(text, origin) {
   for (const raw of text.split('\n')) {
     const line = raw.replace(/;.*$/, '').trimEnd();
     if (!line.trim()) continue;
+    const constant = /^(\w+)\s*=\s*(\S+)$/.exec(line);
+    if (constant) { labels[constant[1]] = Number(constant[2]); continue; }
     if (/^\S/.test(line)) labels[line.trim().split(/\s/)[0]] = pc;
     const dir = /^\s+(!byte|!word)\s+(.*)$/.exec(line);
     if (!dir) { assert.match(line, /^\w+$/, `unexpected line: ${raw}`); continue; }
@@ -298,7 +303,8 @@ function assemble(text, origin) {
     pc += values.length * (dir[1] === '!byte' ? 1 : 2);
   }
   const out = [];
-  const num = (v) => (v[0] === '$' ? parseInt(v.slice(1), 16) : /^-?\d+$/.test(v) ? Number(v) : labels[v]);
+  const num = (v) => (v[0] === '$' ? parseInt(v.slice(1), 16) : /^-?\d+$/.test(v) ? Number(v)
+    : v[0] === '<' ? labels[v.slice(1)] & 0xFF : v[0] === '>' ? labels[v.slice(1)] >> 8 : labels[v]);
   for (const { kind, values } of items) {
     for (const v of values) {
       const n = num(v);
@@ -331,15 +337,15 @@ test('instruments asm: trimmed tables with the inst_* labels', () => {
     const start = labels[name] - 0x2000;
     assert.equal(hex(bytes.subarray(start, start + n)), hex(full[name].subarray(0, n)), name);
   });
-  assert.equal(bytes.length, 16 * n);
+  assert.equal(bytes.length, 17 * n);
   // sparse set: highest used instrument + 1 entries
   const sparse = [null, null, { ...defaultInstrument(), name: 'Third' }];
-  assert.equal(assemble(exportInstrumentsAsm(sparse), 0).bytes.length, 16 * 3);
-  assert.equal(assemble(exportInstrumentsAsm([]), 0).bytes.length, 16);
+  assert.equal(assemble(exportInstrumentsAsm(sparse), 0).bytes.length, 17 * 3);
+  assert.equal(assemble(exportInstrumentsAsm([]), 0).bytes.length, 17);
 });
 
 // A stand-in for player.prg: load address $0801, code up to $1xxx marked with a pattern, and a
-// fake "demo song" at $3000 that the export must remove.
+// fake "demo song" at $3000 and up that the export must remove.
 function fakePlayer({ load = 0x0801, end = 0x3100 } = {}) {
   const prg = new Uint8Array(2 + end - load).fill(0xEA);
   prg[0] = load & 0xFF;
@@ -347,8 +353,9 @@ function fakePlayer({ load = 0x0801, end = 0x3100 } = {}) {
   return prg;
 }
 
-test('exportPrg patches tables at $2000 and the song at $3000', () => {
+test('exportPrg patches tables at $2000, the effects at $3100 and the song at $3800', () => {
   const project = demoProject();
+  project.effects = [{ ...defaultEffect('zap'), voice: 1 }];
   const player = fakePlayer();
   const prg = exportPrg(project, player);
   assert.deepEqual([prg[0], prg[1]], [0x01, 0x08]);
@@ -360,18 +367,21 @@ test('exportPrg patches tables at $2000 and the song at $3000', () => {
   INSTRUMENT_TABLES.forEach((name, k) => {
     for (let i = 0; i < 256; i++) assert.equal(ram(0x2000 + k * 0x100 + i), tables[name][i], `${name}[${i}]`);
   });
+  // effects
+  const effects = serialiseEffects(project.effects, 0x3100);
+  assert.equal(hex(prg.subarray(2 + 0x3100 - 0x0801, 2 + 0x3100 - 0x0801 + effects.size)), hex(effects.bytes));
   // song
-  const song = serialiseSong(project.song, 0x3000);
-  assert.equal(prg.length, 2 + (0x3000 + song.size) - 0x0801);
-  assert.equal(hex(prg.subarray(2 + 0x3000 - 0x0801)), hex(song.bytes));
+  const song = serialiseSong(project.song, 0x3800);
+  assert.equal(prg.length, 2 + (0x3800 + song.size) - 0x0801);
+  assert.equal(hex(prg.subarray(2 + 0x3800 - 0x0801)), hex(song.bytes));
   // a smaller song than the player's built-in one: the old tail is gone
   const small = exportPrg(newProject(), player);
-  assert.equal(small.length, 2 + 0x3000 + serialiseSong(newProject().song, 0x3000).size - 0x0801);
+  assert.equal(small.length, 2 + 0x3800 + serialiseSong(newProject().song, 0x3800).size - 0x0801);
 });
 
 test('exportPrg: image that ends below $3000 still gets all tables; bad images are rejected', () => {
   const prg = exportPrg(newProject(), fakePlayer({ end: 0x1800 }));
-  assert.ok(prg.length >= 2 + 0x3000 - 0x0801);
+  assert.ok(prg.length >= 2 + 0x3800 - 0x0801);
   assert.throws(() => exportPrg(newProject(), new Uint8Array(1)), /empty/);
   assert.throws(() => exportPrg(newProject(), fakePlayer({ load: 0x2000, end: 0x2100 })), /expected below \$2000/);
   const broken = newProject();
@@ -385,8 +395,8 @@ test('exportPrg with the real player image, if it is built', { skip: !existsSync
   const prg = exportPrg(project, player);
   const load = player[0] | (player[1] << 8);
   assert.deepEqual([prg[0], prg[1]], [player[0], player[1]]);
-  const song = serialiseSong(project.song, 0x3000);
-  assert.equal(hex(prg.subarray(2 + 0x3000 - load, 2 + 0x3000 - load + song.size)), hex(song.bytes));
+  const song = serialiseSong(project.song, 0x3800);
+  assert.equal(hex(prg.subarray(2 + 0x3800 - load, 2 + 0x3800 - load + song.size)), hex(song.bytes));
   // player code below $2000 is untouched
   const codeEnd = Math.min(0x2000, load + player.length - 2);
   assert.equal(hex(prg.subarray(2, 2 + codeEnd - load)), hex(player.subarray(2, 2 + codeEnd - load)));
@@ -395,8 +405,17 @@ test('exportPrg with the real player image, if it is built', { skip: !existsSync
 test('project JSON round trip and error messages', () => {
   const demo = demoProject();
   assert.deepEqual(projectFromJson(projectToJson(demo)), demo);
-  const sparse = { instruments: [null, { ...defaultInstrument() }], song: defaultSong() };
+  const sparse = { instruments: [null, { ...defaultInstrument() }], song: defaultSong(), effects: [defaultEffect()] };
+  sparse.instruments.push({ ...defaultInstrument(), name: 'filler' });
+  sparse.effects[0].events[0].instrument = 1;
   assert.deepEqual(projectFromJson(projectToJson(sparse)), sparse);
+  // a format 2 file from before the sound effects: no effects, no slide
+  const early = JSON.parse(projectToJson(demo));
+  delete early.effects;
+  early.instruments.forEach((inst) => delete inst.slide);
+  const opened = projectFromJson(JSON.stringify(early));
+  assert.deepEqual(opened.effects, []);
+  assert.ok(opened.instruments.every((inst) => inst.slide === 0));
   assert.throws(() => projectFromJson('not json'), /not valid JSON/);
   assert.throws(() => projectFromJson('{"a":1}'), /not a project file/);
   const broken = JSON.parse(projectToJson(demo));
@@ -422,4 +441,83 @@ test('previewSong and clone', () => {
   assert.deepEqual(copy, demo);
   copy.song.patterns[0].events[0].instrument = 9;
   assert.notDeepEqual(copy, demo);
+});
+
+// ---------------------------------------------------------------- sound effects and slides
+
+test('serialiseEffects: three tables of 64, the count, then speed, events and $FF per effect', () => {
+  const effects = [
+    { name: 'a', speed: 1, voice: 2, events: [{ type: 'inst', instrument: 3 }, { type: 'note', pitch: 60, length: 8 }] },
+    { name: 'b', speed: 3, voice: 0, events: [{ type: 'note', pitch: 0x18, length: 2 }, { type: 'legato' }, { type: 'rest', length: 4 }] },
+  ];
+  const out = serialiseEffects(effects, 0x3100);
+  assert.equal(EFFECT_TABLES_SIZE, 193);
+  const first = 0x3100 + 193;
+  assert.deepEqual(out.addresses, [first, first + 6]);
+  assert.deepEqual([out.bytes[0], out.bytes[64], out.bytes[128]], [first & 255, first >> 8, 2]);
+  assert.deepEqual([out.bytes[1], out.bytes[65], out.bytes[129]], [(first + 6) & 255, (first + 6) >> 8, 0]);
+  assert.equal(out.bytes[192], 2, 'the count');
+  assert.equal(hex(out.bytes.subarray(193)), '01 61 03 3c 08 ff 03 18 02 62 60 04 ff');
+  assert.equal(serialiseEffects([]).size, 193);
+  assert.throws(() => serialiseEffects(Array.from({ length: MAX_EFFECTS + 1 }, () => defaultEffect())), /at most 64/);
+});
+
+test('validate: effects need notes, a speed, a voice, known instruments, and must fit', () => {
+  const project = newProject();
+  project.effects = [defaultEffect()];
+  assert.deepEqual(validate(project), []);
+  const bad = clone(project);
+  bad.effects[0].events = [{ type: 'inst', instrument: 0 }];
+  assert.match(validate(bad).join('|'), /has no notes/);
+  bad.effects[0] = { ...defaultEffect(), speed: 0, voice: 3 };
+  assert.match(validate(bad).join('|'), /speed must be/);
+  assert.match(validate(bad).join('|'), /voice must be 0, 1 or 2/);
+  bad.effects[0] = { ...defaultEffect(), events: [{ type: 'inst', instrument: 9 }, { type: 'note', pitch: 1, length: 1 }] };
+  assert.match(validate(bad).join('|'), /instrument 9 does not exist/);
+  const long = clone(project);
+  long.effects[0].events = Array.from({ length: 127 }, () => ({ type: 'note', pitch: 1, length: 1 }));
+  assert.match(validate(long).join('|'), /256 bytes, the player allows 255/);
+  const many = clone(project);
+  const effect = { ...defaultEffect(), events: Array.from({ length: 126 }, () => ({ type: 'note', pitch: 1, length: 1 })) };
+  many.effects = Array.from({ length: 7 }, () => clone(effect));
+  assert.match(validate(many).join('|'), /sound effects are \d+ bytes, only 1599 fit/);
+  const slide = clone(project);
+  slide.instruments[0].slide = 200;
+  assert.match(validate(slide).join('|'), /slide must be a whole number from -128 to 127/);
+});
+
+test('lint: the arpeggio is not used on a sliding note', () => {
+  const project = newProject();
+  project.instruments[0] = { ...project.instruments[0], slide: 5, arp: 7 };
+  assert.match(lint(project).join('|'), /arpeggio is not applied to a sliding note/);
+});
+
+test('the slide goes into inst_slide as a signed byte', () => {
+  const tables = serialiseInstruments([{ ...defaultInstrument(), slide: -6 }, { ...defaultInstrument(), slide: 100 }]);
+  assert.deepEqual([tables.inst_slide[0], tables.inst_slide[1]], [250, 100]);
+  assert.equal(INSTRUMENT_TABLES[16], 'inst_slide');
+});
+
+test('sfx asm assembles to the effect bytes, with a constant and a voice per effect', () => {
+  const effects = [
+    { name: 'Big boom', speed: 1, voice: 2, events: [{ type: 'inst', instrument: 0 }, { type: 'note', pitch: 52, length: 40 }] },
+    { name: 'big boom', speed: 2, voice: 1, events: [{ type: 'rest', length: 1 }, { type: 'legato' }, { type: 'note', pitch: 60, length: 3 }] },
+    { name: '', speed: 1, voice: 0, events: [{ type: 'note', pitch: 1, length: 1 }] },
+  ];
+  assert.deepEqual(effectConstants(effects), ['SFX_BIG_BOOM', 'SFX_BIG_BOOM_1', 'SFX_2']);
+  const asm = exportSfxAsm(effects);
+  const { bytes, labels } = assemble(asm, 0x4000);
+  assert.equal(labels.SFX_BIG_BOOM_1, 1);
+  const n = effects.length;
+  const data = labels.sfx_0;
+  assert.deepEqual(Array.from(bytes.subarray(0, n)), [labels.sfx_0 & 255, labels.sfx_1 & 255, labels.sfx_2 & 255]);
+  assert.deepEqual(Array.from(bytes.subarray(n, 2 * n)), [labels.sfx_0 >> 8, labels.sfx_1 >> 8, labels.sfx_2 >> 8]);
+  assert.deepEqual(Array.from(bytes.subarray(2 * n, 3 * n)), [2, 1, 0]);
+  assert.equal(bytes[labels.sfx_count - 0x4000], 3);
+  const image = serialiseEffects(effects, 0x3100);
+  assert.equal(hex(bytes.subarray(data - 0x4000)), hex(image.bytes.subarray(EFFECT_TABLES_SIZE)));
+  // no effects: the labels the player needs are still there
+  const empty = assemble(exportSfxAsm([]), 0x4000);
+  assert.ok('sfx_lo' in empty.labels && 'sfx_hi' in empty.labels);
+  assert.equal(hex(empty.bytes), '00');
 });

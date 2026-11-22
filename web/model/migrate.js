@@ -11,19 +11,20 @@ import { NewerFormatError, readFormat } from './format.js';
 import { checkProjectShape, parseProjectText, projectFromData } from './export.js';
 
 /**
- * Format 1 to 2: the arpeggio got a second offset (instrument field `arp2`, table inst_arp2). A format 1
- * instrument has a two-note arpeggio, and that is what arp2 = 0 means, so every instrument gets 0 and
- * sounds as it did. Nothing is lost.
+ * Format 1 to 2: the arpeggio got a second offset (instrument field `arp2`, table inst_arp2), instruments got a
+ * pitch slide (`slide`, table inst_slide), and a project got sound effects (`effects`). A format 1 instrument
+ * has a two-note arpeggio and no slide, which is what arp2 = 0 and slide = 0 mean, and a format 1 project has
+ * no effects. So everything sounds as it did and nothing is lost.
  */
-function addSecondArpeggioOffset(data) {
+function addFormat2Fields(data) {
   const instruments = Array.isArray(data.instruments)
-    ? data.instruments.map((inst) => (inst && typeof inst === 'object' ? { ...inst, arp2: 0 } : inst))
+    ? data.instruments.map((inst) => (inst && typeof inst === 'object' ? { ...inst, arp2: 0, slide: 0 } : inst))
     : data.instruments;
-  return { data: { ...data, version: 2, instruments }, losses: [] };
+  return { data: { ...data, version: 2, instruments, effects: [] }, losses: [] };
 }
 
 /** @type {Array<(data: object) => { data: object, losses: string[] }>} */
-export const MIGRATIONS = [addSecondArpeggioOffset];
+export const MIGRATIONS = [addFormat2Fields];
 
 /**
  * @param {string} text  the project file
