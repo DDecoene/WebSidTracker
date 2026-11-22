@@ -1,6 +1,6 @@
 ; instruments.asm - the default instrument set (MIT licence, see ../LICENSE)
 ;
-; An instrument is one entry in each of 16 tables. The tables are 256 bytes long and sit one after
+; An instrument is one entry in each of 17 tables. The tables are 256 bytes long and sit one after
 ; the other, starting at $2000 (the runner puts the assembler there). The player reaches field F of
 ; instrument N with   ldy N : lda F,y   so no instrument needs more than the same index in every table.
 ; The tracker writes this layout; the exported game files may use shorter tables.
@@ -19,6 +19,9 @@
 ;   10 Saw lead   sawtooth lead with vibrato
 ;   11 Tri bass   soft triangle bass
 ;   12 Octave arp pulse that jumps up an octave on every second frame
+;   13 Zap        effect: pulse that slides down fast (a laser)
+;   14 Ting       effect: a bell-like triangle note
+;   15 Boom       effect: noise that rumbles down (an explosion)
 ;
 ; Envelope numbers (hex digit -> time):  attack 0 = 2 ms, 2 = 16 ms, 4 = 38 ms, 6 = 68 ms, 9 = 250 ms
 ; decay 1 = 24 ms, 3 = 72 ms, 5 = 168 ms, 7 = 240 ms, 8 = 300 ms, 9 = 750 ms.  Sustain 0-F is the level.
@@ -45,6 +48,9 @@ inst_wave
         !byte $20               ; 10 Saw lead
         !byte $10               ; 11 Tri bass
         !byte $40               ; 12 Octave arp
+        !byte $40               ; 13 Zap
+        !byte $10               ; 14 Ting
+        !byte $80               ; 15 Boom
         +end_of_table inst_wave
 
 ; attack (high nibble) and decay (low nibble)
@@ -62,6 +68,9 @@ inst_ad
         !byte $08               ; 10 Saw lead
         !byte $08               ; 11 Tri bass
         !byte $08               ; 12 Octave arp
+        !byte $09               ; 13 Zap
+        !byte $09               ; 14 Ting
+        !byte $0A               ; 15 Boom
         +end_of_table inst_ad
 
 ; sustain level (high nibble) and release (low nibble, not used)
@@ -79,6 +88,9 @@ inst_sr
         !byte $B0               ; 10 Saw lead
         !byte $C0               ; 11 Tri bass
         !byte $A0               ; 12 Octave arp
+        !byte $00               ; 13 Zap
+        !byte $00               ; 14 Ting
+        !byte $00               ; 15 Boom
         +end_of_table inst_sr
 
 ; starting pulse width, low byte. The pulse width is 12 bits: $0800 is a square wave.
@@ -96,6 +108,9 @@ inst_pw_lo
         !byte $00               ; 10 Saw lead
         !byte $00               ; 11 Tri bass
         !byte $00               ; 12 Octave arp
+        !byte $00               ; 13 Zap
+        !byte $00               ; 14 Ting
+        !byte $00               ; 15 Boom
         +end_of_table inst_pw_lo
 
 ; starting pulse width, high nibble
@@ -113,6 +128,9 @@ inst_pw_hi
         !byte $00               ; 10 Saw lead
         !byte $00               ; 11 Tri bass
         !byte $08               ; 12 Octave arp
+        !byte $08               ; 13 Zap
+        !byte $08               ; 14 Ting
+        !byte $08               ; 15 Boom
         +end_of_table inst_pw_hi
 
 ; pulse sweep: signed amount added to the pulse width every frame (0 = no sweep)
@@ -130,6 +148,9 @@ inst_pw_step
         !byte 0                 ; 10 Saw lead
         !byte 0                 ; 11 Tri bass
         !byte 14                ; 12 Octave arp
+        !byte 40                ; 13 Zap
+        !byte 0                 ; 14 Ting
+        !byte 0                 ; 15 Boom
         +end_of_table inst_pw_step
 
 ; sweep limits, in units of 16 (so $20 means a pulse width of $200). The sweep turns around there.
@@ -147,6 +168,9 @@ inst_pw_min
         !byte 0                 ; 10 Saw lead
         !byte 0                 ; 11 Tri bass
         !byte $30               ; 12 Octave arp
+        !byte $20               ; 13 Zap
+        !byte $20               ; 14 Ting
+        !byte $20               ; 15 Boom
         +end_of_table inst_pw_min
 
 inst_pw_max
@@ -163,6 +187,9 @@ inst_pw_max
         !byte 0                 ; 10 Saw lead
         !byte 0                 ; 11 Tri bass
         !byte $D0               ; 12 Octave arp
+        !byte $E0               ; 13 Zap
+        !byte $E0               ; 14 Ting
+        !byte $E0               ; 15 Boom
         +end_of_table inst_pw_max
 
 ; vibrato: frames after the note start before it begins
@@ -180,6 +207,9 @@ inst_vib_delay
         !byte 16                ; 10 Saw lead
         !byte 0                 ; 11 Tri bass
         !byte 0                 ; 12 Octave arp
+        !byte 0                 ; 13 Zap
+        !byte 6                 ; 14 Ting
+        !byte 0                 ; 15 Boom
         +end_of_table inst_vib_delay
 
 ; vibrato depth: how far the pitch moves to each side, in 1/16 of the distance to the next semitone (0 = off)
@@ -197,6 +227,9 @@ inst_vib_depth
         !byte 3                 ; 10 Saw lead
         !byte 0                 ; 11 Tri bass
         !byte 0                 ; 12 Octave arp
+        !byte 0                 ; 13 Zap
+        !byte 4                 ; 14 Ting
+        !byte 0                 ; 15 Boom
         +end_of_table inst_vib_depth
 
 ; vibrato speed: frames for one swing from one side to the other (use an even number, 2 or more)
@@ -214,6 +247,9 @@ inst_vib_speed
         !byte 4                 ; 10 Saw lead
         !byte 0                 ; 11 Tri bass
         !byte 0                 ; 12 Octave arp
+        !byte 0                 ; 13 Zap
+        !byte 6                 ; 14 Ting
+        !byte 0                 ; 15 Boom
         +end_of_table inst_vib_speed
 
 ; arpeggio, first offset: semitones above the note (signed, 0 = off). With inst_arp2 = 0 the pitch is raised
@@ -232,6 +268,9 @@ inst_arp
         !byte 0                 ; 10 Saw lead
         !byte 0                 ; 11 Tri bass
         !byte 12                ; 12 Octave arp: an octave up
+        !byte 0                 ; 13 Zap
+        !byte 0                 ; 14 Ting
+        !byte 0                 ; 15 Boom
         +end_of_table inst_arp
 
 ; drum: frames of noise at the start of the note (0 = this is not a drum)
@@ -249,6 +288,9 @@ inst_drum_noise
         !byte 0                 ; 10 Saw lead
         !byte 0                 ; 11 Tri bass
         !byte 0                 ; 12 Octave arp
+        !byte 0                 ; 13 Zap
+        !byte 0                 ; 14 Ting
+        !byte 0                 ; 15 Boom
         +end_of_table inst_drum_noise
 
 ; drum: after the noise the tone starts at the note's pitch and falls by this much (frequency register
@@ -267,6 +309,9 @@ inst_drum_fall
         !byte 0                 ; 10 Saw lead
         !byte 0                 ; 11 Tri bass
         !byte 0                 ; 12 Octave arp
+        !byte 0                 ; 13 Zap
+        !byte 0                 ; 14 Ting
+        !byte 0                 ; 15 Boom
         +end_of_table inst_drum_fall
 
 ; release: how many frames at the end of every note the gate stays closed, so the next note starts clean.
@@ -285,12 +330,15 @@ inst_release
         !byte 2                 ; 10 Saw lead
         !byte 2                 ; 11 Tri bass
         !byte 2                 ; 12 Octave arp
+        !byte 2                 ; 13 Zap
+        !byte 2                 ; 14 Ting
+        !byte 2                 ; 15 Boom
         +end_of_table inst_release
 
 ; arpeggio, second offset (signed, 0 = a two-note arpeggio as described at inst_arp). When this is not 0 the
 ; arpeggio has three steps of one frame each: the note, the note + inst_arp, the note + inst_arp2. With 4 and 7
-; that is a major chord, with 3 and 7 a minor chord. This table is the last one: it was added in format 2,
-; and at the end it leaves the addresses of the other tables as they were.
+; that is a major chord, with 3 and 7 a minor chord. This table and inst_slide were added in format 2, after
+; the others, so the addresses of the older tables stayed as they were.
 inst_arp2
         !byte 0                 ; 0  Bass
         !byte 0                 ; 1  Lead
@@ -305,4 +353,29 @@ inst_arp2
         !byte 0                 ; 10 Saw lead
         !byte 0                 ; 11 Tri bass
         !byte 0                 ; 12 Octave arp
+        !byte 0                 ; 13 Zap
+        !byte 0                 ; 14 Ting
+        !byte 0                 ; 15 Boom
         +end_of_table inst_arp2
+
+; pitch slide (signed): from the second frame of a note its frequency moves by inst_slide * 8 frequency units
+; per frame, up for a positive value, down for a negative one (it stops at the top and at 0). The vibrato
+; is added on top; the arpeggio is not used on a sliding note. 0 = no slide. Added in format 2, after inst_arp2.
+inst_slide
+        !byte 0                 ; 0  Bass
+        !byte 0                 ; 1  Lead
+        !byte 0                 ; 2  Pad
+        !byte 0                 ; 3  Pluck
+        !byte 0                 ; 4  Kick
+        !byte 0                 ; 5  Snare
+        !byte 0                 ; 6  Hat
+        !byte 0                 ; 7  Arp 5th
+        !byte 0                 ; 8  Tom
+        !byte 0                 ; 9  Open hat
+        !byte 0                 ; 10 Saw lead
+        !byte 0                 ; 11 Tri bass
+        !byte 0                 ; 12 Octave arp
+        !byte -60               ; 13 Zap: down fast
+        !byte 0                 ; 14 Ting
+        !byte -6                ; 15 Boom: down slowly
+        +end_of_table inst_slide

@@ -8,20 +8,22 @@
 // The serialiser functions are passed in (`model`), so the tests can use small fakes:
 //   model.serialiseInstruments(instruments) -> { inst_wave: Uint8Array(256), ... }
 //   model.serialiseSong(song, base)         -> { bytes, size, map, ... }
+//   model.serialiseEffects(effects, base)   -> { bytes, size }   (optional: without it there is no effect area)
 //   model.locatePlayhead(map, state, voice) -> { entry, patternIndex, eventIndex, playingIndex } | null
 //   model.playheadFromLocation(map, loc, voice) -> { orderPos, patAddr, patPos } | null
 //
 // Part of the WebSidTracker web app, GPL version 3 or later (see ../LICENSE).
 
-export const SONG_BASE = 0x3000;        // where the tracker keeps the song in the emulated RAM
+export const SONG_BASE = 0x3800;        // where the tracker keeps the song in the emulated RAM
+export const EFFECT_BASE = 0x3100;      // the sound effects (sfx_lo, sfx_hi, sfx_voice, the count, the effects)
 export const AUDITION_BASE = 0xC000;    // scratch song for note auditions
 export const SONG_LIMIT = 0xC000;       // the song must end below this address
-export const FIRST_TABLE = 0x2000;      // the 16 instrument tables follow each other, 256 bytes each
+export const FIRST_TABLE = 0x2000;      // the 17 instrument tables follow each other, 256 bytes each
 
 export const TABLE_NAMES = [
   'inst_wave', 'inst_ad', 'inst_sr', 'inst_pw_lo', 'inst_pw_hi', 'inst_pw_step', 'inst_pw_min',
   'inst_pw_max', 'inst_vib_delay', 'inst_vib_depth', 'inst_vib_speed', 'inst_arp',
-  'inst_drum_noise', 'inst_drum_fall', 'inst_release', 'inst_arp2',
+  'inst_drum_noise', 'inst_drum_fall', 'inst_release', 'inst_arp2', 'inst_slide',
 ];
 
 /** Address of an instrument table: from the player's symbols, else the fixed layout. */
@@ -61,11 +63,12 @@ export function instrumentBytes(instruments) {
   return used * TABLE_NAMES.length;
 }
 
-/** Size figures for the status readout. */
-export function sizeInfo(project, songSize, songBase = SONG_BASE) {
+/** Size figures for the status readout. `effectSize` is the size of the effect area (tables included). */
+export function sizeInfo(project, songSize, songBase = SONG_BASE, effectSize = 0) {
   return {
     song: songSize,
     instruments: instrumentBytes(project.instruments),
+    effects: effectSize,
     free: Math.max(0, SONG_LIMIT - songBase - songSize),
   };
 }
@@ -168,12 +171,13 @@ export function stateAfterEdit(state, edit) {
 /**
  * @param {{model: object, symbols?: object, songBase?: number}} options
  */
-export function createLive({ model, symbols = {}, songBase = SONG_BASE }) {
-  let mirror = null;      // { tables, song, speed } as the engine has it
+export function createLive({ model, symbols = {}, songBase = SONG_BASE, effectBase = EFFECT_BASE }) {
+  let mirror = null;      // { tables, effects, song, speed } as the engine has it
 
   function serialiseAll(project) {
     return {
       tables: model.serialiseInstruments(project.instruments),
+      effects: model.serialiseEffects ? model.serialiseEffects(project.effects ?? [], effectBase) : null,
       song: model.serialiseSong(project.song, songBase),
       speed: project.song.speed,
       project,
@@ -192,12 +196,14 @@ export function createLive({ model, symbols = {}, songBase = SONG_BASE }) {
       if (!mirror) return [];
       const writes = TABLE_NAMES.filter((name) => mirror.tables[name])
         .map((name) => ({ address: tableAddress(name, symbols), bytes: mirror.tables[name] }));
+      if (mirror.effects) writes.push({ address: effectBase, bytes: mirror.effects.bytes });
       writes.push({ address: songBase, bytes: mirror.song.bytes });
       return writes;
     },
 
     get map() { return mirror ? mirror.song.map : null; },
     get songSize() { return mirror ? mirror.song.size : 0; },
+    get effectSize() { return mirror && mirror.effects ? mirror.effects.size : 0; },
 
     /**
      * The project changed. Compute the edit that updates the engine, and remember the new
@@ -216,6 +222,15 @@ export function createLive({ model, symbols = {}, songBase = SONG_BASE }) {
       for (const name of TABLE_NAMES) {
         if (!next.tables[name]) continue;
         writes.push(...diffBytes(previous.tables[name], next.tables[name], tableAddress(name, symbols)));
+      }
+      // An effect that plays reads its bytes as it goes. When the effects move, it could read the middle of
+      // another one, so every effect is stopped (the player takes the requests at its next frame).
+      if (next.effects) {
+        const effectWrites = diffBytes(previous.effects && previous.effects.bytes, next.effects.bytes, effectBase);
+        writes.push(...effectWrites);
+        if (effectWrites.length > 0 && symbols.st_sfx_req !== undefined) {
+          writes.push({ address: symbols.st_sfx_req, bytes: Uint8Array.of(0xFF, 0xFF, 0xFF) });
+        }
       }
       const songWrites = diffBytes(previous.song.bytes, next.song.bytes, songBase);
       writes.push(...songWrites);

@@ -282,3 +282,9 @@
 @media (min-height: 900px) { .ed { --ed-order-rows: 8; } }
 @media (min-height: 1100px) { .ed { --ed-order-rows: 9; } }
 @media (min-height: 1400px) { .ed { --ed-order-rows: 10; } }
+
+/* ---- one-voice mode (a sound effect in the Effects view) -------------------------------- */
+.ed-single .ed-pats, .ed-single .ed-orders, .ed-single .ed-grip, .ed-single .ed-follow { display: none; }
+.ed-single .ed-body { grid-template-columns: minmax(0, 1fr); }
+.ed-single .ed-head, .ed-single .ed-row { grid-template-columns: 2.6em minmax(0, 1fr); }
+.ed-single .ed-vh:nth-child(n + 3), .ed-single .ed-c[data-v="1"], .ed-single .ed-c[data-v="2"] { display: none; }

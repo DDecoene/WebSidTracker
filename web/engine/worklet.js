@@ -53,6 +53,7 @@ class SidTracker extends AudioWorkletProcessor {
         case 'edit': engine.applyEdit(msg); break;
         case 'model': engine.setModel(msg.model); break;
         case 'mute': engine.setMuted(msg.voice, msg.muted); break;
+        case 'sfx': engine.playEffect(msg.voice, msg.effect); break;
         case 'volume': this.volume = Math.min(1, Math.max(0, Number(msg.value) || 0)); break;
       }
     } catch (error) {

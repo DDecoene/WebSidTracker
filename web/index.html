@@ -157,10 +157,11 @@
       <dl class="feat">
         <div><dt>Live editing</dt><dd>Change notes, patterns and instruments while the song plays. The new data goes into the running player between two frames.</dd></div>
         <div><dt>Three voices</dt><dd>One order list per voice, patterns shared between voices, transposition per order entry, mute per voice.</dd></div>
-        <div><dt>Instruments</dt><dd>Waveforms, ADSR with the real SID times, a pulse width sweep, vibrato that starts late, an arpeggio of two or three notes, and drums on any voice.</dd></div>
+        <div><dt>Instruments</dt><dd>Waveforms, ADSR with the real SID times, a pulse width sweep, vibrato that starts late, an arpeggio of two or three notes, a pitch slide, and drums on any voice.</dd></div>
+        <div><dt>Sound effects</dt><dd>Short effects for your game, made with the same instruments and editor as the music. The game starts one with one call; it borrows a voice and the music comes back in time.</dd></div>
         <div><dt>Patterns and order lists</dt><dd>A grid with one row per tick, a keyboard layout like other trackers, undo and redo for every edit.</dd></div>
-        <div><dt>Six demo songs</dt><dd>Open one, press play, and change things to see what each field does.</dd></div>
-        <div><dt>Exports</dt><dd><code>music.asm</code> (the player), <code>instruments.asm</code> and <code>song_name.asm</code> as ACME source, a ready-to-run <code>.prg</code>, and a <code>.sid</code> file for SID players.</dd></div>
+        <div><dt>Seven demos</dt><dd>Six songs and a set of sound effects. Open one, press play, and change things to see what each field does.</dd></div>
+        <div><dt>Exports</dt><dd><code>music.asm</code> (the player), <code>instruments.asm</code>, <code>sfx.asm</code> and <code>song_name.asm</code> as ACME source, a ready-to-run <code>.prg</code>, and a <code>.sid</code> file for SID players.</dd></div>
         <div><dt>Projects as JSON</dt><dd>Save and open your work as a file. The tracker also keeps an autosave in the browser.</dd></div>
         <div><dt>Runs in the browser</dt><dd>No server, no account. Once loaded it works offline. Chip model 6581 or 8580.</dd></div>
       </dl>
@@ -180,7 +181,7 @@
   <div class="wrap sheet-grid">
     <h2 id="h-demos">Demo songs</h2>
     <div class="body">
-      <p>Six songs ship with the tracker. Five are arrangements of public-domain pieces, rebuilt from printed scores, and one is an original tune. The link opens the song in the tracker; press Play there.</p>
+      <p>Six songs ship with the tracker, and a set of sound effects. Five songs are arrangements of public-domain pieces, rebuilt from printed scores, and one is an original tune. The link opens the demo in the tracker; press Play there.</p>
       <ul class="songs">
         <li>
           <div><h3>Ode to Joy</h3><p class="by">Beethoven</p></div>
@@ -212,6 +213,11 @@
           <p>A 16-bar tune in A minor with bass, lead and drums, built from a few small patterns that are reused with transposition.</p>
           <a href="tracker.html?demo=original">Play in the tracker<span class="sr"> : Original demo tune</span></a>
         </li>
+        <li>
+          <div><h3>Sound effects</h3><p class="by">WebSidTracker</p></div>
+          <p>The original tune with game effects: a dodge, a chapter bell, a hit on two voices, a laser and a power-up. Open the Effects tab and play them over the song.</p>
+          <a href="tracker.html?demo=sound-effects">Open in the tracker<span class="sr"> : Sound effects</span></a>
+        </li>
       </ul>
     </div>
   </div>
@@ -221,15 +227,19 @@
   <div class="wrap sheet-grid">
     <h2 id="h-game">Using it in your game</h2>
     <div class="body">
-      <p>Export <code>music.asm</code>, <code>instruments.asm</code> and your song file, include them in your ACME project, and make two calls. <code>music_init</code> takes the address of the song in A (low byte) and X (high byte). <code>music_play</code> goes in your raster interrupt, once per frame.</p>
+      <p>Export <code>music.asm</code>, <code>instruments.asm</code>, <code>sfx.asm</code> and your song file, include them in your ACME project, and make two calls. <code>music_init</code> takes the address of the song in A (low byte) and X (high byte). <code>music_play</code> goes in your raster interrupt, once per frame.</p>
       <pre class="code" tabindex="0"><code>        lda #&lt;my_song        ; address of the song header
         ldx #&gt;my_song
         jsr music_init       ; starts the song (volume is set to 15)
         ...
 irq     jsr music_play       ; once per frame, from the raster interrupt
         ...
-        jsr music_stop       ; silence, st_running = 0</code></pre>
-      <p>The player needs 14 bytes of zero page and about 1.6 KB. It has no song table: pick a song by its label. How it behaves in every case, the memory map and the measured run time per frame are in <a href="https://github.com/DDecoene/WebSidTracker/blob/main/docs/player.md">docs/player.md</a>.</p>
+        jsr music_stop       ; silence, st_running = 0
+        ...
+        lda #SFX_BOOM        ; a sound effect from sfx.asm
+        ldx #2               ; on voice 3
+        jsr sfx_play         ; starts at the next music_play</code></pre>
+      <p>The player needs 14 bytes of zero page and about 2 KB. It has no song table: pick a song by its label. How it behaves in every case, the memory map and the measured run time per frame are in <a href="https://github.com/DDecoene/WebSidTracker/blob/main/docs/player.md">docs/player.md</a>.</p>
     </div>
   </div>
 </section>
@@ -243,8 +253,6 @@ irq     jsr music_play       ; once per frame, from the raster interrupt
         <li>PAL only. NTSC needs another frequency table and 60 Hz timing.</li>
         <li>One fixed speed per song. You cannot change the speed inside a song.</li>
         <li>No filter yet.</li>
-        <li>No sound effects that borrow a voice yet.</li>
-        <li>The pattern editor has no mouse selection or copy and paste; the mouse only places the cursor.</li>
         <li>The default instruments and the demo songs are still being fine-tuned by ear.</li>
       </ul>
     </div>

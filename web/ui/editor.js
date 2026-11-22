@@ -27,6 +27,10 @@
 // stays fast. Row height is fixed (ROW_H, measured from the stylesheet) for that reason. The
 // order lists are small, their rows hold real controls and are kept between renders.
 //
+// One-voice mode (`single`): the Effects view uses the same editor for one sound effect. It gets a store
+// that shows the effect as a song with one pattern on voice 1 (see effects.js). The Patterns panel, the
+// order lists and voices 2 and 3 are hidden, and the keys that would reach them do nothing.
+//
 // Part of the WebSidTracker web app, GPL version 3 or later (see ../LICENSE).
 
 import {
@@ -63,7 +67,7 @@ let clipboard = null;
 
 const escapeHtml = (text) => String(text).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
-export function mountEditor(container, store) {
+export function mountEditor(container, store, { single = false } = {}) {
   const ui = {
     zone: 'pattern',               // which part has the keyboard: 'pattern' or 'order'
     field: 'pattern',              // in the order list: which field of the entry ('pattern', 'transpose', 'target')
@@ -95,6 +99,7 @@ export function mountEditor(container, store) {
   // ---- the DOM, built once ---------------------------------------------------------
 
   container.classList.add('ed');
+  container.classList.toggle('ed-single', single);
   container.tabIndex = 0;
   container.setAttribute('aria-label', 'Pattern editor');
   container.innerHTML = `
@@ -212,7 +217,7 @@ export function mountEditor(container, store) {
 
   const song = () => store.project.song;
   const sel = () => store.selection;
-  const voiceOf = () => clamp(sel().voice | 0, 0, 2);
+  const voiceOf = () => (single ? 0 : clamp(sel().voice | 0, 0, 2));
   const entryOf = (v) => song().orders[v][ui.shown[v]];
   const patternIndexOf = (v) => {
     const entry = entryOf(v);
@@ -354,8 +359,9 @@ export function mountEditor(container, store) {
     const typing = ui.instEntry !== null ? `   instrument: ${ui.instEntry.padEnd(2, '_')}` : '';
     const block = blockOf();
     const picked = block ? `  block ${hex2(block.from)}-${hex2(block.to - 1)} (${block.to - block.from})` : '';
-    statusEl.textContent =
-      `Voice ${v + 1} ${where}  entry ${hex2(ui.shown[v])}  pattern ${patNo >= 0 ? hex2(patNo) : '--'}  row ${hex2(ui.row)}${picked}` +
+    statusEl.textContent = (single
+      ? `Effect  row ${hex2(ui.row)}${picked}`
+      : `Voice ${v + 1} ${where}  entry ${hex2(ui.shown[v])}  pattern ${patNo >= 0 ? hex2(patNo) : '--'}  row ${hex2(ui.row)}${picked}`) +
       `  |  octave ${s.octave}  length ${s.defaultLength}  step ${s.step}${typing}`;
     followBox.checked = ui.follow;
 
@@ -575,7 +581,9 @@ export function mountEditor(container, store) {
       const label = layout
         ? `<b>P${hex2(n)}</b> ${pattern.name ? escapeHtml(pattern.name) : ''}<i>${layout.total} ticks</i>`
         : `<i>${entryKind(entryOf(v)) === 'none' ? 'no entry' : escapeHtml(entryLabel(entryOf(v)))}</i>`;
-      head += `<div class="ed-vh${v === v0 ? ' sel' : ''}">V${v + 1} ${label}</div>`;
+      head += single && layout
+        ? `<div class="ed-vh sel">${pattern.name ? escapeHtml(pattern.name) : 'Effect'}<i>${layout.total} ticks</i></div>`
+        : `<div class="ed-vh${v === v0 ? ' sel' : ''}">V${v + 1} ${label}</div>`;
     });
     setHtml(headEl, head);
 
@@ -619,6 +627,7 @@ export function mountEditor(container, store) {
   }
 
   function setVoice(v) {
+    if (single) return;
     v = (v + 3) % 3;
     dropBlock();
     selfSelecting = true;
@@ -1273,6 +1282,8 @@ export function mountEditor(container, store) {
       return;
     }
     let handled = true;
+    // One-voice mode: no order list, no other voices, no pattern list. Tab leaves the editor as usual.
+    if (single && (e.altKey || e.key === 'Tab' || e.key === 'o' || (e.shiftKey && 'NDXP'.includes(e.key)))) return;
 
     if (ui.instEntry !== null) {                        // typing an instrument number
       if (/^[0-9a-fA-F]$/.test(e.key)) typeInstrumentDigit(e.key);

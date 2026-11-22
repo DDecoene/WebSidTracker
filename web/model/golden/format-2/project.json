@@ -19,7 +19,8 @@
    "arp2": 0,
    "drumNoise": 0,
    "drumFall": 0,
-   "release": 3
+   "release": 3,
+   "slide": 0
   },
   {
    "name": "Lead",
@@ -37,7 +38,8 @@
    "arp2": -5,
    "drumNoise": 0,
    "drumFall": 0,
-   "release": 2
+   "release": 2,
+   "slide": 0
   },
   {
    "name": "Snare",
@@ -55,7 +57,8 @@
    "arp2": 0,
    "drumNoise": 2,
    "drumFall": 40,
-   "release": 1
+   "release": 1,
+   "slide": -7
   }
  ],
  "song": {
@@ -168,5 +171,51 @@
     }
    ]
   ]
- }
+ },
+ "effects": [
+  {
+   "name": "zap",
+   "speed": 1,
+   "voice": 2,
+   "events": [
+    {
+     "type": "inst",
+     "instrument": 2
+    },
+    {
+     "type": "note",
+     "pitch": 72,
+     "length": 6
+    },
+    {
+     "type": "legato"
+    },
+    {
+     "type": "note",
+     "pitch": 60,
+     "length": 4
+    },
+    {
+     "type": "rest",
+     "length": 1
+    }
+   ]
+  },
+  {
+   "name": "ting",
+   "speed": 3,
+   "voice": 0,
+   "events": [
+    {
+     "type": "inst",
+     "instrument": 1
+    },
+    {
+     "type": "note",
+     "pitch": 78,
+     "length": 2
+    }
+   ]
+  }
+ ]
 }

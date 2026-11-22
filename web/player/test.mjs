@@ -20,10 +20,10 @@ const symbols = JSON.parse(readFileSync(new URL('./symbols.json', import.meta.ur
 const sidModule = new WebAssembly.Module(readFileSync(new URL('../sid/sid.wasm', import.meta.url)));
 
 const FRAME_CYCLES = 19656;
-const SONG = 0x3000;                    // where the tracker puts its song
+const SONG = 0x3800;                    // where the tracker puts its song
 const TABLE_NAMES = ['inst_wave', 'inst_ad', 'inst_sr', 'inst_pw_lo', 'inst_pw_hi', 'inst_pw_step', 'inst_pw_min',
   'inst_pw_max', 'inst_vib_delay', 'inst_vib_depth', 'inst_vib_speed', 'inst_arp', 'inst_drum_noise',
-  'inst_drum_fall', 'inst_release', 'inst_arp2'];
+  'inst_drum_fall', 'inst_release', 'inst_arp2', 'inst_slide'];
 
 // The note names used in the tests: pitch = 12 * octave + semitone, C-0 = 0, A-4 = 57
 const C3 = 36, E3 = 40, A3 = 45, C4 = 48, A4 = 57, C5 = 60;
@@ -124,10 +124,10 @@ class Machine {
 function setInstrument(machine, number, fields = {}) {
   const f = {
     wave: 0x40, ad: 0x00, sr: 0xF0, pw: 0x0800, pwStep: 0, pwMin: 0, pwMax: 255,
-    vibDelay: 0, vibDepth: 0, vibSpeed: 0, arp: 0, arp2: 0, drumNoise: 0, drumFall: 0, release: 2, ...fields,
+    vibDelay: 0, vibDepth: 0, vibSpeed: 0, arp: 0, arp2: 0, drumNoise: 0, drumFall: 0, release: 2, slide: 0, ...fields,
   };
   const values = [f.wave, f.ad, f.sr, f.pw & 255, f.pw >> 8, f.pwStep & 255, f.pwMin, f.pwMax, f.vibDelay,
-    f.vibDepth, f.vibSpeed, f.arp & 255, f.drumNoise, f.drumFall, f.release, f.arp2 & 255];
+    f.vibDepth, f.vibSpeed, f.arp & 255, f.drumNoise, f.drumFall, f.release, f.arp2 & 255, f.slide & 255];
   TABLE_NAMES.forEach((name, i) => { machine.ram[symbols[name] + number] = values[i]; });
 }
 
@@ -904,4 +904,233 @@ test('audio: every repeated note starts on its tick (the SID envelope delay bug 
     const late = rest.filter((on) => on < 0 || on > first + 20);
     assert.deepEqual(late, [], `ad ${ad.toString(16)} sr ${sr.toString(16)} release ${release}: onsets ${rest}`);
   }
+});
+
+// ---------------------------------------------------------------------------------------------------
+// Sound effects and pitch slides (format 2, see docs/design-sound-effects.md)
+// ---------------------------------------------------------------------------------------------------
+
+const SFX_DATA = 0x3300;                // where these tests put their effects (inside the tracker's effect area)
+
+// effects: [{ speed, events: [bytes] }]. Writes sfx_lo/sfx_hi and the data (speed, events, $FF).
+function setEffects(machine, effects) {
+  let at = SFX_DATA;
+  effects.forEach((effect, n) => {
+    machine.ram[symbols.sfx_lo + n] = at & 255;
+    machine.ram[symbols.sfx_hi + n] = at >> 8;
+    const bytes = [effect.speed, ...effect.events, END];
+    machine.ram.set(bytes, at);
+    at += bytes.length;
+  });
+}
+
+function sfxPlay(machine, n, voice) { machine.call('sfx_play', n, voice); }
+function sfxStop(machine, voice) { machine.call('sfx_stop', 0, voice); }
+const lane = (voice) => 3 + voice;
+const regsOf = (log) => [...new Set(log.map((w) => w.reg))];
+
+test('symbols.json has the effect entry points, tables and state', () => {
+  for (const name of ['sfx_play', 'sfx_stop', 'sfx_lo', 'sfx_hi', 'sfx_voice', 'sfx_count', 'inst_slide', 'st_sfx_req', 'st_wait']) {
+    assert.ok(name in symbols, `missing symbol ${name}`);
+  }
+  assert.equal(symbols.inst_slide, 0x3000, 'the seventeenth table');
+  assert.equal(symbols.sfx_lo, 0x3100);
+  assert.ok(symbols.freq_lo - symbols.music_start <= 2048, `player code is ${symbols.freq_lo - symbols.music_start} bytes`);
+});
+
+test('an effect plays without a song and before music_init, on the voice it was asked for', () => {
+  const m = new Machine();                       // the state block is as it is in the file: all zeros
+  setInstrument(m, 1, { wave: 0x10, ad: 0x00, sr: 0xF0, release: 1 });
+  setEffects(m, [{ speed: 1, events: [INSTR, 1, C4, 4] }]);
+  m.frame();
+  assert.equal(m.log.length, 0, 'nothing plays before a request');
+  sfxPlay(m, 0, 2);
+  assert.equal(m.log.length, 0, 'sfx_play itself writes nothing to the SID');
+  m.frame();
+  assert.deepEqual(m.voices()[2], { freq: freqOf(C4), pw: 0x800, ctrl: 0x11, gate: 1, ad: 0x00, sr: 0xF0 });
+  assert.ok(regsOf(m.log).every((r) => r >= 14 && r <= 20), 'only voice 3 is written');
+  const gate = gates(m.run(5), 2);
+  assert.deepEqual(gate, [1, 1, 0, 0, 0], 'four frames with a clean end of one frame, then it is over');
+  assert.equal(m.state('st_active', lane(2)), 0, 'the effect lane has stopped');
+  m.frame();
+  assert.equal(m.log.length, 0, 'after the effect nothing is written');
+});
+
+test('while an effect plays the music of that voice is silent but keeps time, and comes back at its next note', () => {
+  const pattern = [INSTR, 0, C3, 8, E3, 8, A3, 8, END];
+  const music = () => song({ speed: 1, voices: [[[0, 0], 'stop']], patterns: [pattern] });
+  const ref = new Machine();
+  const m = new Machine();
+  for (const x of [ref, m]) {
+    setInstrument(x, 0, { ad: 0x00, sr: 0xF0 });
+    setInstrument(x, 1, { wave: 0x10, ad: 0x00, sr: 0xF0, release: 1 });
+    setEffects(x, [{ speed: 1, events: [INSTR, 1, C5, 3] }]);
+    x.start(music());
+  }
+  ref.run(2);
+  m.run(2);
+  sfxPlay(m, 0, 0);
+  for (let f = 2; f < 24; f++) {
+    ref.frame();
+    m.frame();
+    assert.equal(m.state('st_pat_pos', 0), ref.state('st_pat_pos', 0), `frame ${f}: the music keeps its place`);
+    if (f < 5) assert.equal(m.voices()[0].freq, freqOf(C5), `frame ${f}: the effect sounds`);
+    if (f >= 5 && f < 8) assert.equal(m.voices()[0].gate, 0, `frame ${f}: after the effect the C-3 does not come back`);
+    if (f >= 8) assert.deepEqual(m.voices()[0], ref.voices()[0], `frame ${f}: from the E-3 on the voice is the music again`);
+  }
+});
+
+test('two effects play at once on two voices, and the third voice keeps its music', () => {
+  const m = new Machine();
+  setInstrument(m, 0, { ad: 0x00, sr: 0xF0 });
+  setInstrument(m, 1, { wave: 0x20, ad: 0x00, sr: 0xF0, release: 1 });
+  setEffects(m, [{ speed: 1, events: [INSTR, 1, C5, 10] }, { speed: 2, events: [INSTR, 1, A4, 5] }]);
+  m.start(song({ speed: 1, voices: [[[0, 0], 'stop'], [[0, 0], 'stop'], [[0, 0], 'stop']], patterns: [[INSTR, 0, C3, 30, END]] }));
+  m.frame();
+  sfxPlay(m, 0, 0);
+  sfxPlay(m, 1, 1);
+  m.frame();
+  const v = m.voices();
+  assert.equal(v[0].freq, freqOf(C5));
+  assert.equal(v[1].freq, freqOf(A4));
+  assert.equal(v[2].freq, freqOf(C3), 'voice 3 still plays the music');
+  assert.equal(v[2].gate, 1);
+});
+
+test('an effect has its own speed: a note of 5 ticks at speed 2 lasts 10 frames', () => {
+  const m = new Machine();
+  setInstrument(m, 1, { wave: 0x10, ad: 0x00, sr: 0xF0, release: 1 });
+  setEffects(m, [{ speed: 2, events: [INSTR, 1, A4, 5] }]);
+  sfxPlay(m, 0, 1);
+  const gate = gates(m.run(12), 1);
+  assert.deepEqual(gate, [1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0]);
+  assert.equal(m.state('st_active', lane(1)), 0);
+});
+
+test('a new effect replaces the one on that voice; sfx_stop silences the voice at the next frame', () => {
+  const m = new Machine();
+  setInstrument(m, 1, { wave: 0x10, ad: 0x00, sr: 0xF0, release: 1 });
+  setEffects(m, [{ speed: 1, events: [INSTR, 1, C4, 50] }, { speed: 1, events: [INSTR, 1, A4, 50] }]);
+  sfxPlay(m, 0, 0);
+  m.run(3);
+  sfxPlay(m, 1, 0);
+  m.frame();
+  assert.equal(m.voices()[0].freq, freqOf(A4), 'the second effect took over');
+  assert.equal(m.voices()[0].gate, 1);
+  assert.equal(m.log.find((w) => w.reg === 4).value & 0x08, 0x08, 'it starts clean, with the test bit first');
+  sfxStop(m, 0);
+  m.frame();
+  assert.deepEqual([m.sid[4], m.sid[5], m.sid[6]], [0, 0, 0], 'gate off, no waveform, fastest release');
+  assert.equal(m.state('st_active', lane(0)), 0);
+  m.frame();
+  assert.equal(m.log.length, 0);
+});
+
+test('music_init and music_stop end the effects', () => {
+  const m = new Machine();
+  setInstrument(m, 1, { wave: 0x10, ad: 0x00, sr: 0xF0 });
+  setEffects(m, [{ speed: 1, events: [INSTR, 1, C4, 50] }]);
+  sfxPlay(m, 0, 1);
+  m.run(2);
+  m.call('music_stop');
+  assert.equal(m.state('st_active', lane(1)), 0);
+  sfxPlay(m, 0, 1);
+  m.start(oneVoice([REST, 10, END], 1));
+  assert.equal(m.state('st_sfx_req', 1), 0, 'a waiting request is dropped too');
+  m.frame();
+  assert.equal(m.state('st_active', lane(1)), 0);
+});
+
+test('an effect that is only instrument changes ends without hanging', () => {
+  const m = new Machine();
+  setEffects(m, [{ speed: 1, events: [INSTR, 1, INSTR, 2] }]);
+  sfxPlay(m, 0, 0);
+  m.run(3);
+  assert.equal(m.state('st_active', lane(0)), 0);
+});
+
+test('slide: from the second frame the frequency moves by slide * 8 per frame, up or down', () => {
+  for (const slide of [10, -10, 127, -128]) {
+    const m = new Machine();
+    setInstrument(m, 0, { ad: 0x00, sr: 0xF0, slide });
+    m.start(oneVoice([A4, 10, END], 1));
+    const freq = m.run(6).map((f) => f[0].freq);
+    assert.deepEqual(freq, [0, 1, 2, 3, 4, 5].map((i) => freqOf(A4) + slide * 8 * i), `slide ${slide}`);
+  }
+});
+
+test('slide: stops at $FFFF going up and at 0 going down', () => {
+  const up = new Machine();
+  setInstrument(up, 0, { slide: 127 });
+  up.start(oneVoice([90, 30, END], 1));
+  const high = up.run(30).map((f) => f[0].freq);
+  assert.equal(high[high.length - 1], 0xFFFF);
+  assert.ok(high.every((f, i) => i === 0 || f >= high[i - 1]), 'never wraps to low');
+  const down = new Machine();
+  setInstrument(down, 0, { slide: -128 });
+  down.start(oneVoice([C3, 30, END], 1));
+  const low = down.run(30).map((f) => f[0].freq);
+  assert.equal(low[low.length - 1], 0);
+  assert.ok(low.every((f, i) => i === 0 || f <= low[i - 1]), 'never wraps to high');
+});
+
+test('slide: the vibrato is added on top, the arpeggio is not used', () => {
+  const plain = new Machine();
+  const both = new Machine();
+  setInstrument(plain, 0, { slide: 5 });
+  setInstrument(both, 0, { slide: 5, vibDelay: 2, vibDepth: 60, vibSpeed: 4, arp: 12 });
+  for (const m of [plain, both]) m.start(oneVoice([A4, 20, END], 1));
+  const a = plain.run(12).map((f) => f[0].freq);
+  const b = both.run(12).map((f) => f[0].freq);
+  assert.deepEqual(b.slice(0, 3), a.slice(0, 3), 'no arpeggio, no vibrato before its delay');
+  const offsets = b.map((f, i) => f - a[i]);
+  assert.ok(offsets.slice(3).some((d) => d > 0) && offsets.slice(3).some((d) => d < 0), `the vibrato swings around the slide: ${offsets}`);
+  const semitone = freqOf(A4) - freqOf(A4 - 1);
+  assert.ok(offsets.every((d) => Math.abs(d) <= semitone * 60 / 16 + 2), 'within the vibrato depth');
+});
+
+test('slide on a drum: the drum fall and the slide both apply', () => {
+  const m = new Machine();
+  setInstrument(m, 0, { wave: 0x10, drumNoise: 1, drumFall: 10, slide: -2, release: 1 });
+  m.start(oneVoice([C4, 10, END], 1));
+  const freq = m.run(5).map((f) => f[0].freq);
+  assert.deepEqual(freq, [0, 1, 2, 3, 4].map((i) => freqOf(C4) - 16 * i - 10 * Math.max(0, i - 1)));
+});
+
+test('legato on a sliding note slides on from where it is', () => {
+  const m = new Machine();
+  setInstrument(m, 0, { slide: 4 });
+  m.start(oneVoice([A4, 3, LEGATO, C5, 3, END], 1));
+  const freq = m.run(5).map((f) => f[0].freq);
+  assert.deepEqual(freq, [0, 1, 2, 3, 4].map((i) => freqOf(A4) + 32 * i));
+});
+
+test('run time: three music lanes and three effects in their worst case', () => {
+  const m = new Machine();
+  for (const n of [0, 1, 2]) setInstrument(m, n, { vibDelay: 2, vibDepth: 100, vibSpeed: 30, pwStep: 99, pwMin: 3, pwMax: 250, arp: 5, slide: n === 2 ? 3 : 0 });
+  setEffects(m, [{ speed: 1, events: [INSTR, 0, C5, 100] }, { speed: 1, events: [INSTR, 2, C5, 100] }]);
+  m.start(song({ speed: 1, voices: [[[0, 0], 'stop'], [[0, 0], 'stop'], [[0, 0], 'stop']], patterns: [[C4, 100, END]] }));
+  sfxPlay(m, 0, 0);
+  sfxPlay(m, 1, 1);
+  sfxPlay(m, 0, 2);
+  let max = 0;
+  for (let i = 0; i < 100; i++) max = Math.max(max, m.frame());
+  console.log(`music_play, three music lanes and three effects, all six start a vibrato in one frame: ${max} cycles`);
+  // About 10,000 cycles: half a frame. A vibrato start (a multiply and a divide) is the most expensive thing the
+  // player does, and here six of them fall in one frame on purpose. A game with a busy interrupt should not give
+  // its effects vibrato on every voice at once.
+  assert.ok(max < FRAME_CYCLES * 0.55, `${max} cycles`);
+});
+
+test('run time: the demo song with three effects playing over it', () => {
+  const m = new Machine();
+  m.call('music_init', SONG & 255, SONG >> 8);
+  let max = 0;
+  for (let i = 0; i < 600; i++) {
+    if (i % 50 === 0) { sfxPlay(m, 0, 0); sfxPlay(m, 1, 1); sfxPlay(m, 2, 2); }   // the default zap, ting and boom
+    max = Math.max(max, m.frame());
+  }
+  console.log(`music_play, demo song with the three default effects over it: max ${max} cycles`);
+  // Six lanes instead of three: about 5,500 cycles while they play, 6,000 in the frame the three effects start.
+  assert.ok(max < FRAME_CYCLES / 3, `${max} cycles`);
 });
