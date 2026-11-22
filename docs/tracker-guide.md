@@ -207,7 +207,7 @@ Every project file says which format it has and which release wrote it. When you
 - **Open in the old tracker.** The tracker opens the newest release that has the file's format, with your file loaded. Your current project is saved in the browser first.
 - **Cancel.**
 
-The formats so far: format 1 (release 0.1.0), and format 2, which gave the arpeggio its second offset. Porting a format 1 file loses nothing: every instrument gets a second offset of 0 and sounds as it did.
+The formats so far: format 1 (release 0.1.0), and format 2 (release 0.2.0), which gave the arpeggio its second offset, the instruments a slide, and the project its sound effects. Porting a format 1 file loses nothing: every instrument gets a second offset of 0 and a slide of 0 and sounds as it did, and the project gets no effects.
 
 If porting is not possible (the result would not be a valid project) the dialog says why and only the old tracker is offered. If the list of releases cannot be loaded, only porting is offered. A file from a newer tracker is refused with a message; open it in a newer release. Each format keeps its own autosave in the browser, so an older tracker never touches the saved project of a newer one. If the project saved in the browser is the older one, the same dialog is shown at start; choosing **Port** first downloads the original as a file, because it exists only in the browser.
 

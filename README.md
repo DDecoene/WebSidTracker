@@ -2,7 +2,7 @@
 
 A SID music tracker for the browser, built clean-room, with a small player you can drop into your own Commodore 64 game.
 
-> **Status: working, not finished (alpha, release 0.1.0).** The C64 player is built and measured, the browser tracker runs it live: a 6502 core, reSIDfp as WebAssembly, the song model with export, the pattern and order editor and the instrument editor all exist. Try it at <https://ddecoene.github.io/WebSidTracker/>. What is still open is listed in the [roadmap](#roadmap). How to use the tracker: [docs/tracker-guide.md](docs/tracker-guide.md).
+> **Status: working, not finished (alpha, release 0.2.0).** The C64 player is built and measured, the browser tracker runs it live: a 6502 core, reSIDfp as WebAssembly, the song model with export, the pattern and order editor and the instrument editor all exist. Try it at <https://ddecoene.github.io/WebSidTracker/>. What is still open is listed in the [roadmap](#roadmap). How to use the tracker: [docs/tracker-guide.md](docs/tracker-guide.md).
 
 ## Why
 

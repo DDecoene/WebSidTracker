@@ -1,5 +1,5 @@
 ; music.asm - the WebSidTracker music player (MIT licence, see ../LICENSE)
-; websidtracker format 2, release 0.1.0
+; websidtracker format 2, release 0.2.0
 ;
 ; Three voices, patterns and order lists, instruments that change the SID every frame
 ; (pulse sweep, late vibrato, arpeggio, drums, pitch slides), and sound effects that borrow a voice.
@@ -33,7 +33,7 @@ music_start
 ; and the tests read them from the symbol list. Keep them equal to FORMAT and RELEASE in web/version.js.
 format_version  = 2
 release_major   = 0
-release_minor   = 1
+release_minor   = 2
 release_patch   = 0
 
 ; The SID chip. Voice 1 starts at $D400, voice 2 at $D407, voice 3 at $D40E: seven registers each.
