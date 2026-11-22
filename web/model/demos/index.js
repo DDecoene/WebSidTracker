@@ -11,6 +11,7 @@ import * as furElise from './fur-elise.js';
 import * as rondoAllaTurca from './rondo-alla-turca.js';
 import * as toccata from './toccata.js';
 import * as mountainKing from './mountain-king.js';
+import * as soundEffects from './sound-effects.js';
 
 const original = {
   info: {
@@ -30,7 +31,7 @@ const complete = (project) => ({
 });
 
 /** [{ id, title, composer, note, build }], Ode to Joy first as the friendly starter. */
-export const DEMOS = [odeToJoy, furElise, rondoAllaTurca, toccata, mountainKing, original]
+export const DEMOS = [odeToJoy, furElise, rondoAllaTurca, toccata, mountainKing, original, soundEffects]
   .map((demo) => ({ ...demo.info, build: () => complete(demo.build()) }));
 
 /** The demo with this id, or undefined. */

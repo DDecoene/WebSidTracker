@@ -11,8 +11,8 @@ import { DEMOS, findDemo, demoLabel } from './index.js';
 import { lint, songSizeInfo, validate } from '../project.js';
 import { parseSong, serialiseSong } from '../serialise.js';
 
-test('six demos, Ode to Joy first, ids unique', () => {
-  assert.equal(DEMOS.length, 6);
+test('seven demos, Ode to Joy first, ids unique', () => {
+  assert.equal(DEMOS.length, 7);
   assert.equal(DEMOS[0].id, 'ode-to-joy');
   assert.equal(new Set(DEMOS.map((d) => d.id)).size, DEMOS.length);
   assert.equal(findDemo('original').title, 'Original demo tune');
@@ -26,9 +26,10 @@ for (const demo of DEMOS) {
     assert.deepEqual(validate(project), []);
     assert.deepEqual(lint(project), []);
     assert.equal(songSizeInfo(project).fits, true);
-    const { bytes } = serialiseSong(project.song, 0x3000);
-    assert.ok(0x3000 + bytes.length <= 0xC000);
-    assert.equal(parseSong(bytes, 0x3000).orders.length, 3);
+    assert.equal(songSizeInfo(project).effectsFit, true);
+    const { bytes } = serialiseSong(project.song, 0x3800);
+    assert.ok(0x3800 + bytes.length <= 0xC000);
+    assert.equal(parseSong(bytes, 0x3800).orders.length, 3);
   });
 }
 
