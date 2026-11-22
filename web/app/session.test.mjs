@@ -20,6 +20,7 @@ function fakeClient() {
     setModel: (m) => calls.push(['setModel', m]),
     setMuted: (v, b) => calls.push(['setMuted', v, b]),
     setVolume: (x) => calls.push(['setVolume', x]),
+    playEffect: (voice, effect) => calls.push(['playEffect', voice, effect]),
   };
   return client;
 }
@@ -188,4 +189,19 @@ test('the engine reporting an error stops and tells the user', async () => {
   client.onError('runaway');
   assert.equal(session.mode, 'idle');
   assert.match(events.error[0], /runaway/);
+});
+
+test('playEffect plays the effect on its voice, over the song or alone, and not while there are problems', async () => {
+  const { store, client, session } = setup();
+  store.update('effects', (p) => { p.effects = [{ name: 'a', speed: 1, voice: 1, events: [note(60, 4)] }, { name: 'b', speed: 1, voice: 2, events: [note(62, 4)] }]; });
+  await session.playEffect(1);
+  assert.deepEqual(client.calls.filter((c) => c[0] === 'playEffect'), [['playEffect', 2, 1]]);
+  assert.equal(session.mode, 'idle', 'an effect alone does not start the song');
+  await session.playEffect(7);
+  assert.equal(client.calls.filter((c) => c[0] === 'playEffect').length, 1, 'an effect that does not exist plays nothing');
+  const broken = setup({ problems: ['bad'] });
+  broken.store.update('effects', (p) => { p.effects = [{ name: 'a', speed: 1, voice: 0, events: [note(60, 4)] }]; });
+  await broken.session.playEffect(0);
+  assert.ok(!broken.client.calls.some((c) => c[0] === 'playEffect'));
+  assert.equal(broken.events.notice.length, 1);
 });

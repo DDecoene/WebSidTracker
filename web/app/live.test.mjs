@@ -5,7 +5,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  createLive, diffBytes, mapIndex, instrumentBytes, sizeInfo, tableAddress, TABLE_NAMES, SONG_BASE,
+  createLive, diffBytes, mapIndex, instrumentBytes, sizeInfo, tableAddress, TABLE_NAMES, SONG_BASE, EFFECT_BASE,
 } from './live.js';
 import { fakeModel, fakeSerialiseSong, symbols, note, sampleProject } from './fake-model.mjs';
 
@@ -52,9 +52,9 @@ test('tableAddress prefers the symbols, falls back to the fixed layout', () => {
 
 test('instrumentBytes counts up to the highest used slot, sizeInfo gives the free space', () => {
   assert.equal(instrumentBytes([]), 0);
-  assert.equal(instrumentBytes([{}, null, {}, null]), 3 * 16);
-  const info = sizeInfo({ instruments: [{}, {}] }, 100);
-  assert.deepEqual(info, { song: 100, instruments: 32, free: 0xC000 - 0x3000 - 100 });
+  assert.equal(instrumentBytes([{}, null, {}, null]), 3 * 17);
+  const info = sizeInfo({ instruments: [{}, {}] }, 100, SONG_BASE, 200);
+  assert.deepEqual(info, { song: 100, instruments: 34, effects: 200, free: 0xC000 - 0x3800 - 100 });
 });
 
 // ---- the live object -----------------------------------------------------
@@ -218,7 +218,7 @@ test('with the real serialiser: insert a note, the playhead lands on the same ev
     return;
   }
   const instrument = { name: 'b', wave: 0x40, ad: 0x09, sr: 0, pw: 0x800, pwStep: 0, pwMin: 0x20, pwMax: 0xE0,
-    vibDelay: 0, vibDepth: 0, vibSpeed: 0, arp: 0, arp2: 0, drumNoise: 0, drumFall: 0, release: 2 };
+    vibDelay: 0, vibDepth: 0, vibSpeed: 0, arp: 0, arp2: 0, drumNoise: 0, drumFall: 0, release: 2, slide: 0 };
   const base = {
     instruments: [instrument],
     song: {
@@ -254,4 +254,31 @@ test('mapIndex follows inserts, deletes and changes', () => {
   assert.equal(mapIndex(before, ['a', 'd'], 1), 1, 'the deleted one: the next one takes its place');
   assert.equal(mapIndex(before, ['a', 'B', 'c', 'd'], 1), 1, 'changed in place');
   assert.equal(mapIndex(before, [], 2), 0);
+});
+
+test('with the real serialiser: the effects are in the snapshot, and an effect edit stops the effects', async () => {
+  const real = await import('../model/serialise.js');
+  const instrument = { name: 'b', wave: 0x40, ad: 0x09, sr: 0, pw: 0x800, pwStep: 0, pwMin: 0x20, pwMax: 0xE0,
+    vibDelay: 0, vibDepth: 0, vibSpeed: 0, arp: 0, arp2: 0, drumNoise: 0, drumFall: 0, release: 2, slide: 0 };
+  const base = {
+    instruments: [instrument],
+    song: { name: 'r', speed: 6, patterns: [{ name: '', events: [note(10, 2)] }], orders: [[{ pattern: 0, transpose: 0 }], [{ stop: true }], [{ stop: true }]] },
+    effects: [{ name: 'zap', speed: 1, voice: 2, events: [note(60, 8)] }],
+  };
+  const stopAt = 0x1200;
+  const live = createLive({ model: real, symbols: { ...symbols, st_sfx_req: stopAt } });
+  live.rebuild(base);
+  const area = live.snapshot().find((w) => w.address === EFFECT_BASE);
+  assert.ok(area, 'the effect area is written');
+  assert.equal(area.bytes[192], 1, 'one effect');
+  assert.equal(live.effectSize, area.bytes.length);
+  assert.equal(live.diff(structuredClone(base), null), null, 'no change, no writes');
+  const edited = structuredClone(base);
+  edited.effects[0].events[0].length = 9;
+  const edit = live.diff(edited, null);
+  assert.ok(edit.writes.some((w) => w.address >= EFFECT_BASE && w.address < SONG_BASE));
+  assert.deepEqual(edit.writes.filter((w) => w.address === stopAt).map((w) => [...w.bytes]), [[0xFF, 0xFF, 0xFF]], 'every effect is stopped');
+  const songOnly = structuredClone(edited);
+  songOnly.song.speed = 5;
+  assert.ok(!live.diff(songOnly, null).writes.some((w) => w.address === stopAt), 'a song edit leaves the effects alone');
 });

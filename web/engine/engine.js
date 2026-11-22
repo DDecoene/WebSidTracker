@@ -81,7 +81,8 @@ export class Engine {
 
     this.editsApplied = 0;                  // how many edits were applied: told to the page in readState
     this.queue = [];                        // changes waiting for the next frame boundary
-    this.running = false;                   // is the player being called every frame?
+    this.running = false;                   // is a song playing?
+    this.effects = false;                   // is a sound effect playing (or asked for)? Then the player runs too
     this.muted = [false, false, false];
     this.control = new Uint8Array(3);       // last control register value the player wrote, per voice
     this.errorMessage = null;
@@ -149,6 +150,11 @@ export class Engine {
 
   setMuted(voice, muted) {
     this.queue.push({ kind: 'mute', voice, muted: !!muted });
+  }
+
+  // Sound effect `effect` on SID voice `voice` (0-2), the way a game asks for it (see sfx_play in the player).
+  playEffect(voice, effect) {
+    this.queue.push({ kind: 'sfx', voice, effect });
   }
 
   // edit = { writes: [{address, bytes}],
@@ -243,7 +249,7 @@ export class Engine {
       this.inOperation = true;
       this.applyQueue();
       this.inOperation = false;
-      if (this.running) this.playOnce();
+      if (this.running || this.effects) this.playOnce();
     } catch (error) {
       this.fail(error);
     }
@@ -283,8 +289,16 @@ export class Engine {
         this.cpu.call(this.symbols.music_init, OPERATION_LIMIT);
         this.running = true;
         break;
+      case 'sfx': {
+        const request = this.symbols.st_sfx_req;
+        if (request === undefined || op.voice < 0 || op.voice > 2) break;
+        this.ram[request + op.voice] = (op.effect + 1) & 0xFF;     // what sfx_play stores: the effect + 1
+        this.effects = true;
+        break;
+      }
       case 'stop':
         this.running = false;
+        this.effects = false;
         this.cpu.call(this.symbols.music_stop, OPERATION_LIMIT);
         this.busWriteDirect(24, IDLE_VOLUME);       // music_stop clears the volume: put it back (see parkSid)
         break;
@@ -338,14 +352,21 @@ export class Engine {
     if (row) this.setPlayhead(voice, row.to);
   }
 
-  // One raster interrupt: call music_play and see whether the song ended by itself.
+  // One raster interrupt: call music_play and see whether the song ended by itself, and whether an
+  // effect still plays (lanes 3 to 5 of st_active) or waits (st_sfx_req).
   playOnce() {
     this.frameBase = this.cpu.cycles;
     this.cpu.call(this.symbols.music_play, RUNAWAY_LIMIT);
     const flag = this.symbols.st_running;
-    if (flag !== undefined && this.ram[flag] === 0) {
+    if (this.running && flag !== undefined && this.ram[flag] === 0) {
       this.running = false;
       this.endedFlag = true;
+    }
+    const s = this.symbols;
+    if (this.effects && s.st_active !== undefined && s.st_sfx_req !== undefined) {
+      let busy = false;
+      for (let v = 0; v < 3; v++) busy ||= this.ram[s.st_active + 3 + v] !== 0 || this.ram[s.st_sfx_req + v] !== 0;
+      this.effects = busy;
     }
   }
 
@@ -354,6 +375,7 @@ export class Engine {
   fail(error) {
     this.errorMessage = String(error && error.message ? error.message : error);
     this.running = false;
+    this.effects = false;
     this.cpu.sp = 0xFF;
     for (let v = 0; v < 3; v++) this.busWriteDirect(v * 7 + 4, 0);
   }

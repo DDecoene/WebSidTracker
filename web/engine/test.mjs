@@ -300,7 +300,7 @@ test('the real player plays the demo song', { skip: !existsSync(new URL('../play
   const out = process.env.ENGINE_TEST_OUT;
   for (const [name, model] of [['6581', 0], ['8580', 1]]) {
     const engine = new Engine({ sidModule, playerPrg: realPrg, symbols: realSymbols, sampleRate: RATE, model });
-    engine.start(0x3000);
+    engine.start(0x3800);
     const samples = copyRender(engine, RATE * 6, () => 128);
     assert.equal(engine.takeError(), null);
     const state = engine.readState();
@@ -327,4 +327,40 @@ test('the SID is clocked a little at a time: a 128-sample block never needs a wh
   }
   // 128 samples at 48 kHz are 2627 cycles; allow one extra step for the chunk boundaries.
   assert.ok(worst <= 2627 + 2400, `one block clocked ${worst} cycles`);
+});
+
+test('a sound effect plays without a song, on its voice, and the player stops being called after it', { skip: !existsSync(new URL('../player/player.prg', import.meta.url)) }, () => {
+  const realPrg = new Uint8Array(readFileSync(new URL('../player/player.prg', import.meta.url)));
+  const realSymbols = JSON.parse(readFileSync(new URL('../player/symbols.json', import.meta.url), 'utf8'));
+  const engine = new Engine({ sidModule, playerPrg: realPrg, symbols: realSymbols, sampleRate: RATE, model: 0 });
+  const log = trace(engine);
+  engine.playEffect(2, 2);                 // the default effect 2 (Boom) on voice 3
+  engine.runFrame();
+  assert.equal(engine.effects, true);
+  assert.equal(engine.running, false, 'no song');
+  const voice3 = log.filter((w) => w.reg >= 14 && w.reg <= 20);
+  assert.ok(voice3.length > 0 && log.every((w) => w.reg >= 14 && w.reg <= 20), 'only voice 3 is written');
+  assert.ok(log.some((w) => w.reg === 18 && (w.value & 0x81) === 0x81), 'noise with the gate open');
+  for (let i = 0; i < 60; i++) engine.runFrame();
+  assert.equal(engine.effects, false, 'after its 40 frames the effect is over');
+  const before = log.length;
+  engine.runFrame();
+  assert.equal(log.length, before, 'nothing is written any more');
+  assert.equal(engine.takeEnded(), false, 'an effect is not a song that ended');
+});
+
+test('a sound effect over the song: the song keeps playing, stop ends both', { skip: !existsSync(new URL('../player/player.prg', import.meta.url)) }, () => {
+  const realPrg = new Uint8Array(readFileSync(new URL('../player/player.prg', import.meta.url)));
+  const realSymbols = JSON.parse(readFileSync(new URL('../player/symbols.json', import.meta.url), 'utf8'));
+  const engine = new Engine({ sidModule, playerPrg: realPrg, symbols: realSymbols, sampleRate: RATE, model: 0 });
+  engine.start(0x3800);
+  engine.runFrame();
+  engine.playEffect(0, 0);
+  engine.runFrame();
+  assert.equal(engine.ram[realSymbols.st_active + 3], 1, 'the effect lane of voice 1 plays');
+  assert.equal(engine.running, true);
+  engine.stop();
+  engine.runFrame();
+  assert.equal(engine.effects, false);
+  assert.equal(engine.ram[realSymbols.st_active + 3], 0);
 });

@@ -51,7 +51,7 @@ export function createSession({ store, model, symbols, createEngineClient, on = 
       let edit = null;
       if (kind === 'load') live.rebuild(store.project);
       else edit = live.diff(store.project, client && mode === 'song' ? lastState : null);
-      say('sizes', sizeInfo(store.project, live.songSize));
+      say('sizes', sizeInfo(store.project, live.songSize, SONG_BASE, live.effectSize));
       return edit;
     } catch (error) {
       problems = [`The project cannot be turned into song data: ${error.message}`];
@@ -179,9 +179,25 @@ export function createSession({ store, model, symbols, createEngineClient, on = 
     }
   }
 
+  // A sound effect plays on its voice over whatever the engine plays (the song, or nothing), as in a game.
+  async function playEffect(index) {
+    const ready = ensureEngine();
+    if (problems.length > 0) {
+      say('notice', 'Fix the problems listed above before playing.');
+      return;
+    }
+    const effect = (store.project.effects ?? [])[index];
+    if (!effect) return;
+    const engine = await ready;
+    if (!engine) return;
+    engine.resume?.();
+    engine.playEffect(effect.voice, index);
+  }
+
   store.play = (options) => { play(options); };
   store.stop = stop;
   store.auditionNote = (instrument, pitch) => { audition(instrument, pitch); };
+  store.playEffect = (index) => { playEffect(index); };
 
   return {
     get mode() { return mode; },
@@ -191,6 +207,7 @@ export function createSession({ store, model, symbols, createEngineClient, on = 
     play,
     stop,
     audition,
+    playEffect,
     setChipModel(value) {
       settings.chipModel = value;
       if (client) client.setModel(value);
