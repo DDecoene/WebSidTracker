@@ -32,18 +32,19 @@ The full story (what made that approach special, what such a player contains, wh
 | `docs/design-player-format-and-timing.md` | the player design: song and instrument data, ticks and frames, clean note starts (with an "As built" section) |
 | `docs/design-web-tracker-architecture.md` | the browser tracker design: own 6502 emulator, reSIDfp, live editing, export (with an "As built" section) |
 | `docs/player.md` | how to call the player, memory map, state block, exact behaviour, limits, measurements |
-| `docs/tracker-guide.md` | user guide of the tracker: concepts, keys, instrument fields, export |
+| `docs/design-sound-effects.md`, `docs/plan-sound-effects.md` | the design of the sound effects and the pitch slide, and the plan it was built from (with an "As built" section) |
+| `docs/tracker-guide.md` | user guide of the tracker: concepts, keys, instrument fields, export, sound effects |
 | `src/music.asm` | the player (MIT) |
 | `src/instruments.asm`, `src/sfx.asm`, `src/song_demo.asm` | the default instrument set, three example sound effects and a demo song |
-| `src/runner.asm`, `src/main.asm` | a complete program: BASIC line, raster interrupt, player, instruments, song (this is the image the tracker exports) |
+| `src/runner.asm`, `src/main.asm` | a complete program: BASIC line, raster interrupt, player, instruments, effects (keys 1 to 9), song (this is the image the tracker exports) |
 | `src/hardware.asm` | names for the VIC-II, SID and CIA registers, no code |
 | `web/` | the browser app (GPL), see [web/README.md](web/README.md) |
 | `web/cpu/` | the 6502 core and its tests |
 | `web/sid/` | reSIDfp build script, C wrapper, loader and a Node test |
 | `web/engine/` | the audio engine: 6502 + SID, the AudioWorklet and its client |
-| `web/model/` | song model, serialiser, exports |
+| `web/model/` | song model, serialiser, exports, the demos |
 | `web/app/` | the app shell: store, undo, live editing glue, files, panels |
-| `web/ui/` | the pattern and order editor and the instrument editor |
+| `web/ui/` | the pattern and order editor, the Effects view and the instrument editor |
 | `web/player/` | the built player image (`player.prg`, `symbols.json`) and its tests |
 | `tools/` | the player build script, a label converter, a small server for the browser C64 emulator |
 | `Makefile`, `project-config.json`, `.vscode/` | build and run |

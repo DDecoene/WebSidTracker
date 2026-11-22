@@ -40,7 +40,7 @@ The header also has a SID chip switch (MOS 6581 or CSG 8580), a master volume (f
 
 ## 3. Keys
 
-Keys work when the pattern editor or the page has the focus, not when you are typing in a text field. Press `?` in the tracker to see the same lists in a dialog.
+Keys work when the pattern editor or the page has the focus, not when you are typing in a text field. Press `?` in the tracker to see the same lists in a dialog. The grid of the Effects view (section 8) takes the same note and editing keys, except the ones for other voices, the order list and the Patterns list.
 
 ### Everywhere
 
@@ -51,6 +51,7 @@ Keys work when the pattern editor or the page has the focus, not when you are ty
 | Ctrl+Z / Cmd+Z | Undo |
 | Ctrl+Shift+Z / Ctrl+Y / Cmd+Shift+Z | Redo |
 | Ctrl+S / Cmd+S | Save the project as a file |
+| Ctrl+Enter / Cmd+Enter | In the Effects view: play the selected sound effect |
 | ? | Show the help |
 
 ### Pattern editor
