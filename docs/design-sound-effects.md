@@ -1,6 +1,6 @@
 # Design: sound effects and pitch slides
 
-Status: design, not built yet. Part of format 2 (not released yet), see section 7.
+Status: built (see section 10 for what the code settled). Part of format 2 (not released yet), see section 7.
 
 ## 1. Why
 
@@ -122,3 +122,16 @@ Effects and slides belong to format 2, which is not released yet. So FORMAT stay
 - The volume is left to the game for effects without a song.
 - 64 effects at most; the memory map in section 5.
 - Effects carry an audition voice in the project.
+
+## 10. As built
+
+The code follows this design. What it settled or does differently:
+
+- **Effect tables.** Besides `sfx_lo` and `sfx_hi` the area has `sfx_voice` (the audition voice, for the runner's keys and as a suggestion for the game) and `sfx_count`. In the tracker's image the three tables are 64 bytes each, so the effects start at `$31C1`; all effects together may take 1599 bytes. An exported `sfx.asm` has one entry per effect and a constant `SFX_<NAME>` per effect.
+- **Requests.** `st_sfx_req` per voice: 0 nothing, n + 1 start effect n, `$FF` stop. The zero state in the file means "nothing", so effects work before `music_init`. A stop silences the voice at once (gate off, no waveform, AD and SR 0).
+- **Tick clock of an effect lane.** `st_sfx_fit` and `st_sfx_speed` per voice; `check_release` uses `lane_fit` and `lane_speed`, which hold the music's or the effect's clock for the lane being played.
+- **Coming back.** A music lane writes again at its next note start, or as soon as its gate is closed anyway (a rest, or the clean end of a note), so it never resumes in the middle of a note (`st_wait`).
+- **Run time.** About 240 cycles more per frame without effects (the checks), about 5500 for the demo song with three effects over it, about 6000 in the frame they start. Six lanes that all start a vibrato in the same frame take about 10,000 cycles; the documents say so.
+- **Runner.** Keys 1 to 9 play effects 0 to 8 on their `sfx_voice` (KERNAL `SCNKEY`/`GETIN` in the main loop, because the KERNAL timer interrupt is off).
+- **Tracker.** Editing an effect while it plays stops every effect (the tracker writes `$FF` to the three requests with the new bytes). Ctrl/Cmd+Enter, a double click or Enter on the list plays the selected effect. A demo, Sound effects, has six effects over the original tune.
+- **Checks.** All seven demo songs give the same SID writes as the player before this work, frame for frame (3000 frames each). The exported files were assembled with ACME at another address and played an effect on the right voice.

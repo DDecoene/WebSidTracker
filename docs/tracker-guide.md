@@ -16,7 +16,9 @@ The sound is the part to check by ear. The numbers on screen say nothing about t
 
 **Order list.** Each voice has its own order list. It says which pattern the voice plays next. An entry is a pattern number plus a *transpose* in semitones (so the same bass line can be played a fourth higher). The list ends with a *stop* entry (the voice goes silent for good) or a *loop* entry (go on at entry n, usually 00). Every voice ends separately; the song is over when all three have stopped.
 
-**Instrument.** A bundle of settings: waveform, envelope, pulse width and how it sweeps, vibrato, arpeggio, drum behaviour. Instrument numbers are shown in hex (00 to FF). A pattern selects the instrument with an instrument event; a voice starts every song on instrument 00, and an instrument stays until the pattern switches it.
+**Instrument.** A bundle of settings: waveform, envelope, pulse width and how it sweeps, vibrato, arpeggio, pitch slide, drum behaviour. Instrument numbers are shown in hex (00 to FF). A pattern selects the instrument with an instrument event; a voice starts every song on instrument 00, and an instrument stays until the pattern switches it.
+
+**Sound effect.** A short line of notes with its own speed that a game plays over the music on one voice (section 8). It uses the same instruments.
 
 **Pitch.** 96 notes, C-0 to B-7 (the octave number is the one you see in the grid, 12 notes per octave; note names use `C-`, `C#`, `D-`, ...). A pitch that is out of range after the transpose is clamped to the range.
 
@@ -30,10 +32,11 @@ The sound is the part to check by ear. The numbers on screen say nothing about t
 6. Set the loop: each voice has an order list above its grid. `ins` (or `Insert` after pressing `o`) adds an entry; choose LOOP in the entry's drop-down (or press `l`) to loop to entry 00, and STOP (or `s`) to end the voice. Change the pattern of an entry with its drop-down, and its transpose with the number box, the plus and minus buttons or the -12 and +12 buttons.
 7. **Save** downloads the project as a JSON file; **Open** reads one. The tracker also keeps an autosave in your browser, but save to a file for anything you care about.
 8. **Export** gives you the files for your game (section 6).
+9. The **Effects** tab above the grid holds the sound effects of your game (section 8).
 
-The header has a **Demos** menu with six songs to listen to and learn from: Ode to Joy, Für Elise, Rondo alla Turca, Toccata in D minor, In the Hall of the Mountain King, and the Original demo tune. A first visit starts with Ode to Joy, so Play gives you something to hear at once. Choosing a demo stops the playback and replaces the current project; if you have unsaved changes the tracker first asks whether to discard them. Hover an entry to read what is in it.
+The header has a **Demos** menu with seven projects to listen to and learn from: Ode to Joy, Für Elise, Rondo alla Turca, Toccata in D minor, In the Hall of the Mountain King, the Original demo tune, and Sound effects (the original tune with a set of game effects in the Effects tab). A first visit starts with Ode to Joy, so Play gives you something to hear at once. Choosing a demo stops the playback and replaces the current project; if you have unsaved changes the tracker first asks whether to discard them. Hover an entry to read what is in it.
 
-The header also has a SID chip switch (MOS 6581 or CSG 8580), a master volume (for listening only; the game sets its own volume), a mute button for each voice (M1, M2, M3), and a level meter. A line shows how many bytes the song and the instrument tables take and how many are left. The strip below the header lists problems that stop the song from playing or exporting (for example a loop that plays no notes).
+The header also has a SID chip switch (MOS 6581 or CSG 8580), a master volume (for listening only; the game sets its own volume), a mute button for each voice (M1, M2, M3), and a level meter. A line shows how many bytes the song, the instrument tables and the sound effects take and how many are left. The strip below the header lists problems that stop the song from playing or exporting (for example a loop that plays no notes).
 
 ## 3. Keys
 
@@ -171,6 +174,8 @@ All of this runs on the real player, on every frame of the note (except where no
 
 **Arpeggio.** *Offset* in semitones. Every second frame the pitch jumps to the note plus the offset, so it flutters between two pitches at 25 Hz. 12 is an octave, 7 a fifth, 4 a major third; the fast flutter sounds like a chord. 0 is off. *Second offset* makes it three notes: when it is not 0 the voice plays the note, the note plus Offset and the note plus Second offset, one frame each, and round again (16.7 times a second, a little slower and a little rougher than two notes). Offset 4 with Second offset 7 is a major chord, 3 with 7 a minor chord, 4 with 9 or 5 with 9 the other positions of a chord. With Second offset 0 the arpeggio is the two-note one. All voices step together, and a new note does not restart the round. Not applied to drums.
 
+**Slide.** From the second frame of a note the pitch slides by the value times 8 in SID frequency units per frame: up for a positive value, down for a negative one (-128 to 127; 0 is off). Large values make lasers and falling bombs, small ones bends and sirens. The slide is straight in frequency, so a high note moves faster in semitones than a low one; it stops at the top and the bottom. Vibrato works on a sliding note, the arpeggio does not. A legato note on a sliding instrument slides on from where the note before it was. On a drum the slide and the fall add up.
+
 **Drum.** *Noise frames* above 0 turns the instrument into a drum. The note starts with that many frames of noise at the pitch of the note. After that the waveform you chose plays from the same pitch and falls by *Fall* (in SID frequency register units per frame; a large value gives a quick boom, 0 keeps the pitch, as for a hat). Play drums on low notes for kicks and higher notes for snares and hats. The pulse sweep still works on a drum; vibrato and arpeggio do not.
 
 **Release frames.** The last N frames of every note are used to close the gate and clear the envelope, so the envelope is empty when the next note starts and every note starts the same, without clicks. The standard is 2. It counts in frames, not ticks. The first frame of a note always sounds, so a note is never shortened below one frame. The SID needs almost two frames (33 ms) before a closed gate really starts to release when the envelope has a decay above 0, and a note that opens its gate before that is up to two frames late. So with a decay above 0 the player plays 0 and 1 as 2, and a note of 1 or 2 frames keeps its gate open instead (the next note restarts it). With decay 0 one frame is enough (0 is played as 1). Any value above 32 is played as 32, although the field allows up to 255. Notes of 3 frames or more always start exactly on their tick; for shorter notes (speed 1 or 2) a plucked sound with sustain 0 can start a little late.
@@ -190,6 +195,7 @@ All of this runs on the real player, on every frame of the note (except where no
 | song size | it must end below `$C000`; the header line shows the space left |
 | one pattern | the player reads a pattern with a one-byte position, so a pattern can be at most 255 bytes including its end marker; a longer one is flagged, split it into two patterns |
 | order list | 128 entries per voice, stop and loop entries included (a list that does not end in STOP or LOOP gets a STOP, which counts) |
+| sound effects | 64; one effect at most 255 bytes (its speed and end marker included); all effects together at most 1599 bytes |
 
 A song that breaks a limit the tracker checks is flagged in the strip below the header and cannot be exported.
 
@@ -207,16 +213,17 @@ If porting is not possible (the result would not be a valid project) the dialog 
 
 ## 6. Export, and using the files in a game
 
-**Export** shows four files, each with a Download button (and a Show and Copy button for the text files). The second line of each assembler file names the format and the release that wrote it:
+**Export** shows five files, each with a Download button (and a Show and Copy button for the text files). The second line of each assembler file names the format and the release that wrote it:
 
 | File | What |
 |---|---|
 | `instruments.asm` | the instrument tables, one table per field, shared by all your songs. Only as many entries as your highest used instrument needs |
 | `song_<name>.asm` | the song, with the label `song_<name>` at its header. `<name>` is the song name made safe for a label |
-| `<name>.prg` | a ready-to-run program (BASIC line, player, instruments, your song). Load it on a C64 or in VICE and RUN it |
+| `sfx.asm` | the sound effects, shared by all your songs, with a constant per effect (`SFX_EXPLOSION = 2`). The player needs it also when you have no effects |
+| `<name>.prg` | a ready-to-run program (BASIC line, player, instruments, effects, your song). Load it on a C64 or in VICE and RUN it; keys 1 to 9 play effects 1 to 9 over the song |
 | `<name>.sid` | the song for SID players (VICE's `vsid`, sidplayfp, DeepSID) and for sharing: the player, the instruments and your song, with no program around it |
 
-The `.asm` files are ACME assembler source. The player itself, `music.asm`, does not change per song: copy it from `src/music.asm` in this repository. All four files are MIT licensed, and so is the player.
+The `.asm` files are ACME assembler source. The player itself, `music.asm`, does not change per song: copy it from `src/music.asm` in this repository. All five files are MIT licensed, and so is the player.
 
 ### The .sid file
 
@@ -233,15 +240,16 @@ Under the file name in the Export dialog are four boxes:
 
 A text is at most 32 characters of the Latin-1 set (plain letters, digits, punctuation and Western European accents); other characters become `?`. A box left empty is written as `<?>`, which SID collections use for "unknown". Author and Released are remembered in your browser for the next export. They are not part of the project file, so fill them in again on another computer.
 
-What is in the memory part: seven bytes of start code at `$0FF9` (they load the address of the song and jump to `music_init`, because a SID player cannot pass that address), the player at `$1000`, the instrument tables at `$2000` and the song at `$3000`: the same bytes as in the `.prg` from `$1000` on. The SID player calls `$0FF9` once and `music_play` once per frame.
+What is in the memory part: seven bytes of start code at `$0FF9` (they load the address of the song and jump to `music_init`, because a SID player cannot pass that address), the player at `$1000`, the instrument tables at `$2000`, the effects at `$3100` and the song at `$3800`: the same bytes as in the `.prg` from `$1000` on. The SID player calls `$0FF9` once and `music_play` once per frame.
 
-**In a game, use the assembler files, not the .sid.** A `.sid` sits at fixed addresses (`$0FF9` up to the end of the song), carries all 16 instrument tables at their full 256 bytes (4096 bytes, where `instruments.asm` only has the instruments you use), and holds its own copy of the player, so two songs as two `.sid` files cannot be in memory together. With the assembler files the player, the tables and the songs go wherever your game has room, several songs share one player and one instrument set, and you can move the zero page bytes. The `.sid` is for listening and sharing.
+**In a game, use the assembler files, not the .sid.** A `.sid` sits at fixed addresses (`$0FF9` up to the end of the song), carries all 17 instrument tables at their full 256 bytes (4352 bytes, where `instruments.asm` only has the instruments you use), and holds its own copy of the player, so two songs as two `.sid` files cannot be in memory together. With the assembler files the player, the tables and the songs go wherever your game has room, several songs share one player and one instrument set, and you can move the zero page bytes. The `.sid` is for listening and sharing.
 
 Put the files in your game project and include them:
 
 ```
         !source "music.asm"            ; the player (no * = line: it lands wherever you include it)
         !source "instruments.asm"
+        !source "sfx.asm"
         !source "song_title.asm"
 ```
 
@@ -270,10 +278,10 @@ stop_music
 Notes:
 
 - `music_init` takes the low byte of the header address in A and the high byte in X. It clobbers A, X and Y. Calling it again starts another song at once. The player has no song table: you pick a song with its label.
-- `music_play` clobbers A, X and Y. It clears the decimal flag, so it is safe from an interrupt that did not. When all three voices have stopped it returns at once, in 12 cycles.
+- `music_play` clobbers A, X and Y. It clears the decimal flag, so it is safe from an interrupt that did not. Call it every frame, also when no song plays: it plays the sound effects too (section 8). With no song and no effect it takes about 150 cycles.
 - The player is PAL: one `music_play` per 50 Hz frame. On NTSC (60 Hz) everything would play about 20 percent too fast, and the pitches are for the PAL clock. NTSC support is still to do.
-- Time: a normal frame takes about 1700 cycles of the 19,656 in a PAL frame; the longest frames in the demo song take about 3400. The worst case made on purpose is about 5000 (8000 with the longest release). See [player.md](player.md), section 8.
-- The player writes only to the SID (`$D400` to `$D418`), 14 bytes of zero page from `$E0` (move them by defining `zp_music` before you include `music.asm`), the stack (at most 10 bytes), and its own memory (about 1.6 KB).
+- Time: a normal frame takes about 2000 cycles of the 19,656 in a PAL frame; the longest frames in the demo song take about 3700, and about 6000 with three effects playing over it. The worst case made on purpose is about 5300 (8200 with the longest release, 10,000 when six lanes start a vibrato at once). See [player.md](player.md), section 8.
+- The player writes only to the SID (`$D400` to `$D418`), 14 bytes of zero page from `$E0` (move them by defining `zp_music` before you include `music.asm`), the stack (at most 10 bytes), and its own memory (about 2 KB).
 - The game owns the SID volume after `music_init` (it sets 15); `music_stop` writes 0 to every SID register, volume included.
 
 All the details (what happens in odd cases, the state block, the limits) are in [player.md](player.md).
@@ -285,10 +293,37 @@ In the tracker and in the exported `.prg`:
 | Range | Content |
 |---|---|
 | `$0801-$0FFF` | the BASIC line `10 SYS 2064` and the small program that sets up the raster interrupt (line 250). The `.sid` file has only seven bytes of start code here, at `$0FF9` |
-| `$1000-$1FFF` | the player: code, frequency table, state block (about 1.6 KB) |
-| `$2000-$2FFF` | the 16 instrument tables of 256 bytes, in this order: `inst_wave`, `inst_ad`, `inst_sr`, `inst_pw_lo`, `inst_pw_hi`, `inst_pw_step`, `inst_pw_min`, `inst_pw_max`, `inst_vib_delay`, `inst_vib_depth`, `inst_vib_speed`, `inst_arp`, `inst_drum_noise`, `inst_drum_fall`, `inst_release`, `inst_arp2` |
-| `$3000-$BFFF` | the song (header at `$3000`); it must end below `$C000` |
+| `$1000-$1FFF` | the player: code, frequency table, state block (about 2 KB) |
+| `$2000-$30FF` | the 17 instrument tables of 256 bytes, in this order: `inst_wave`, `inst_ad`, `inst_sr`, `inst_pw_lo`, `inst_pw_hi`, `inst_pw_step`, `inst_pw_min`, `inst_pw_max`, `inst_vib_delay`, `inst_vib_depth`, `inst_vib_speed`, `inst_arp`, `inst_drum_noise`, `inst_drum_fall`, `inst_release`, `inst_arp2`, `inst_slide` |
+| `$3100-$37FF` | the sound effects: `sfx_lo`, `sfx_hi`, `sfx_voice` (64 bytes each), `sfx_count`, then the effects |
+| `$3800-$BFFF` | the song (header at `$3800`); it must end below `$C000` |
 | `$C000-` | in the tracker only: a scratch song for playing single notes while you audition |
 | `$E0-$ED` | zero page used by the player |
 
-In your own game the addresses are your own: `music.asm` has no fixed address, and the tables of `instruments.asm` and the song can be anywhere. Only the `.prg` uses the map above.
+In your own game the addresses are your own: `music.asm` has no fixed address, and the tables of `instruments.asm`, `sfx.asm` and the song can be anywhere. Only the `.prg` uses the map above.
+
+## 8. Sound effects
+
+A sound effect is a short line of notes that your game plays over its music: a shot, a jump, a coin, an explosion. It uses the same instruments and the same player as the music, so everything an instrument can do (pulse sweep, vibrato, arpeggio, drum, slide) works in an effect too. While an effect plays it borrows one voice. The music of that voice goes on counting, so it stays in time, but it is not heard; after the effect it comes back at its next note, never in the middle of one.
+
+**Making one.** Open the **Effects** tab above the grid and press **New**. The list on the left has New, Duplicate, Delete and the arrows that move an effect up or down; its number (from 00) is its number in the game. On the right: the **Name** (the export makes a constant of it, `Big boom` becomes `SFX_BIG_BOOM`), the **Speed** (frames per tick of this effect, apart from the song; at 1 the lengths are in frames), the **Voice** the tracker plays it on, and **Play effect**. Below them the notes, entered with the same keys as in a pattern (section 3): one voice, no order list. Undo works as everywhere.
+
+**Listening.** Play effect, `Ctrl+Enter` (`Cmd+Enter` on a Mac), a double click in the list, or `Enter` on the list plays the effect on its voice. Start the song first to hear it over the music, the way the game will. Editing an effect stops the effects that play.
+
+**In the game.**
+
+```
+        lda #SFX_EXPLOSION   ; the effect (a constant from sfx.asm)
+        ldx #2               ; the voice: 0, 1 or 2
+        jsr sfx_play         ; it starts at the next music_play
+        ...
+        ldx #2
+        jsr sfx_stop         ; stop the effect on voice 3
+```
+
+- `sfx_play` only stores the request (it changes A), so you can call it from your main loop while `music_play` runs in the interrupt. A new effect on a voice replaces the one that plays there; there are no priorities.
+- `music_play` must be called every frame, also on a title screen without music. Without `music_init` the volume is not set: write `$D418` yourself.
+- `music_init` and `music_stop` end every effect.
+- The voice is yours to pick for each call. `sfx_voice` in `sfx.asm` holds the one chosen in the tracker, so `ldx sfx_voice + SFX_EXPLOSION` plays it where it was made.
+- A fat effect is two effects started together on two voices (the Sound effects demo does that with Hit and Hit body).
+- Write the song so that a voice may fall away for a moment: the drums or a second voice are good places for effects, the melody is not.

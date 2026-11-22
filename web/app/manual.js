@@ -1,7 +1,7 @@
 // manual.js - the manual of the tracker, as data.
 //
 // One source feeds the standalone page (manual.html) and the Help dialog in the tracker.
-// manual-render.js documents the block types and the inline markup. The key tables of section 8
+// manual-render.js documents the block types and the inline markup. The key tables of section 9
 // are not written here: they come from the key lists the editor and the instrument panel
 // export themselves, so they cannot go out of date (see loadKeySources).
 //
@@ -14,6 +14,7 @@ export const APP_KEYS = [
   ['Ctrl+Z / Cmd+Z', 'Undo'],
   ['Ctrl+Shift+Z / Ctrl+Y / Cmd+Shift+Z', 'Redo'],
   ['Ctrl+S / Cmd+S', 'Save the project as a file'],
+  ['Ctrl+Enter / Cmd+Enter', 'In the Effects view: play the selected sound effect'],
   ['?', 'Open the manual'],
   ['Esc', 'Close a dialog, such as the manual or the export'],
 ];
@@ -39,13 +40,13 @@ export const SECTIONS = [
       { type: 'p', text: 'WebSidTracker is a music editor for the sound chip of the Commodore 64, the SID. You write a song in a grid, you hear it at once, and you export it for your own C64 program. What you hear in the browser is made by the same small player program that runs on a real C64, driving an emulated SID chip, so it sounds like your game will (PAL timing).' },
       { type: 'ol', items: [
         '**Open the tracker.** The first time it starts with the demo song Ode to Joy; afterwards it starts with the project you worked on last. Sound starts at your first click or key press, because browsers do not allow it earlier.',
-        '**Press Play** (or [[Space]]). The three voices play. Press [[Space]] again, or Stop, to stop. The Demos menu in the top bar has five more songs to listen to and to take apart.',
+        '**Press Play** (or [[Space]]). The three voices play. Press [[Space]] again, or Stop, to stop. The Demos menu in the top bar has more songs to listen to and to take apart, and a set of sound effects.',
         '**Change a note while it plays.** Click a note in the pattern grid, then press a letter key such as [[z]] or [[q]]: the keys of your computer keyboard are a piano. The note under the cursor is replaced, and you hear it the next time the song gets there. Edit an instrument on the right in the same way: moving a slider is heard at once.',
         '**Save your work.** Save downloads the project as a JSON file. The tracker also keeps an automatic copy in your browser, but a file is the copy you can trust.',
         '**Export it.** Export gives you assembler files, a ready-to-run program (.prg) that you can load in the VICE emulator or on a real C64, and a .sid file for SID players.',
       ] },
       { type: 'tip', text: 'Press [[?]] at any time to open this manual inside the tracker. Section 4 explains every key you need to enter music.' },
-      { type: 'p', text: 'New to trackers? Read section 3 (Concepts) first: it is short and explains the three ideas everything rests on, the tick, the pattern and the order list. Already a C64 developer? Section 7 shows how to play the exported music from your own interrupt, and section 5 lists exactly what each instrument field does in the player.' },
+      { type: 'p', text: 'New to trackers? Read section 3 (Concepts) first: it is short and explains the three ideas everything rests on, the tick, the pattern and the order list. Already a C64 developer? Section 7 shows how to play the exported music from your own interrupt, section 8 how to play sound effects over it, and section 5 lists exactly what each instrument field does in the player.' },
     ],
   },
 
@@ -54,7 +55,7 @@ export const SECTIONS = [
     id: 'screen',
     title: 'The screen',
     blocks: [
-      { type: 'p', text: 'The top bar has two rows. The first row is about the project, the second about listening. Under it come the pattern editor on the left and the instrument panel on the right (on a narrow screen they stand under each other).' },
+      { type: 'p', text: 'The top bar has two rows. The first row is about the project, the second about listening. Under it come the pattern editor on the left and the instrument panel on the right (on a narrow screen they stand under each other). Above the editor two tabs switch between the **Song** and the **Effects** (the sound effects of your game, see section 8).' },
       { type: 'h', text: 'Top bar, first row' },
       { type: 'table', head: ['Control', 'What it does'], rows: [
         ['**Song**', 'The name of the song. It also names the files you save and export (`my_song.json`, `song_my_song.asm`, `my_song.prg`, `my_song.sid`: letters and digits only, the rest becomes an underscore).'],
@@ -62,7 +63,7 @@ export const SECTIONS = [
         ['**Open**', 'Opens a project file (JSON) that Save made. If the file is damaged, the current project stays as it is and a message tells you why.'],
         ['**Save**', 'Downloads the project as a JSON file ([[Ctrl]]+[[S]] or [[Cmd]]+[[S]] does the same).'],
         ['**Export**', 'Shows the files for your game: assembler source and a .prg, and a .sid file to share. See section 7. It refuses while the project has problems.'],
-        ['**Demos**', 'A menu with six songs: Ode to Joy, Für Elise, Rondo alla Turca, Toccata in D minor, In the Hall of the Mountain King and an original tune. Choosing one replaces the current project; with unsaved changes it asks first. Hover an entry to read what is in it.'],
+        ['**Demos**', 'A menu with seven projects: Ode to Joy, Für Elise, Rondo alla Turca, Toccata in D minor, In the Hall of the Mountain King, an original tune, and Sound effects (the original tune with a set of game effects). Choosing one replaces the current project; with unsaved changes it asks first. Hover an entry to read what is in it.'],
         ['**Undo / Redo**', 'Step back and forward through your edits (the last 200). The tooltip names the edit. Loading a project, New or a demo clears the history.'],
         ['**Help**', 'Opens this manual in a dialog.'],
       ] },
@@ -85,7 +86,7 @@ export const SECTIONS = [
       { type: 'p', text: 'Above each voice\'s grid is its **order list**, with a drag handle under the lists to show more or fewer rows. Every entry is a row of controls: the entry number, a drop-down with the pattern (or STOP, or LOOP), the transpose (a number box with a minus and a plus button, and -12 and +12 buttons for an octave) or, for a LOOP, the target entry number, and the buttons ins, del and the up and down arrows (insert after this entry, delete it, move it up or down). You can also drop a pattern from the Patterns panel on an entry, or between two entries to insert it there.' },
       { type: 'p', text: 'Below that is the **pattern grid**: one column for each voice, one row for each tick, with the row number in hex at the left. A row with a note shows its name (such as `C-4`) and an **instrument chip** with the instrument number and name; a `|` is the note still sounding, `---` is a rest. A bright chip means the instrument was set at that note; a dim chip is inherited from an earlier note or pattern. The cell with the cursor is highlighted, and the rows that are playing are tinted.' },
       { type: 'h', text: 'The instrument panel' },
-      { type: 'p', text: 'A list of your instruments (number in hex, name) with New, Duplicate and Delete; a name field; preset buttons (Bass, Lead, Pad, Pluck, Kick, Snare, Hat); then the fields in groups (Waveform, Envelope, Pulse width, Vibrato, Arpeggio, Drum, Release frames), each with a short hint; and at the bottom an on-screen piano to audition the sound. Section 5 explains the fields.' },
+      { type: 'p', text: 'A list of your instruments (number in hex, name) with New, Duplicate and Delete; a name field; preset buttons (Bass, Lead, Pad, Pluck, Kick, Snare, Hat); then the fields in groups (Waveform, Envelope, Pulse width, Vibrato, Arpeggio, Slide, Drum, Release frames), each with a short hint; and at the bottom an on-screen piano to audition the sound. Section 5 explains the fields.' },
     ],
   },
 
@@ -130,7 +131,7 @@ export const SECTIONS = [
     id: 'entering',
     title: 'Entering music',
     blocks: [
-      { type: 'p', text: 'The note and editing keys work while the pattern editor has the focus, so click the pattern grid first. They do nothing while you type in a text field. Section 8 lists every key; this section explains how they fit together.' },
+      { type: 'p', text: 'The note and editing keys work while the pattern editor has the focus, so click the pattern grid first. They do nothing while you type in a text field. Section 9 lists every key; this section explains how they fit together.' },
       { type: 'h', text: 'The computer keyboard as a piano' },
       { type: 'piano', lower: 'zsxdcvgbhnjm', upper: 'q2w3er5t6y7u' },
       { type: 'p', text: 'The bottom letter row is one octave from C to B, with the black keys on the row above it; the next two rows give the octave above. The **octave** is shown in the first line of the editor (the starting value is 3, so [[z]] gives `C-3` and [[q]] gives `C-4`). [[<]] and [[>]] (or [[F1]] and [[F2]]) move it down and up, from 0 to 7. Every note key plays the sound and puts the note in the pattern at the cursor, replacing what was there.' },
@@ -205,6 +206,7 @@ export const SECTIONS = [
         ['**Pulse width**', '**Start width** is the width at the start of every note: 50 percent is a hollow square, small and large values sound thin and nasal, 0 and 100 are silent. **Sweep step** is added to the width every frame (signed, -128 to 127; 0 keeps it still): the movement is what makes a pulse sound fat. **Sweep min** and **max** are the turning points; when the width reaches one the sweep turns around. Stay away from 0 percent. Only audible with the pulse waveform.'],
         ['**Vibrato**', '**Delay** is the number of frames after the note starts before the wobble begins, so long notes come alive and short notes stay clean. **Depth** is the width of the wobble, in 16ths of a semitone, to each side (16 is a whole semitone; 0 is off), and sounds equally wide in bass and treble. **Speed** is the number of frames of one swing (low is fast; 3 to 5 sounds natural; an odd number counts as the even one below). Changing the depth while a note sounds needs a new note; setting it to 0 stops it at once.'],
         ['**Arpeggio**', '**Offset** in semitones. On every second frame the pitch jumps to the note plus the offset, so it flutters between two pitches 25 times a second. 12 is an octave, 7 a fifth, 4 a major third. Fast enough, the ear hears a chord. 0 is off. **Second offset** makes it three notes: when it is not 0 the voice plays the note, the note plus Offset and the note plus Second offset, one frame each, and round again. 0 keeps the two-note arpeggio.'],
+        ['**Slide**', 'From the second frame of a note the pitch slides: up for a positive number, down for a negative one, by the number times 8 in SID frequency units every frame (-128 to 127; 0 is off). Big numbers are lasers and falling bombs, small ones bends and sirens. It is a straight slide in frequency, so a high note moves faster in semitones than a low one, and it stops at the top and the bottom of the range. The vibrato works on a sliding note, the arpeggio does not. A legato note on a sliding instrument slides on from where the previous one was.'],
         ['**Drum**', '**Noise frames** above 0 makes the instrument a drum: the note starts with that many frames of noise at the pitch of the note. **Fall** is how fast the tone drops afterwards, in SID frequency register units per frame (large is a quick boom, 0 keeps the pitch).'],
         ['**Release frames**', 'The last N frames of every note are used to close the gate and clear the envelope, so the next note starts clean, without a click. 2 is the standard. It counts frames, not ticks. The first frame of a note always sounds. The SID needs almost two frames before a closed gate really starts to release, and a note that opens its gate sooner can start up to two frames late. So when the decay is above 0, 0 and 1 are played as 2, and a note of 1 or 2 frames keeps its gate open to its end instead; with decay 0 one frame is enough. Anything above 32 is played as 32.'],
       ] },
@@ -260,34 +262,36 @@ export const SECTIONS = [
       { type: 'h', text: 'Project files' },
       { type: 'p', text: '**Save** writes the whole project, all instruments and the song, as a JSON text file; **Open** reads one back. This is the file to keep, share and put in version control. The tracker also stores an automatic copy in your browser (see the FAQ for the caveats).' },
       { type: 'h', text: 'What Export gives you' },
-      { type: 'p', text: 'The Export dialog lists four files. Each can be downloaded; the text files can also be shown and copied.' },
+      { type: 'p', text: 'The Export dialog lists five files. Each can be downloaded; the text files can also be shown and copied.' },
       { type: 'table', head: ['File', 'What it is'], rows: [
         ['`instruments.asm`', 'The instrument tables, one table per field, shared by all your songs. Only as many entries as your highest used instrument needs.'],
         ['`song_<name>.asm`', 'The song, with the label `song_<name>` at its header. `<name>` is the song name made safe for a label.'],
-        ['`<name>.prg`', 'A ready-to-run C64 program: a BASIC line, the player, your instruments and your song. Load it in VICE or on a C64 and RUN it.'],
+        ['`sfx.asm`', 'The sound effects, shared by all your songs, with a constant per effect (`SFX_EXPLOSION = 2`). The player needs this file also when you have no effects.'],
+        ['`<name>.prg`', 'A ready-to-run C64 program: a BASIC line, the player, your instruments, your effects and your song. Load it in VICE or on a C64 and RUN it; the keys 1 to 9 play effects 1 to 9 over the song.'],
         ['`<name>.sid`', 'The song as a SID file (PSID version 2) for SID players such as VICE (vsid), sidplayfp and DeepSID. It holds the player, your instruments and your song. Fill in the title, the author, the release line (a year and a name) and the chip the song is made for before you download it; the author and the release line are remembered in your browser, not in the project. A text is at most 32 characters, and an empty one becomes `<?>`, which means unknown.'],
       ] },
       { type: 'p', text: 'The two assembler files are ACME source. The player itself, `music.asm`, does not change from song to song: take it from the `src` folder of the WebSidTracker repository. The player and all exported files are MIT licensed.' },
       { type: 'h', text: 'Using the player in your own game' },
       { type: 'p', text: 'Put the three files in your project and include them:' },
-      { type: 'code', text: '        !source "music.asm"            ; the player (it has no * = line)\n        !source "instruments.asm"\n        !source "song_title.asm"' },
+      { type: 'code', text: '        !source "music.asm"            ; the player (it has no * = line)\n        !source "instruments.asm"\n        !source "sfx.asm"\n        !source "song_title.asm"' },
       { type: 'p', text: 'Then start the song once, and call the player once per frame from your raster interrupt:' },
       { type: 'code', text: '        lda #<my_song        ; address of the song header\n        ldx #>my_song\n        jsr music_init       ; starts the song (volume is set to 15)\n        ...\nirq     jsr music_play       ; once per frame, from the raster interrupt\n        ...\n        jsr music_stop       ; silence, st_running = 0' },
       { type: 'ul', items: [
         '`music_init` takes the low byte of the song header address in A and the high byte in X, and clobbers A, X and Y. Calling it again switches to another song at once. There is no song table: you pick a song by its label.',
-        '`music_play` must be called once per frame; it makes all the SID writes and clobbers A, X and Y. It clears the decimal flag, so it is safe from an interrupt that did not. When all voices have stopped it returns at once.',
+        '`music_play` must be called once per frame, also when no song plays (it plays the sound effects too); it makes all the SID writes and clobbers A, X and Y. It clears the decimal flag, so it is safe from an interrupt that did not.',
         '`music_stop` writes 0 to all SID registers (volume too) and sets `st_running` to 0.',
         'The player writes only to the SID ($D400 to $D418), 14 bytes of zero page from $E0 (define `zp_music` before including `music.asm` to move them), at most 10 bytes of stack, and its own memory (about 1.6 KB).',
-        'A normal frame takes about 1700 of the 19,656 cycles of a PAL frame; the longest frames in the demo song about 3400.',
+        'A normal frame takes about 2000 of the 19,656 cycles of a PAL frame; the longest frames in the demo song about 3700, and about 6000 with three sound effects playing over it.',
       ] },
       { type: 'p', text: 'All details, the state block and the odd cases are in `docs/player.md` in the repository.' },
       { type: 'h', text: 'Memory map' },
       { type: 'p', text: 'In the tracker and in the exported .prg:' },
       { type: 'table', head: ['Range', 'Content'], rows: [
         ['`$0801-$0FFF`', 'The BASIC line `10 SYS 2064` and the small program that sets up the raster interrupt (only in the .prg).'],
-        ['`$1000-$1FFF`', 'The player: code, frequency table and state block (about 1.6 KB).'],
-        ['`$2000-$2FFF`', 'The 16 instrument tables of 256 bytes, in this order: `inst_wave`, `inst_ad`, `inst_sr`, `inst_pw_lo`, `inst_pw_hi`, `inst_pw_step`, `inst_pw_min`, `inst_pw_max`, `inst_vib_delay`, `inst_vib_depth`, `inst_vib_speed`, `inst_arp`, `inst_drum_noise`, `inst_drum_fall`, `inst_release`, `inst_arp2`.'],
-        ['`$3000-$BFFF`', 'The song (header at $3000). It must end below $C000.'],
+        ['`$1000-$1FFF`', 'The player: code, frequency table and state block (about 2 KB).'],
+        ['`$2000-$30FF`', 'The 17 instrument tables of 256 bytes, in this order: `inst_wave`, `inst_ad`, `inst_sr`, `inst_pw_lo`, `inst_pw_hi`, `inst_pw_step`, `inst_pw_min`, `inst_pw_max`, `inst_vib_delay`, `inst_vib_depth`, `inst_vib_speed`, `inst_arp`, `inst_drum_noise`, `inst_drum_fall`, `inst_release`, `inst_arp2`, `inst_slide`.'],
+        ['`$3100-$37FF`', 'The sound effects: `sfx_lo`, `sfx_hi` and `sfx_voice` (64 bytes each), the count, then the effects.'],
+        ['`$3800-$BFFF`', 'The song (header at $3800). It must end below $C000.'],
         ['`$C000-`', 'Only in the tracker: a scratch song for playing single notes.'],
         ['`$E0-$ED`', 'Zero page used by the player.'],
       ] },
@@ -301,10 +305,45 @@ export const SECTIONS = [
         ['one pattern', '255 bytes including the end marker (a note or rest takes 2 bytes)'],
         ['order list', '128 entries per voice, STOP and LOOP included; a loop target is entry 0 to 127'],
         ['instruments', '256'],
+        ['sound effects', '64, each at most 255 bytes (its speed and end marker included), together at most 1599 bytes'],
         ['transpose', '-96 to 96 semitones'],
         ['release frames', '1 to 32 (with a decay above 0: 2 to 32; smaller values count as the smallest, more than 32 as 32)'],
         ['song size', 'it must end below $C000; the Free figure in the top bar shows what is left'],
         ['video standard', 'PAL only. NTSC (60 Hz) would play about 20 percent too fast and out of tune'],
+      ] },
+    ],
+  },
+
+  // ---------------------------------------------------------------------------------------
+  {
+    id: 'effects',
+    title: 'Sound effects',
+    blocks: [
+      { type: 'p', text: 'A sound effect is a short line of notes that your game plays over its music: a shot, a jump, a coin, an explosion. It uses the same instruments and the same player as the music, so everything an instrument can do (pulse sweep, vibrato, arpeggio, drum, slide) works in an effect too. While an effect plays it borrows one voice: the music of that voice goes on counting, so it stays in time, but you do not hear it; after the effect it comes back at its next note, never in the middle of one.' },
+      { type: 'h', text: 'Making an effect' },
+      { type: 'ol', items: [
+        '**Open the Effects tab** above the editor and press **New**.',
+        '**Enter its notes** in the grid with the same keys as in a pattern. An effect has one voice and no order list. Set the instrument with the Instrument selector or with a chip, as in a pattern.',
+        '**Speed** is the number of frames per tick of this effect, apart from the song. At 1 every tick is a frame, so the lengths are in fiftieths of a second, which is what most effects want.',
+        '**Voice** is the voice the tracker plays it on. In your game you choose the voice each time you start an effect; the export keeps this one as a suggestion in `sfx_voice`.',
+        '**Play effect** (or [[Ctrl]]+[[Enter]], [[Cmd]]+[[Enter]] on a Mac) plays it on its voice. Start the song first to hear it over the music, the way the game will. The list also plays an effect with a double click, or [[Enter]] when it has the focus.',
+      ] },
+      { type: 'p', text: 'The number in front of an effect is its number in the game: the first is 0. Move an effect up or down to change it; the constants in `sfx.asm` follow the names, so a game that uses `SFX_EXPLOSION` does not care about the number.' },
+      { type: 'h', text: 'Recipes' },
+      { type: 'table', head: ['Sound', 'How'], rows: [
+        ['**Laser**', 'A pulse instrument with a fast pulse sweep and a large negative slide (-80 to -120), one high note of about 15 frames.'],
+        ['**Jump or coin**', 'A short note with a positive slide (20 to 50), or two quick notes a fourth or fifth apart.'],
+        ['**Explosion**', 'The noise waveform with a long decay (A or B) and a small negative slide; a high note gives a bright crash, a low one a rumble.'],
+        ['**Power-up**', 'An instrument with a three-note arpeggio (4 and 7) and three or four notes that climb.'],
+        ['**A fat effect**', 'Two effects started together on two voices, for example a noise rumble on voice 3 and a low falling thump on voice 2. The Sound effects demo does this with Hit and Hit body.'],
+      ] },
+      { type: 'h', text: 'Playing effects in your game' },
+      { type: 'code', text: '        lda #SFX_EXPLOSION   ; the effect (a constant from sfx.asm)\n        ldx #2               ; the voice: 0, 1 or 2\n        jsr sfx_play         ; it starts at the next music_play\n        ...\n        ldx #2\n        jsr sfx_stop         ; stop the effect on voice 3 (at the next music_play)' },
+      { type: 'ul', items: [
+        '`sfx_play` only stores the request (it changes A), so you can call it from your main loop while `music_play` runs in the interrupt. A new effect on a voice replaces the one that plays there; there are no priorities.',
+        '`music_play` must be called every frame, also on a title screen without music, or the effects do not play. Without `music_init` the volume is not set: write it to $D418 yourself.',
+        '`music_init` and `music_stop` end every effect.',
+        'Write your song so that a voice may fall away for a moment: the drums or a second voice are good places for effects, the melody is not.',
       ] },
     ],
   },
