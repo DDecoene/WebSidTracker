@@ -157,8 +157,9 @@ test('the SID writes show the event that locatePlayhead names (frequency and wav
       const pitch = clampPitch(ev.pitch + project.song.orders[v][loc.entry].transpose);
       if (inst.drumNoise) {
         assert.ok(freq <= freqOf(pitch), `frame ${f} voice ${v + 1}: a drum never rises above its start frequency`);
-      } else if (inst.arp) {
-        assert.ok(freq === freqOf(pitch) || freq === freqOf(clampPitch(pitch + inst.arp)), `frame ${f} voice ${v + 1}: arpeggio frequency`);
+      } else if (inst.arp || inst.arp2) {
+        const allowed = [0, inst.arp, inst.arp2].map((offset) => freqOf(clampPitch(pitch + offset)));
+        assert.ok(allowed.includes(freq), `frame ${f} voice ${v + 1}: arpeggio frequency`);
       } else {
         const near = freqOf(pitch);
         assert.ok(Math.abs(freq - near) <= (inst.vibDepth ? near * 0.06 : 0), `frame ${f} voice ${v + 1}: ${freq} vs ${near}`);

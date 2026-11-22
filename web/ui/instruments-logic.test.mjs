@@ -114,6 +114,7 @@ test('clamping', () => {
   assert.equal(L.clampField('pwStep', -500), -128);
   assert.equal(L.clampField('pw', 5000), 4095);
   assert.equal(L.clampField('arp', 200), 96);
+  assert.equal(L.clampField('arp2', -200), -96);
   assert.equal(L.clampField('name', 'x'), 'x');
 });
 

@@ -16,12 +16,12 @@
 export const SONG_BASE = 0x3000;        // where the tracker keeps the song in the emulated RAM
 export const AUDITION_BASE = 0xC000;    // scratch song for note auditions
 export const SONG_LIMIT = 0xC000;       // the song must end below this address
-export const FIRST_TABLE = 0x2000;      // the 15 instrument tables follow each other, 256 bytes each
+export const FIRST_TABLE = 0x2000;      // the 16 instrument tables follow each other, 256 bytes each
 
 export const TABLE_NAMES = [
   'inst_wave', 'inst_ad', 'inst_sr', 'inst_pw_lo', 'inst_pw_hi', 'inst_pw_step', 'inst_pw_min',
   'inst_pw_max', 'inst_vib_delay', 'inst_vib_depth', 'inst_vib_speed', 'inst_arp',
-  'inst_drum_noise', 'inst_drum_fall', 'inst_release',
+  'inst_drum_noise', 'inst_drum_fall', 'inst_release', 'inst_arp2',
 ];
 
 /** Address of an instrument table: from the player's symbols, else the fixed layout. */
@@ -54,7 +54,7 @@ export function diffBytes(previous, next, address, maxGap = 8) {
   return runs;
 }
 
-/** Bytes the instrument tables take in an export: 15 tables, trimmed to the highest used slot. */
+/** Bytes the instrument tables take in an export: 16 tables, trimmed to the highest used slot. */
 export function instrumentBytes(instruments) {
   let used = 0;
   instruments.forEach((instrument, index) => { if (instrument) used = index + 1; });

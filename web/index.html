@@ -64,7 +64,7 @@
     <h2 id="h-what">What it is</h2>
     <div class="body">
       <p>The sound of the classic C64 game composers comes from playing the SID chip every frame: the pulse width sweeps while a note sounds, vibrato starts late like a hand on a string, one voice runs through a chord, a drum is a puff of noise followed by a falling tone. A tiny player and a few hundred bytes of data do all of that.</p>
-      <p>This project has two parts. The <strong>player</strong> is about 1.5 KB of 6502 assembly, written to be read in an afternoon. The <strong>tracker</strong> is a web page where you write songs for it. The page contains a 6502 core in JavaScript and the reSIDfp chip emulation, and it runs the real player code on them. Nothing is imitated: if it sounds right in the tracker, the same bytes sound right on the machine.</p>
+      <p>This project has two parts. The <strong>player</strong> is about 1.6 KB of 6502 assembly, written to be read in an afternoon. The <strong>tracker</strong> is a web page where you write songs for it. The page contains a 6502 core in JavaScript and the reSIDfp chip emulation, and it runs the real player code on them. Nothing is imitated: if it sounds right in the tracker, the same bytes sound right on the machine.</p>
       <h3>Who it is for</h3>
       <ul class="plain">
         <li>Makers of C64 games and demos who want music without a big player in the way.</li>
@@ -157,7 +157,7 @@
       <dl class="feat">
         <div><dt>Live editing</dt><dd>Change notes, patterns and instruments while the song plays. The new data goes into the running player between two frames.</dd></div>
         <div><dt>Three voices</dt><dd>One order list per voice, patterns shared between voices, transposition per order entry, mute per voice.</dd></div>
-        <div><dt>Instruments</dt><dd>Waveforms, ADSR with the real SID times, a pulse width sweep, vibrato that starts late, an arpeggio, and drums on any voice.</dd></div>
+        <div><dt>Instruments</dt><dd>Waveforms, ADSR with the real SID times, a pulse width sweep, vibrato that starts late, an arpeggio of two or three notes, and drums on any voice.</dd></div>
         <div><dt>Patterns and order lists</dt><dd>A grid with one row per tick, a keyboard layout like other trackers, undo and redo for every edit.</dd></div>
         <div><dt>Six demo songs</dt><dd>Open one, press play, and change things to see what each field does.</dd></div>
         <div><dt>Exports</dt><dd><code>music.asm</code> (the player), <code>instruments.asm</code> and <code>song_name.asm</code> as ACME source, a ready-to-run <code>.prg</code>, and a <code>.sid</code> file for SID players.</dd></div>
@@ -229,7 +229,7 @@
 irq     jsr music_play       ; once per frame, from the raster interrupt
         ...
         jsr music_stop       ; silence, st_running = 0</code></pre>
-      <p>The player needs 14 bytes of zero page and about 1.5 KB. It has no song table: pick a song by its label. How it behaves in every case, the memory map and the measured run time per frame are in <a href="https://github.com/DDecoene/WebSidTracker/blob/main/docs/player.md">docs/player.md</a>.</p>
+      <p>The player needs 14 bytes of zero page and about 1.6 KB. It has no song table: pick a song by its label. How it behaves in every case, the memory map and the measured run time per frame are in <a href="https://github.com/DDecoene/WebSidTracker/blob/main/docs/player.md">docs/player.md</a>.</p>
     </div>
   </div>
 </section>

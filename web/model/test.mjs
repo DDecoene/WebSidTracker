@@ -2,6 +2,7 @@
 //
 // Part of the WebSidTracker web app, GPL version 3 or later (see ../LICENSE).
 
+import { FORMAT } from '../version.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
@@ -55,12 +56,14 @@ test('worked example: the pattern is 5 events, 10 bytes plus the end marker, the
 });
 
 test('tables, instruments and limits', () => {
-  const t = serialiseInstruments([{ ...defaultInstrument(), pw: 0x0A55, pwStep: -3, arp: -12, wave: 0x41 }, null, { ...defaultInstrument(), name: 'x' }]);
+  const t = serialiseInstruments([{ ...defaultInstrument(), pw: 0x0A55, pwStep: -3, arp: -12, arp2: 7, wave: 0x41 }, null, { ...defaultInstrument(), name: 'x' }]);
   assert.deepEqual(Object.keys(t), INSTRUMENT_TABLES);
   assert.equal(t.inst_pw_lo[0], 0x55);
   assert.equal(t.inst_pw_hi[0], 0x0A);
   assert.equal(t.inst_pw_step[0], 0xFD);
   assert.equal(t.inst_arp[0], 0xF4);
+  assert.equal(t.inst_arp2[0], 7);
+  assert.equal(t.inst_arp2[2], 0);
   assert.equal(t.inst_wave[1], 0);
   assert.equal(t.inst_wave[2], 0x40);
   assert.equal(t.inst_wave.length, 256);
@@ -328,11 +331,11 @@ test('instruments asm: trimmed tables with the inst_* labels', () => {
     const start = labels[name] - 0x2000;
     assert.equal(hex(bytes.subarray(start, start + n)), hex(full[name].subarray(0, n)), name);
   });
-  assert.equal(bytes.length, 15 * n);
+  assert.equal(bytes.length, 16 * n);
   // sparse set: highest used instrument + 1 entries
   const sparse = [null, null, { ...defaultInstrument(), name: 'Third' }];
-  assert.equal(assemble(exportInstrumentsAsm(sparse), 0).bytes.length, 15 * 3);
-  assert.equal(assemble(exportInstrumentsAsm([]), 0).bytes.length, 15);
+  assert.equal(assemble(exportInstrumentsAsm(sparse), 0).bytes.length, 16 * 3);
+  assert.equal(assemble(exportInstrumentsAsm([]), 0).bytes.length, 16);
 });
 
 // A stand-in for player.prg: load address $0801, code up to $1xxx marked with a pattern, and a
@@ -366,7 +369,7 @@ test('exportPrg patches tables at $2000 and the song at $3000', () => {
   assert.equal(small.length, 2 + 0x3000 + serialiseSong(newProject().song, 0x3000).size - 0x0801);
 });
 
-test('exportPrg: image that ends below $2F00 still gets all tables; bad images are rejected', () => {
+test('exportPrg: image that ends below $3000 still gets all tables; bad images are rejected', () => {
   const prg = exportPrg(newProject(), fakePlayer({ end: 0x1800 }));
   assert.ok(prg.length >= 2 + 0x3000 - 0x0801);
   assert.throws(() => exportPrg(newProject(), new Uint8Array(1)), /empty/);
@@ -400,8 +403,10 @@ test('project JSON round trip and error messages', () => {
   broken.song.orders[0][0].pattern = 77;
   assert.throws(() => projectFromJson(JSON.stringify(broken)), /pattern 77 does not exist/);
   // missing instrument fields are filled with defaults
-  const partial = projectFromJson(JSON.stringify({ instruments: [{ name: 'Only a name' }], song: defaultSong() }));
+  const partial = projectFromJson(JSON.stringify({ version: FORMAT, instruments: [{ name: 'Only a name' }], song: defaultSong() }));
   assert.equal(partial.instruments[0].release, 2);
+  // a file without a version is format 1, and that is an older format now
+  assert.throws(() => projectFromJson(JSON.stringify({ instruments: [{ name: 'Only a name' }], song: defaultSong() })), /older format 1/);
 });
 
 test('previewSong and clone', () => {

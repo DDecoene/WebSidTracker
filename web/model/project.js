@@ -5,7 +5,7 @@
 //
 //   project    = { instruments: Instrument[], song: Song }
 //   Instrument = { name, wave, ad, sr, pw, pwStep, pwMin, pwMax, vibDelay, vibDepth, vibSpeed,
-//                  arp, drumNoise, drumFall, release }          (unused slot = null)
+//                  arp, arp2, drumNoise, drumFall, release }    (unused slot = null)
 //   Song       = { name, speed, patterns: Pattern[], orders: [Entry[], Entry[], Entry[]] }
 //   Pattern    = { name, events: Event[] }
 //   Event      = {type:'note', pitch, length} | {type:'rest', length} | {type:'inst', instrument} | {type:'legato'}
@@ -25,7 +25,7 @@ export const LIMITS = {
   maxTranspose: 96,
   maxEntries: MAX_ORDER_ENTRIES,        // per voice, an added STOP included; loop targets are 0..127
   maxPatternBytes: MAX_PATTERN_BYTES,   // events plus the $FF end marker
-  instrumentBase: 0x2000,    // 15 tables x 256 bytes
+  instrumentBase: 0x2000,    // 16 tables x 256 bytes
   songBase: 0x3000,
   songEnd: 0xC000,           // the song must end below this address
   scratchBase: 0xC000,       // note auditions
@@ -60,7 +60,7 @@ export function transposedPitch(pitch, transpose) {
 export function defaultInstrument() {
   return {
     name: 'New instrument', wave: 0x40, ad: 0x09, sr: 0xA0, pw: 0x0800, pwStep: 0, pwMin: 0x20, pwMax: 0xE0,
-    vibDelay: 0, vibDepth: 0, vibSpeed: 0, arp: 0, drumNoise: 0, drumFall: 0, release: 2,
+    vibDelay: 0, vibDepth: 0, vibSpeed: 0, arp: 0, arp2: 0, drumNoise: 0, drumFall: 0, release: 2,
   };
 }
 
@@ -87,7 +87,7 @@ export function clone(project) {
 const INSTRUMENT_FIELDS = [
   ['wave', 0, 255], ['ad', 0, 255], ['sr', 0, 255], ['pw', 0, 4095], ['pwStep', -128, 127],
   ['pwMin', 0, 255], ['pwMax', 0, 255], ['vibDelay', 0, 255], ['vibDepth', 0, 255], ['vibSpeed', 0, 255],
-  ['arp', -128, 127], ['drumNoise', 0, 255], ['drumFall', 0, 255], ['release', 0, 255],
+  ['arp', -128, 127], ['arp2', -128, 127], ['drumNoise', 0, 255], ['drumFall', 0, 255], ['release', 0, 255],
 ];
 
 const isInt = (v, lo, hi) => Number.isInteger(v) && v >= lo && v <= hi;
@@ -196,7 +196,7 @@ export function lint(project) {
     if (inst.release > RELEASE_MAX) w(`release above ${RELEASE_MAX} is played as ${RELEASE_MAX}`);
     if (inst.vibDepth > 127) w('vibrato depth above 127 is played as 127');
     if (inst.vibDepth && (inst.vibSpeed < 2 || inst.vibSpeed % 2)) w(`vibrato speed ${inst.vibSpeed} is played as ${Math.max(2, inst.vibSpeed & 0xFE)} (even numbers from 2)`);
-    if (inst.drumNoise && (inst.vibDepth || inst.arp)) w('vibrato and arpeggio are not applied to a drum (drum noise is above 0)');
+    if (inst.drumNoise && (inst.vibDepth || inst.arp || inst.arp2)) w('vibrato and arpeggio are not applied to a drum (drum noise is above 0)');
     if (inst.pwStep && inst.pwMin > inst.pwMax) w('pulse sweep minimum is above the maximum');
   });
 

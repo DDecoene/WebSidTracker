@@ -6,7 +6,7 @@
 ;
 ; Memory map:   $0801  BASIC line and this program (up to $0FFF)
 ;               $1000  music.asm: player code, frequency table, state (up to $1FFF)
-;               $2000  instrument tables, 15 x 256 bytes (up to $2EFF)
+;               $2000  instrument tables, 16 x 256 bytes (up to $2FFF)
 ;               $3000  the song
 SONG_ADDRESS    = $3000
 

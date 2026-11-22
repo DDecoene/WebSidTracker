@@ -39,10 +39,11 @@ const TABLE_HELP = {
   inst_vib_delay: 'frames before the vibrato starts',
   inst_vib_depth: 'vibrato width, 1/16 of the distance to the next semitone',
   inst_vib_speed: 'frames per half vibrato period',
-  inst_arp: 'arpeggio offset in semitones (signed)',
+  inst_arp: 'arpeggio: first offset in semitones (signed)',
   inst_drum_noise: 'drum: frames of noise at the start (0 = not a drum)',
   inst_drum_fall: 'drum: frequency units the tone falls per frame',
   inst_release: 'frames at the end of a note kept for the clean restart',
+  inst_arp2: 'arpeggio: second offset in semitones (signed, 0 = a two-note arpeggio)',
 };
 
 // Number of table entries to export: highest defined instrument + 1 (at least 1).
@@ -124,7 +125,7 @@ export function exportSongAsm(song, name = song.name) {
 
 // ---------------------------------------------------------------- .prg
 
-const TABLE_END = LIMITS.instrumentBase + INSTRUMENT_TABLES.length * 0x100; // $2F00
+const TABLE_END = LIMITS.instrumentBase + INSTRUMENT_TABLES.length * 0x100; // $3000
 
 // Patches the instrument tables ($2000...) and the song ($3000...) into the player image.
 // The player image is a PRG: two load-address bytes, then the program. The result is a PRG
@@ -244,11 +245,19 @@ export function projectToJson(project) {
   return JSON.stringify({ format: PROJECT_FORMAT_NAME, version: FORMAT, release: RELEASE, instruments: project.instruments, song: project.song }, null, 1);
 }
 
-/** Defaults and checks for project data of the current format (no version check). */
-export function projectFromData(data) {
+/**
+ * Throws when the data does not have the two parts every project file has, in any format. It runs before
+ * the format is looked at, so some other JSON file is called "not a project file" and not "an older project".
+ */
+export function checkProjectShape(data) {
   if (!data || typeof data !== 'object' || !Array.isArray(data.instruments) || !data.song || typeof data.song !== 'object') {
     throw new Error('This is not a project file (instruments or song missing).');
   }
+}
+
+/** Defaults and checks for project data of the current format (no version check). */
+export function projectFromData(data) {
+  checkProjectShape(data);
   const song = {
     name: 'untitled', speed: 6, patterns: [], orders: [[], [], []], ...data.song,
   };
@@ -275,6 +284,7 @@ export function projectFromJson(text) {
   const data = parseProjectText(text);
   const format = readFormat(data);
   if (format > FORMAT) throw new NewerFormatError(format, typeof data.release === 'string' ? data.release : null);
+  checkProjectShape(data);
   if (format < FORMAT) throw new OlderFormatError(format);
   return projectFromData(data);
 }

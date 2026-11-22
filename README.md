@@ -14,7 +14,7 @@ The full story (what made that approach special, what such a player contains, wh
 
 ## The plan
 
-1. **A player in 6502 assembly**, original work, about 1.5 KB: three voices, patterns and an order list per voice, instruments as parameter records, per-frame effects (pulse sweep, vibrato, arpeggio, drums). Built, see [docs/player.md](docs/player.md).
+1. **A player in 6502 assembly**, original work, about 1.6 KB: three voices, patterns and an order list per voice, instruments as parameter records, per-frame effects (pulse sweep, vibrato, arpeggio, drums). Built, see [docs/player.md](docs/player.md).
 2. **A tracker in the browser**: a grid with three voice columns, an instrument editor, and live playback where every edit is heard at once. The tracker runs the real 6502 player in its own small emulator and sends the SID writes to a SID emulation that sounds like the real chip (reSIDfp, compiled to WebAssembly). Built.
 3. **Export**: assembler source for song and instruments (drop it next to the player in your game), a ready-to-run `.prg`, and a `.sid` file for SID players. Built.
 
@@ -123,6 +123,7 @@ Done:
 - [x] Export to assembler source and `.prg`
 - [x] Export to a `.sid` file (PSID version 2)
 - [x] Block selection with the keyboard and the mouse, copy, cut and paste in the pattern editor
+- [x] A three-note arpeggio: a second offset per instrument, so one voice can play a full triad (format 2; format 1 files are ported without loss)
 - [x] Versions and releases: a format version in every file, porting of older project files, releases published on Pages ([design](docs/design-versioning-and-releases.md), [how to release](docs/releasing.md))
 
 Open:

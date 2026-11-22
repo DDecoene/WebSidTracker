@@ -1,5 +1,5 @@
 ; music.asm - the WebSidTracker music player (MIT licence, see ../LICENSE)
-; websidtracker format 1, release 0.1.0
+; websidtracker format 2, release 0.1.0
 ;
 ; Three voices, patterns and order lists, instruments that change the SID every frame
 ; (pulse sweep, late vibrato, arpeggio, drums). The byte formats and the timing rules are
@@ -9,7 +9,7 @@
 ;       lda #<my_song : ldx #>my_song : jsr music_init     ; start a song
 ;       jsr music_play                                       ; once per frame, from the raster IRQ
 ;       jsr music_stop                                       ; silence everything
-; The player also needs the instrument tables of instruments.asm (labels inst_wave ... inst_release).
+; The player also needs the instrument tables of instruments.asm (labels inst_wave ... inst_arp2).
 ;
 ; HOW THE FILE IS BUILT, top to bottom:
 ;   [1] names and constants     [2] the three entry points      [3] reading the song (events)
@@ -27,7 +27,7 @@ music_start
 
 ; Version of this player (see docs/design-versioning-and-releases.md). They produce no bytes; the tracker
 ; and the tests read them from the symbol list. Keep them equal to FORMAT and RELEASE in web/version.js.
-format_version  = 1
+format_version  = 2
 release_major   = 0
 release_minor   = 1
 release_patch   = 0
@@ -115,6 +115,7 @@ music_init
         bpl @clear
         sta st_frame_in_tick            ; 0 means: the very next frame is a tick
         sta st_frames
+        sta st_arp_step
         jsr read_speed
         ; Put each voice on entry 0 of its order list
         ldx #2
@@ -142,7 +143,15 @@ music_play
         bne @go
         rts                             ; not playing
 @go     cld                             ; binary arithmetic (an interrupt does not clear the decimal flag by itself)
-        inc st_frames                   ; counts every frame, the arpeggio uses its lowest bit
+        inc st_frames                   ; counts every frame, the two-note arpeggio uses its lowest bit
+        ; The three-note arpeggio needs a counter that goes 0, 1, 2, 0, 1, 2 ... A bit of st_frames cannot
+        ; do that (bits count in twos, fours, eights), so it has a counter of its own.
+        ldy st_arp_step
+        iny
+        cpy #3
+        bcc @step                       ; still below 3
+        ldy #0                          ; 3 becomes 0 again
+@step   sty st_arp_step
 
         ; --- The tick clock, shared by all voices. st_frame_in_tick = frames left until the next tick.
         ; When it is 0 this frame is a tick: read the speed (the song may have changed it) and start over.
@@ -668,7 +677,11 @@ pw_top
 ; calc_frequency: out_freq_lo/hi. X = voice.
 ;   A drum uses its running frequency (st_freq), which starts at the note and falls (see advance_voice).
 ;   Any other note: look the pitch up in the frequency table, then add the vibrato.
-;   The arpeggio raises the pitch by inst_arp semitones on every second frame.
+;   The arpeggio changes the pitch that is looked up:
+;     inst_arp2 = 0 (two notes):   even frames the note, odd frames the note + inst_arp. 25 times a second.
+;     inst_arp2 not 0 (three notes): the note, the note + inst_arp, the note + inst_arp2, one frame each,
+;                                  and again. A whole round is three frames, so 16.7 times a second.
+;   Both counters (st_frames and st_arp_step) are shared by the three voices and are not reset by a new note.
 calc_frequency
         ldy st_instr,x
         lda inst_drum_noise,y
@@ -678,16 +691,28 @@ calc_frequency
         lda st_freq_hi,x
         sta out_freq_hi
         rts
+        ; --- three notes. A = inst_arp2 (not 0), Y = the instrument
+@three  sta zp_t0                       ; the offset of step 2, unless the code below picks another one
+        lda st_arp_step
+        beq @lookup                     ; step 0: the note itself
+        cmp #2
+        beq @offset                     ; step 2: the note plus the second offset
+        lda inst_arp,y                  ; step 1: the note plus the first offset ...
+        beq @lookup                     ; ... which may be 0: then it is the note itself
+        sta zp_t0
+        bne @offset                     ; (always jumps: A is not 0)
 @melodic
         lda st_pitch,x
         sta zp_pitch
+        lda inst_arp2,y
+        bne @three                      ; a second offset: the three-note arpeggio
         lda inst_arp,y
         beq @lookup                     ; 0 = no arpeggio
         sta zp_t0
         lda st_frames
         and #1
         beq @lookup                     ; even frames: the note itself
-        lda st_pitch,x                  ; odd frames: the note plus the offset
+@offset lda st_pitch,x                  ; the note plus the offset in zp_t0
         jsr add_semitones
         sta zp_pitch
 @lookup ldy zp_pitch
@@ -920,7 +945,8 @@ st_song_hi      !byte 0
 st_speed        !byte 0                 ; frames per tick (read from the song header at every tick)
 st_frame_in_tick !byte 0                ; frames left until the next tick (0: the next frame is a tick)
 st_running      !byte 0                 ; 1 while a song plays, 0 when stopped or finished
-st_frames       !byte 0                 ; frame counter, wraps around. Bit 0 drives the arpeggio
+st_frames       !byte 0                 ; frame counter, wraps around. Bit 0 drives the two-note arpeggio
+st_arp_step     !byte 0                 ; counts 0, 1, 2, 0, 1, 2 ... one step per frame: the three-note arpeggio
 
 ; --- what the SID gets this frame (the values are worked out first, then written together)
 out_freq_lo     !byte 0

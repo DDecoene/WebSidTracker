@@ -169,7 +169,7 @@ All of this runs on the real player, on every frame of the note (except where no
 
 **Vibrato.** *Delay* is the number of frames after the start of the note before the vibrato begins (long notes get life, short notes stay clean). *Depth* is the width of the wobble in 1/16 of the way to the next semitone below (16 is a whole semitone either side; 0 switches vibrato off). It sounds equally wide in bass and treble. *Speed* is the number of frames of one swing from one side to the other (a low number is fast; 3 to 5 sounds natural; an odd number is rounded down to the even one below, and 1 counts as 2). Vibrato is not applied to drums. Changing depth while a note sounds needs a new note (0 switches it off at once).
 
-**Arpeggio.** *Offset* in semitones. Every second frame the pitch jumps to the note plus the offset, so it flutters between two pitches at 25 Hz. 12 is an octave, 7 a fifth, 4 a major third; the fast flutter sounds like a chord. 0 is off. Not applied to drums.
+**Arpeggio.** *Offset* in semitones. Every second frame the pitch jumps to the note plus the offset, so it flutters between two pitches at 25 Hz. 12 is an octave, 7 a fifth, 4 a major third; the fast flutter sounds like a chord. 0 is off. *Second offset* makes it three notes: when it is not 0 the voice plays the note, the note plus Offset and the note plus Second offset, one frame each, and round again (16.7 times a second, a little slower and a little rougher than two notes). Offset 4 with Second offset 7 is a major chord, 3 with 7 a minor chord, 4 with 9 or 5 with 9 the other positions of a chord. With Second offset 0 the arpeggio is the two-note one. All voices step together, and a new note does not restart the round. Not applied to drums.
 
 **Drum.** *Noise frames* above 0 turns the instrument into a drum. The note starts with that many frames of noise at the pitch of the note. After that the waveform you chose plays from the same pitch and falls by *Fall* (in SID frequency register units per frame; a large value gives a quick boom, 0 keeps the pitch, as for a hat). Play drums on low notes for kicks and higher notes for snares and hats. The pulse sweep still works on a drum; vibrato and arpeggio do not.
 
@@ -200,6 +200,8 @@ Every project file says which format it has and which release wrote it. When you
 - **Port to this version.** The result opens as an unsaved project; the file on disk is not changed, Save makes a new one.
 - **Open in the old tracker.** The tracker opens the newest release that has the file's format, with your file loaded. Your current project is saved in the browser first.
 - **Cancel.**
+
+The formats so far: format 1 (release 0.1.0), and format 2, which gave the arpeggio its second offset. Porting a format 1 file loses nothing: every instrument gets a second offset of 0 and sounds as it did.
 
 If porting is not possible (the result would not be a valid project) the dialog says why and only the old tracker is offered. If the list of releases cannot be loaded, only porting is offered. A file from a newer tracker is refused with a message; open it in a newer release. Each format keeps its own autosave in the browser, so an older tracker never touches the saved project of a newer one. If the project saved in the browser is the older one, the same dialog is shown at start; choosing **Port** first downloads the original as a file, because it exists only in the browser.
 
@@ -233,7 +235,7 @@ A text is at most 32 characters of the Latin-1 set (plain letters, digits, punct
 
 What is in the memory part: seven bytes of start code at `$0FF9` (they load the address of the song and jump to `music_init`, because a SID player cannot pass that address), the player at `$1000`, the instrument tables at `$2000` and the song at `$3000`: the same bytes as in the `.prg` from `$1000` on. The SID player calls `$0FF9` once and `music_play` once per frame.
 
-**In a game, use the assembler files, not the .sid.** A `.sid` sits at fixed addresses (`$0FF9` up to the end of the song), carries all 15 instrument tables at their full 256 bytes (3840 bytes, where `instruments.asm` only has the instruments you use), and holds its own copy of the player, so two songs as two `.sid` files cannot be in memory together. With the assembler files the player, the tables and the songs go wherever your game has room, several songs share one player and one instrument set, and you can move the zero page bytes. The `.sid` is for listening and sharing.
+**In a game, use the assembler files, not the .sid.** A `.sid` sits at fixed addresses (`$0FF9` up to the end of the song), carries all 16 instrument tables at their full 256 bytes (4096 bytes, where `instruments.asm` only has the instruments you use), and holds its own copy of the player, so two songs as two `.sid` files cannot be in memory together. With the assembler files the player, the tables and the songs go wherever your game has room, several songs share one player and one instrument set, and you can move the zero page bytes. The `.sid` is for listening and sharing.
 
 Put the files in your game project and include them:
 
@@ -270,8 +272,8 @@ Notes:
 - `music_init` takes the low byte of the header address in A and the high byte in X. It clobbers A, X and Y. Calling it again starts another song at once. The player has no song table: you pick a song with its label.
 - `music_play` clobbers A, X and Y. It clears the decimal flag, so it is safe from an interrupt that did not. When all three voices have stopped it returns at once, in 12 cycles.
 - The player is PAL: one `music_play` per 50 Hz frame. On NTSC (60 Hz) everything would play about 20 percent too fast, and the pitches are for the PAL clock. NTSC support is still to do.
-- Time: a normal frame takes about 1600 cycles of the 19,656 in a PAL frame; the longest frames in the demo song take about 3300. The worst case made on purpose is about 5000 (8000 with the longest release). See [player.md](player.md), section 8.
-- The player writes only to the SID (`$D400` to `$D418`), 14 bytes of zero page from `$E0` (move them by defining `zp_music` before you include `music.asm`), the stack (at most 10 bytes), and its own memory (about 1.5 KB).
+- Time: a normal frame takes about 1700 cycles of the 19,656 in a PAL frame; the longest frames in the demo song take about 3400. The worst case made on purpose is about 5000 (8000 with the longest release). See [player.md](player.md), section 8.
+- The player writes only to the SID (`$D400` to `$D418`), 14 bytes of zero page from `$E0` (move them by defining `zp_music` before you include `music.asm`), the stack (at most 10 bytes), and its own memory (about 1.6 KB).
 - The game owns the SID volume after `music_init` (it sets 15); `music_stop` writes 0 to every SID register, volume included.
 
 All the details (what happens in odd cases, the state block, the limits) are in [player.md](player.md).
@@ -283,8 +285,8 @@ In the tracker and in the exported `.prg`:
 | Range | Content |
 |---|---|
 | `$0801-$0FFF` | the BASIC line `10 SYS 2064` and the small program that sets up the raster interrupt (line 250). The `.sid` file has only seven bytes of start code here, at `$0FF9` |
-| `$1000-$1FFF` | the player: code, frequency table, state block (about 1.5 KB) |
-| `$2000-$2EFF` | the 15 instrument tables of 256 bytes, in this order: `inst_wave`, `inst_ad`, `inst_sr`, `inst_pw_lo`, `inst_pw_hi`, `inst_pw_step`, `inst_pw_min`, `inst_pw_max`, `inst_vib_delay`, `inst_vib_depth`, `inst_vib_speed`, `inst_arp`, `inst_drum_noise`, `inst_drum_fall`, `inst_release` |
+| `$1000-$1FFF` | the player: code, frequency table, state block (about 1.6 KB) |
+| `$2000-$2FFF` | the 16 instrument tables of 256 bytes, in this order: `inst_wave`, `inst_ad`, `inst_sr`, `inst_pw_lo`, `inst_pw_hi`, `inst_pw_step`, `inst_pw_min`, `inst_pw_max`, `inst_vib_delay`, `inst_vib_depth`, `inst_vib_speed`, `inst_arp`, `inst_drum_noise`, `inst_drum_fall`, `inst_release`, `inst_arp2` |
 | `$3000-$BFFF` | the song (header at `$3000`); it must end below `$C000` |
 | `$C000-` | in the tracker only: a scratch song for playing single notes while you audition |
 | `$E0-$ED` | zero page used by the player |
