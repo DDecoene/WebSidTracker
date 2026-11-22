@@ -139,6 +139,15 @@ const SECTIONS = [
     ],
   },
   {
+    title: 'Slide',
+    controls: [
+      { key: 'slide', label: 'Slide', min: -128, max: 127, sliderMin: -64, sliderMax: 64, digits: 3,
+        get: (i) => i.slide, set: (i, v) => { i.slide = v; },
+        text: (v) => (v === 0 ? 'off' : `${v > 0 ? 'up' : 'down'} ${Math.abs(v * 8)} per frame`),
+        hint: 'From the second frame of a note the pitch slides: up for a positive number, down for a negative one, by this times 8 in frequency units every frame. Big numbers make lasers and falling bombs, small ones bends and sirens. A high note slides faster in semitones than a low one. The vibrato still works on a sliding note, the arpeggio does not.' },
+    ],
+  },
+  {
     title: 'Drum',
     intro: 'Setting "Noise frames" above 0 turns the instrument into a drum: it starts with a burst of noise, then the waveform above plays on from the note\'s pitch and falls. Play drums on low notes for kicks and higher notes for snares and hats.',
     summary: 'drum',
