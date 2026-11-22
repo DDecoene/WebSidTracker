@@ -2,7 +2,7 @@
 
 A SID music tracker for the browser, built clean-room, with a small player you can drop into your own Commodore 64 game.
 
-> **Status: working, not finished (alpha, release 0.1.0).** The C64 player is built and measured, the browser tracker runs it live: a 6502 core, reSIDfp as WebAssembly, the song model with export, the pattern and order editor and the instrument editor all exist. Try it at <https://ddecoene.github.io/WebSidTracker/>. What is still open is listed in the [roadmap](#roadmap). How to use the tracker: [docs/tracker-guide.md](docs/tracker-guide.md).
+> **Status: working, not finished (alpha, release 0.2.0).** The C64 player is built and measured, the browser tracker runs it live: a 6502 core, reSIDfp as WebAssembly, the song model with export, the pattern and order editor and the instrument editor all exist. Try it at <https://ddecoene.github.io/WebSidTracker/>. What is still open is listed in the [roadmap](#roadmap). How to use the tracker: [docs/tracker-guide.md](docs/tracker-guide.md).
 
 ## Why
 
@@ -14,9 +14,9 @@ The full story (what made that approach special, what such a player contains, wh
 
 ## The plan
 
-1. **A player in 6502 assembly**, original work, about 1.5 KB: three voices, patterns and an order list per voice, instruments as parameter records, per-frame effects (pulse sweep, vibrato, arpeggio, drums). Built, see [docs/player.md](docs/player.md).
+1. **A player in 6502 assembly**, original work, about 2 KB: three voices, patterns and an order list per voice, instruments as parameter records, per-frame effects (pulse sweep, vibrato, arpeggio, pitch slide, drums), and sound effects that borrow a voice and give it back. Built, see [docs/player.md](docs/player.md).
 2. **A tracker in the browser**: a grid with three voice columns, an instrument editor, and live playback where every edit is heard at once. The tracker runs the real 6502 player in its own small emulator and sends the SID writes to a SID emulation that sounds like the real chip (reSIDfp, compiled to WebAssembly). Built.
-3. **Export**: assembler source for song and instruments (drop it next to the player in your game), and a ready-to-run `.prg`. Built. Maybe a `.sid` file later.
+3. **Export**: assembler source for song, instruments and sound effects (drop it next to the player in your game), a ready-to-run `.prg`, and a `.sid` file for SID players. Built.
 
 ## Rules of this project
 
@@ -32,22 +32,24 @@ The full story (what made that approach special, what such a player contains, wh
 | `docs/design-player-format-and-timing.md` | the player design: song and instrument data, ticks and frames, clean note starts (with an "As built" section) |
 | `docs/design-web-tracker-architecture.md` | the browser tracker design: own 6502 emulator, reSIDfp, live editing, export (with an "As built" section) |
 | `docs/player.md` | how to call the player, memory map, state block, exact behaviour, limits, measurements |
-| `docs/tracker-guide.md` | user guide of the tracker: concepts, keys, instrument fields, export |
+| `docs/design-sound-effects.md`, `docs/plan-sound-effects.md` | the design of the sound effects and the pitch slide, and the plan it was built from (with an "As built" section) |
+| `docs/tracker-guide.md` | user guide of the tracker: concepts, keys, instrument fields, export, sound effects |
 | `src/music.asm` | the player (MIT) |
-| `src/instruments.asm`, `src/song_demo.asm` | the default instrument set and a demo song |
-| `src/runner.asm`, `src/main.asm` | a complete program: BASIC line, raster interrupt, player, instruments, song (this is the image the tracker exports) |
+| `src/instruments.asm`, `src/sfx.asm`, `src/song_demo.asm` | the default instrument set, three example sound effects and a demo song |
+| `src/runner.asm`, `src/main.asm` | a complete program: BASIC line, raster interrupt, player, instruments, effects (keys 1 to 9), song (this is the image the tracker exports) |
 | `src/hardware.asm` | names for the VIC-II, SID and CIA registers, no code |
 | `web/` | the browser app (GPL), see [web/README.md](web/README.md) |
 | `web/cpu/` | the 6502 core and its tests |
 | `web/sid/` | reSIDfp build script, C wrapper, loader and a Node test |
 | `web/engine/` | the audio engine: 6502 + SID, the AudioWorklet and its client |
-| `web/model/` | song model, serialiser, exports |
+| `web/model/` | song model, serialiser, exports, the demos |
 | `web/app/` | the app shell: store, undo, live editing glue, files, panels |
-| `web/ui/` | the pattern and order editor and the instrument editor |
+| `web/ui/` | the pattern and order editor, the Effects view and the instrument editor |
 | `web/player/` | the built player image (`player.prg`, `symbols.json`) and its tests |
 | `tools/` | the player build script, a label converter, a small server for the browser C64 emulator |
 | `Makefile`, `project-config.json`, `.vscode/` | build and run |
-| `.github/workflows/pages.yml` | tests, makes the GitHub release for a tag and publishes the site on GitHub Pages |
+| `.github/workflows/pages.yml` | runs the tests and publishes the site on GitHub Pages |
+| `.github/workflows/release.yml` | makes the GitHub release for a tag |
 | `docs/releasing.md` | versions, branches and how to make a release |
 
 ## Versions and releases
@@ -67,7 +69,7 @@ python3 -m http.server 8010
 
 Then open <http://127.0.0.1:8010/>. Audio starts at your first click or key press.
 
-The **Demos** menu in the header loads one of six songs: Ode to Joy (what a first visit starts with), Für Elise, Rondo alla Turca, Toccata in D minor, In the Hall of the Mountain King, and an original demo tune. Open one, press Play and change things while it plays. There is no build step for the web app; `web/sid/sid.wasm` and `web/player/player.prg` are committed. The older sound test page is at `/sound-test.html`.
+The **Demos** menu in the header loads one of six songs (Ode to Joy, what a first visit starts with, Für Elise, Rondo alla Turca, Toccata in D minor, In the Hall of the Mountain King, and an original demo tune) or a set of sound effects over the original tune (open the Effects tab). Open one, press Play and change things while it plays. There is no build step for the web app; `web/sid/sid.wasm` and `web/player/player.prg` are committed. The older sound test page is at `/sound-test.html`.
 
 ## Building the C64 side
 
@@ -88,9 +90,11 @@ Node.js 22 or later; no packages to install. From the repository root:
 
 ```
 node --test web/player/test.mjs
-node --test web/model/test.mjs
+node --test web/model/test.mjs web/model/player.test.mjs
+node --test web/model/demos/*.test.mjs
 node --test web/engine/test.mjs
 node --test web/app/files.test.mjs web/app/live.test.mjs web/app/session.test.mjs web/app/store.test.mjs
+node --test web/app/integration.test.mjs web/app/manual.test.mjs
 node --test web/ui/editor-logic.test.mjs web/ui/instruments-logic.test.mjs
 node --test web/cpu/test.mjs
 node --test web/version.test.mjs web/model/migrate.test.mjs web/model/golden.test.mjs
@@ -118,23 +122,25 @@ Done:
 - [x] Browser: song model, serialiser, live editing with playhead fix-up, undo, autosave, project files
 - [x] Browser: the pattern and order editor and the instrument editor
 - [x] Export to assembler source and `.prg`
+- [x] Export to a `.sid` file (PSID version 2)
+- [x] Block selection with the keyboard and the mouse, copy, cut and paste in the pattern editor
+- [x] A three-note arpeggio: a second offset per instrument, so one voice can play a full triad (format 2; format 1 files are ported without loss)
+- [x] Sound effects that borrow a voice (made in the Effects tab, started by the game with `sfx_play`), and a pitch slide per instrument (format 2) ([design](docs/design-sound-effects.md))
 - [x] Versions and releases: a format version in every file, porting of older project files, releases published on Pages ([design](docs/design-versioning-and-releases.md), [how to release](docs/releasing.md))
 
 Open:
 
 - [ ] Fine-tuning the sound by ear (instrument defaults, the demo song)
 - [ ] NTSC (frequency table and 60 Hz timing)
-- [ ] Sound effects that borrow a voice
+- [ ] Priorities between sound effects, and effects that drive two voices by themselves
 - [ ] Filter (and other later features: portamento, volume per voice)
-- [ ] Mouse selection and copy/paste in the pattern editor (the mouse only places the cursor now)
-- [ ] `.sid` export
 - [ ] Open `song_<name>.asm` and `instruments.asm` in the tracker (only the project file can be opened now)
 
 ## Licence
 
 This project has two licences, split by what you use in your game.
 
-**The player and everything the tracker exports: [MIT](LICENSE).** That is `src/` (the player and its tables), `docs/`, and the files you take from the tracker: `music.asm`, `instruments.asm`, `song_<name>.asm` and the `.prg`. Use it for anything, in free or commercial games and demos, as long as the copyright notice and the licence text stay with the parts of this project you use.
+**The player and everything the tracker exports: [MIT](LICENSE).** That is `src/` (the player and its tables), `docs/`, and the files you take from the tracker: `music.asm`, `instruments.asm`, `sfx.asm`, `song_<name>.asm`, the `.prg` and the `.sid`. Use it for anything, in free or commercial games and demos, as long as the copyright notice and the licence text stay with the parts of this project you use.
 
 - Your game or demo is your own work and can have any licence you like. Only the WebSidTracker parts you include (the player) keep the MIT terms.
 - In practice that means a line in your credits or readme, for example: *Music player by Dennis Decoene (WebSidTracker, MIT licence)*.

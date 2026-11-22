@@ -9,6 +9,7 @@
   <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="ui/editor.css">
   <link rel="stylesheet" href="ui/instruments.css">
+  <link rel="stylesheet" href="ui/effects.css">
   <link rel="stylesheet" href="manual.css">
   <script type="module" src="app/main.js"></script>
 </head>
@@ -31,7 +32,7 @@
         <button id="btn-new" type="button" title="Start a new, empty project">New</button>
         <button id="btn-open" type="button" title="Open a project file (JSON)">Open</button>
         <button id="btn-save" type="button" title="Save the project as a JSON file (Ctrl/Cmd+S)">Save</button>
-        <button id="btn-export" type="button" class="primary" title="Export assembler files and a ready-to-run .prg">Export</button>
+        <button id="btn-export" type="button" class="primary" title="Export assembler files, a ready-to-run .prg and a .sid file">Export</button>
         <input id="file-input" type="file" accept=".json,application/json" hidden>
       </div>
 
@@ -89,14 +90,21 @@
 
       <div class="meter" title="Output level" aria-hidden="true"><i id="meter"></i></div>
 
-      <div class="readout grow" id="sizes" aria-live="off" title="Bytes the song and the instrument tables take, and what is left below $C000"></div>
+      <div class="readout grow" id="sizes" aria-live="off" title="Bytes the song, the instrument tables and the sound effects take, and what is left below $C000"></div>
     </div>
   </header>
 
   <div id="messages" class="messages" role="region" aria-label="Messages" aria-live="polite"></div>
 
   <main class="workspace">
-    <section id="editor-pane" class="pane" aria-label="Pattern editor"></section>
+    <div class="left-col">
+      <div class="view-tabs" role="tablist" aria-label="What to edit">
+        <button id="tab-song" type="button" role="tab" aria-selected="true" aria-controls="editor-pane" title="The song: patterns and order lists">Song</button>
+        <button id="tab-effects" type="button" role="tab" aria-selected="false" aria-controls="effects-pane" title="Sound effects for your game: short lines of notes that play over the music">Effects</button>
+      </div>
+      <section id="editor-pane" class="pane" role="tabpanel" aria-label="Pattern editor"></section>
+      <section id="effects-pane" class="pane" role="tabpanel" aria-label="Sound effects" hidden></section>
+    </div>
     <section id="instrument-pane" class="pane" aria-label="Instrument editor"></section>
   </main>
 
@@ -112,7 +120,7 @@
   <dialog id="export-dialog" aria-labelledby="export-title">
     <form method="dialog">
       <h2 id="export-title">Export</h2>
-      <p class="hint">These files play your song in a game. Copy <code>music.asm</code> from the project's <code>src/</code> folder next to them; the .prg already contains the player.</p>
+      <p class="hint">The .asm files play your song in a game: copy <code>music.asm</code> from the project's <code>src/</code> folder next to them. The .prg and the .sid already contain the player.</p>
       <div id="export-body"></div>
       <div class="dialog-actions"><button value="close" class="primary">Close</button></div>
     </form>

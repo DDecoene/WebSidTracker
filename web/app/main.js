@@ -123,7 +123,7 @@ async function main() {
     symbols = await fetchJson('../player/symbols.json');
   } catch (error) {
     messages.show('symbols', 'warn', 'The player symbols could not be loaded.',
-      [`${error.message}. Playing may fail, and play-from-cursor and live speed changes will not work.`]);
+      [`${error.message}. Playing may fail, and play-from-cursor will not work.`]);
   }
 
   const session = createSession({
@@ -220,7 +220,9 @@ async function main() {
   function showSizes(info) {
     const low = info.free < 1000;
     const parts = [
-      ['Song ', `${info.song} B`], ['Instruments ', `${info.instruments} B`], ['Free ', `${(info.free / 1024).toFixed(1)} KB`, low],
+      ['Song ', `${info.song} B`], ['Instruments ', `${info.instruments} B`],
+      ...((store.project.effects ?? []).length ? [['Effects ', `${info.effects} B`]] : []),
+      ['Free ', `${(info.free / 1024).toFixed(1)} KB`, low],
     ];
     $('sizes').replaceChildren(...parts.map(([label, value, warn]) => {
       const part = document.createElement('span');
@@ -345,6 +347,49 @@ async function main() {
 
   // ---- export ----------------------------------------------------------------------
 
+  // The credits of a .sid file are not part of the project (the project format has no fields
+  // for them): they are typed in the export dialog and remembered in this browser.
+  const SID_INFO_KEY = 'websidtracker.sid-info';
+  function readSidInfo() {
+    try {
+      const info = JSON.parse(localStorage.getItem(SID_INFO_KEY));
+      return info && typeof info === 'object' ? info : {};
+    } catch (error) {
+      return {};
+    }
+  }
+  function keepSidInfo(values) {
+    try {
+      localStorage.setItem(SID_INFO_KEY, JSON.stringify({ author: values.author, released: values.released }));
+    } catch (error) { /* a full or blocked storage only costs the convenience */ }
+  }
+  const sidModel = (value) => (value === 'any' ? 'any' : Number(value));
+
+  // The .sid row of the export dialog: three text boxes and the chip the song is made for
+  // (it starts on the chip you are listening to).
+  function sidFile(name, song) {
+    const remembered = readSidInfo();
+    const text = (key, label, value, placeholder, title) => ({ key, label, value, placeholder, title, maxLength: exporter.SID_TEXT_LENGTH });
+    return {
+      name: `${name}.sid`,
+      mime: 'audio/prs.sid',
+      text: false,
+      what: 'For SID players (VICE, sidplayfp, DeepSID) and for sharing. Contains the player and the song, no program around it.',
+      fields: [
+        text('title', 'Title', song.name, '', 'The name of the song, at most 32 characters'),
+        text('author', 'Author', typeof remembered.author === 'string' ? remembered.author : '', 'your name',
+          'Who made the song, at most 32 characters. Left empty it becomes <?>, which means unknown.'),
+        text('released', 'Released', typeof remembered.released === 'string' ? remembered.released : '', `${new Date().getFullYear()} your name or group`,
+          'The year and who released it, at most 32 characters. Left empty it becomes <?>.'),
+        { key: 'model', label: 'Chip', value: $('chip').value === '1' ? '8580' : '6581',
+          options: [['6581', 'MOS 6581'], ['8580', 'CSG 8580'], ['any', 'Either']],
+          title: 'The SID chip the song is made for. A SID player uses it to choose its emulation.' },
+      ],
+      build: (values) => exporter.exportSid(store.project, playerPrg, symbols, { ...values, model: sidModel(values.model) }),
+      changed: keepSidInfo,
+    };
+  }
+
   let playerPrg = null;
   async function openExport() {
     const problems = projectModel.validate(store.project);
@@ -360,14 +405,18 @@ async function main() {
       }
       const { song } = store.project;
       const name = slug(song.name);
-      renderExport($('export-body'), [
+      const files = [
         { name: 'instruments.asm', data: exporter.exportInstrumentsAsm(store.project.instruments), text: true, mime: 'text/plain',
           what: 'The instrument tables, shared by all your songs.' },
         { name: `song_${name}.asm`, data: exporter.exportSongAsm(song, name), text: true, mime: 'text/plain',
           what: 'This song. Start it with lda #<song / ldx #>song / jsr music_init.' },
+        { name: 'sfx.asm', data: exporter.exportSfxAsm(store.project.effects ?? []), text: true, mime: 'text/plain',
+          what: 'The sound effects, shared by all your songs. Play one with lda #SFX_NAME / ldx #voice / jsr sfx_play. The player needs this file even without effects.' },
         { name: `${name}.prg`, data: exporter.exportPrg(store.project, playerPrg), text: false, mime: 'application/octet-stream',
           what: 'Ready to run on a C64 or in VICE: load it and RUN.' },
-      ], (text) => messages.show('file', 'info', text, [], { timeoutMs: 2500 }));
+      ];
+      if (Number.isInteger(symbols.music_init) && Number.isInteger(symbols.music_play)) files.push(sidFile(name, song));
+      renderExport($('export-body'), files, (text) => messages.show('file', 'info', text, [], { timeoutMs: 2500 }));
       messages.clear('export');
       $('export-dialog').showModal();
     } catch (error) {
@@ -393,6 +442,21 @@ async function main() {
   });
   const openHelp = (sectionId) => manual.open(sectionId);
   onClick('btn-help', () => openHelp());
+
+  // ---- Song or Effects ---------------------------------------------------------------------
+
+  let view = 'song';
+  let effectsView = null;
+  function showView(next) {
+    view = next;
+    $('tab-song').setAttribute('aria-selected', String(next === 'song'));
+    $('tab-effects').setAttribute('aria-selected', String(next === 'effects'));
+    $('editor-pane').hidden = next !== 'song';
+    $('effects-pane').hidden = next !== 'effects';
+    if (next === 'effects') effectsView?.focusEditor(); else $('editor-pane').focus();
+  }
+  onClick('tab-song', () => showView('song'));
+  onClick('tab-effects', () => showView('effects'));
 
   // ---- keyboard --------------------------------------------------------------------------
 
@@ -420,6 +484,9 @@ async function main() {
     } else if (event.key === '?' && !typingInField(event.target)) {
       event.preventDefault();
       openHelp();
+    } else if (command && event.key === 'Enter' && view === 'effects' && effectsView) {
+      event.preventDefault();
+      effectsView.playSelected();
     }
   });
 
@@ -449,7 +516,7 @@ async function main() {
     const pane = $(paneId);
     try {
       const module = await import(path);
-      module[mountName](pane, store);
+      return module[mountName](pane, store);
     } catch (error) {
       console.error(error);
       pane.innerHTML = '';
@@ -460,9 +527,10 @@ async function main() {
     }
   }
 
-  await Promise.all([
+  [, , effectsView] = await Promise.all([
     mountPart('editor-pane', '../ui/editor.js', 'mountEditor', 'Pattern editor'),
     mountPart('instrument-pane', '../ui/instruments.js', 'mountInstruments', 'Instrument editor'),
+    mountPart('effects-pane', '../ui/effects.js', 'mountEffects', 'Effects'),
   ]);
 
   // ---- release label, development bar ----------------------------------------------------------------

@@ -8,10 +8,23 @@
 
 import { FORMAT } from '../version.js';
 import { NewerFormatError, readFormat } from './format.js';
-import { parseProjectText, projectFromData } from './export.js';
+import { checkProjectShape, parseProjectText, projectFromData } from './export.js';
 
-/** @type {Array<(data: object) => { data: object, losses: string[] }>} none yet: format 1 is the first. */
-export const MIGRATIONS = [];
+/**
+ * Format 1 to 2: the arpeggio got a second offset (instrument field `arp2`, table inst_arp2), instruments got a
+ * pitch slide (`slide`, table inst_slide), and a project got sound effects (`effects`). A format 1 instrument
+ * has a two-note arpeggio and no slide, which is what arp2 = 0 and slide = 0 mean, and a format 1 project has
+ * no effects. So everything sounds as it did and nothing is lost.
+ */
+function addFormat2Fields(data) {
+  const instruments = Array.isArray(data.instruments)
+    ? data.instruments.map((inst) => (inst && typeof inst === 'object' ? { ...inst, arp2: 0, slide: 0 } : inst))
+    : data.instruments;
+  return { data: { ...data, version: 2, instruments, effects: [] }, losses: [] };
+}
+
+/** @type {Array<(data: object) => { data: object, losses: string[] }>} */
+export const MIGRATIONS = [addFormat2Fields];
 
 /**
  * @param {string} text  the project file
@@ -25,6 +38,7 @@ export function inspectProject(text, { format = FORMAT, migrations = MIGRATIONS 
   const fromFormat = readFormat(data);
   const release = typeof data.release === 'string' ? data.release : null;
   if (fromFormat > format) throw new NewerFormatError(fromFormat, release);
+  checkProjectShape(data);
   if (fromFormat === format) return { status: 'current', project: projectFromData(data) };
 
   const losses = [];

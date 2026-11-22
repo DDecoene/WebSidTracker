@@ -13,7 +13,7 @@ import { readFileSync } from 'node:fs';
 import { Cpu6502 } from '../cpu/cpu6502.js';
 import { LIMITS, demoProject, lint, newProject, validate } from './project.js';
 import { INSTRUMENT_TABLES, locatePlayhead, playheadFromLocation, serialiseInstruments, serialiseSong } from './serialise.js';
-import { exportPrg } from './export.js';
+import { SID_HEADER_SIZE, exportPrg, exportSid, sidText } from './export.js';
 
 const prg = new Uint8Array(readFileSync(new URL('../player/player.prg', import.meta.url)));
 const symbols = JSON.parse(readFileSync(new URL('../player/symbols.json', import.meta.url), 'utf8'));
@@ -157,8 +157,9 @@ test('the SID writes show the event that locatePlayhead names (frequency and wav
       const pitch = clampPitch(ev.pitch + project.song.orders[v][loc.entry].transpose);
       if (inst.drumNoise) {
         assert.ok(freq <= freqOf(pitch), `frame ${f} voice ${v + 1}: a drum never rises above its start frequency`);
-      } else if (inst.arp) {
-        assert.ok(freq === freqOf(pitch) || freq === freqOf(clampPitch(pitch + inst.arp)), `frame ${f} voice ${v + 1}: arpeggio frequency`);
+      } else if (inst.arp || inst.arp2) {
+        const allowed = [0, inst.arp, inst.arp2].map((offset) => freqOf(clampPitch(pitch + offset)));
+        assert.ok(allowed.includes(freq), `frame ${f} voice ${v + 1}: arpeggio frequency`);
       } else {
         const near = freqOf(pitch);
         assert.ok(Math.abs(freq - near) <= (inst.vibDepth ? near * 0.06 : 0), `frame ${f} voice ${v + 1}: ${freq} vs ${near}`);
@@ -240,6 +241,90 @@ test('the exported prg plays the same SID write stream (with cycles) as the in-m
   for (let f = 0; f < frames; f++) { a.step(); b.step(); }
   assert.ok(a.writes.length > 10000);
   assert.deepEqual(b.writes, a.writes);
+});
+
+// ---- the .sid file ---------------------------------------------------------------------
+
+const word = (bytes, at) => (bytes[at] << 8) | bytes[at + 1];                    // big-endian, as in the header
+const latin1 = (bytes, at) => String.fromCharCode(...bytes.subarray(at, at + 32)).replace(/\0+$/, '');
+
+test('exportSid: a PSID version 2 header with the addresses, the texts and the flags', () => {
+  const project = demoProject();
+  const sid = exportSid(project, prg, symbols, { author: 'Zoë Tester', released: '2026 WebSidTracker', model: 8580 });
+  assert.equal(String.fromCharCode(...sid.subarray(0, 4)), 'PSID');
+  assert.equal(word(sid, 0x04), 2, 'version');
+  assert.equal(word(sid, 0x06), SID_HEADER_SIZE, 'data offset');
+  assert.equal(SID_HEADER_SIZE, 124);
+  assert.equal(word(sid, 0x08), 0, 'load address is in the data');
+  assert.equal(word(sid, 0x0A), symbols.music_start - 7, 'init: the start code in front of the player');
+  assert.equal(word(sid, 0x0C), symbols.music_play, 'play');
+  assert.equal(word(sid, 0x0E), 1, 'songs');
+  assert.equal(word(sid, 0x10), 1, 'start song');
+  assert.deepEqual(Array.from(sid.subarray(0x12, 0x16)), [0, 0, 0, 0], 'speed: once per frame');
+  assert.equal(latin1(sid, 0x16), project.song.name);
+  assert.equal(latin1(sid, 0x36), 'Zoë Tester');
+  assert.equal(latin1(sid, 0x56), '2026 WebSidTracker');
+  assert.equal(word(sid, 0x76), 0x04 | 0x20, 'PAL, 8580');
+  assert.deepEqual(Array.from(sid.subarray(0x78, 0x7C)), [0, 0, 0, 0]);
+  // the data: load address (little-endian), the start code, then the same memory as the .prg from the player on
+  const load = sid[0x7C] | (sid[0x7D] << 8);
+  assert.equal(load, symbols.music_start - 7);
+  assert.ok(load >= 0x07E8, 'loads above the screen memory');
+  assert.deepEqual(Array.from(sid.subarray(0x7E, 0x85)),
+    [0xA9, LIMITS.songBase & 255, 0xA2, LIMITS.songBase >> 8, 0x4C, symbols.music_init & 255, symbols.music_init >> 8]);
+  const out = exportPrg(project, prg);
+  const prgLoad = out[0] | (out[1] << 8);
+  assert.deepEqual(Array.from(sid.subarray(0x85)), Array.from(out.subarray(2 + symbols.music_start - prgLoad)));
+});
+
+test('exportSid: defaults, chip flags and refusals', () => {
+  const project = demoProject();
+  const plain = exportSid(project, prg, symbols);
+  assert.equal(latin1(plain, 0x36), '<?>');
+  assert.equal(latin1(plain, 0x56), '<?>');
+  assert.equal(word(plain, 0x76), 0x04 | 0x30, 'PAL, either chip');
+  assert.equal(word(exportSid(project, prg, symbols, { model: 6581 }), 0x76), 0x04 | 0x10);
+  assert.equal(latin1(exportSid(project, prg, symbols, { title: 'Another title' }), 0x16), 'Another title');
+  assert.throws(() => exportSid(project, prg, symbols, { model: 'sid' }), /unknown SID model/);
+  assert.throws(() => exportSid(project, prg, {}), /symbols/);
+  const broken = demoProject();
+  broken.song.speed = 0;
+  assert.throws(() => exportSid(broken, prg, symbols), /cannot export/);
+});
+
+test('sidText: 32 bytes of Latin-1, cut off, other characters become "?"', () => {
+  assert.equal(sidText('abc').length, 32);
+  assert.deepEqual(Array.from(sidText('Aé')).slice(0, 3), [0x41, 0xE9, 0]);
+  assert.deepEqual(Array.from(sidText('a\u2603b \n c')).slice(0, 6), [0x61, 0x3F, 0x62, 0x20, 0x63, 0]);
+  assert.equal(sidText('x'.repeat(40))[31], 0x78);
+  assert.deepEqual(Array.from(sidText(undefined)), new Array(32).fill(0));
+});
+
+test('the .sid, called the way a SID player does, makes the same SID writes as the in-memory route', () => {
+  const project = demoProject();
+  const a = new Machine();
+  a.load(project);
+  a.cpu.a = LIMITS.songBase & 255;
+  a.cpu.x = LIMITS.songBase >> 8;
+  a.cpu.call(symbols.music_init, 100000);
+
+  const sid = exportSid(project, prg, symbols);
+  const b = new Machine(sid.subarray(word(sid, 0x06)));       // the data starts with its load address, like a .prg
+  const play = word(sid, 0x0C);
+  b.cpu.a = 0;                                                // a SID player passes the song number (0 = the first)
+  b.cpu.x = 0;
+  b.cpu.call(word(sid, 0x0A), 100000);
+  assert.ok(a.writes.length > 0, 'init writes to the SID');
+
+  const frames = 3 * 256 * project.song.speed / 2;
+  for (let f = 0; f < frames; f++) {
+    a.step();
+    b.start = b.cpu.cycles;
+    b.cpu.call(play, 100000);
+    b.frame++;
+  }
+  assert.ok(a.writes.length > 10000);
+  assert.deepEqual(b.writes.map((w) => [w.frame, w.reg, w.value]), a.writes.map((w) => [w.frame, w.reg, w.value]));
 });
 
 test('player limits: a pattern of 255 bytes and an order list of 128 entries really work', () => {

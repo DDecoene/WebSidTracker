@@ -1,14 +1,17 @@
 ; runner.asm - a complete C64 program that plays the demo song (MIT licence, see ../LICENSE)
 ;
 ; This is the image the tracker exports: a BASIC line that starts the program, the player, the
-; instrument tables and the song, all at fixed addresses (see docs/player.md). The tracker overwrites
-; the instrument tables and the song in this image with the data you made; the program stays the same.
+; instrument tables, the sound effects and the song, all at fixed addresses (see docs/player.md). The
+; tracker overwrites the tables, the effects and the song in this image with the data you made; the
+; program stays the same. Keys 1 to 9 play sound effects 1 to 9 over the song, on the voice each was made for.
 ;
 ; Memory map:   $0801  BASIC line and this program (up to $0FFF)
 ;               $1000  music.asm: player code, frequency table, state (up to $1FFF)
-;               $2000  instrument tables, 15 x 256 bytes (up to $2EFF)
-;               $3000  the song
-SONG_ADDRESS    = $3000
+;               $2000  instrument tables, 17 x 256 bytes (up to $30FF)
+;               $3100  sound effects (up to $37FF)
+;               $3800  the song
+SFX_ADDRESS     = $3100
+SONG_ADDRESS    = $3800
 
 ; Registers of the KERNAL and the chips that we use here
 VIC_RASTER_LINE = $D012                 ; the raster line that triggers the interrupt (bits 0-7)
@@ -20,6 +23,8 @@ CIA2_IRQ        = $DD0D
 IRQ_VECTOR      = $0314                 ; the KERNAL calls the routine whose address is stored here
 KERNAL_IRQ_EXIT = $EA81                 ; puts the registers back and returns from the interrupt
 CHROUT          = $FFD2                 ; KERNAL: print the character in A
+SCNKEY          = $FF9F                 ; KERNAL: look at the keyboard and put a pressed key in the buffer
+GETIN           = $FFE4                 ; KERNAL: A = the next key from the buffer, 0 when there is none
 
         * = $0801
 ; The BASIC line  10 SYS 2064  starts the program when you type RUN
@@ -64,7 +69,23 @@ start
         sta VIC_IRQ_ENABLE              ; switch on the raster interrupt
         sta VIC_IRQ_FLAGS               ; clear a flag that may be set
         cli
-@wait   jmp @wait                       ; the music is played by the interrupt, nothing else to do
+        ; The music is played by the interrupt. Here we only wait for keys 1 to 9: each plays a sound effect.
+        ; (The KERNAL no longer reads the keyboard by itself, its timer interrupt is off, so we ask it to.)
+@wait   jsr SCNKEY
+        jsr GETIN
+        cmp #"1"
+        bcc @wait                       ; no key, or a key below "1"
+        cmp #$3A                        ; the character after "9"
+        bcs @wait                       ; above "9"
+        sec
+        sbc #"1"                        ; "1" is effect 0
+        cmp sfx_count
+        bcs @wait                       ; there is no such effect
+        tay
+        ldx sfx_voice,y                 ; the voice it was made for
+        tya
+        jsr sfx_play
+        jmp @wait
 
 ; The interrupt: once per frame
 irq
@@ -74,13 +95,16 @@ irq
         jmp KERNAL_IRQ_EXIT
 
 message
-        !pet "websidtracker player", 13, 0
+        !pet "websidtracker player", 13, "keys 1-9: sound effects", 13, 0
 
         * = $1000
         !source "music.asm"
 
         * = $2000
         !source "instruments.asm"
+
+        * = SFX_ADDRESS
+        !source "sfx.asm"
 
         * = SONG_ADDRESS
         !source "song_demo.asm"

@@ -14,10 +14,10 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { FORMAT } from '../version.js';
 import { defaultInstrument, validate } from './project.js';
 import { serialiseSong } from './serialise.js';
-import { exportInstrumentsAsm, exportSongAsm, projectToJson } from './export.js';
+import { exportInstrumentsAsm, exportSfxAsm, exportSongAsm, projectToJson } from './export.js';
 import { inspectProject } from './migrate.js';
 import { formatFingerprint } from './fingerprint.js';
-import { goldenProject } from './golden/example.js';
+import { goldenProject, goldenProjectAsOf } from './golden/example.js';
 
 const golden = (n, file) => new URL(`./golden/format-${n}/${file}`, import.meta.url);
 const text = (url) => readFileSync(url, 'utf8');
@@ -34,6 +34,8 @@ test('the example project is valid and uses every instrument field', () => {
   }
   const types = new Set(project.song.patterns.flatMap((p) => p.events.map((e) => e.type)));
   assert.deepEqual([...types].sort(), ['inst', 'legato', 'note', 'rest']);
+  const effectTypes = new Set(project.effects.flatMap((e) => e.events.map((ev) => ev.type)));
+  assert.deepEqual([...effectTypes].sort(), ['inst', 'legato', 'note', 'rest']);
 });
 
 test(`the golden set of format ${FORMAT} exists`, () => {
@@ -50,6 +52,10 @@ test('instruments.asm matches the golden file', () => {
 
 test('song_golden.asm matches the golden file', () => {
   assert.equal(noRelease(exportSongAsm(goldenProject().song, 'golden')), noRelease(text(golden(FORMAT, 'song_golden.asm'))), HELP);
+});
+
+test('sfx.asm matches the golden file (format 2 and later)', { skip: FORMAT < 2 }, () => {
+  assert.equal(noRelease(exportSfxAsm(goldenProject().effects)), noRelease(text(golden(FORMAT, 'sfx.asm'))), HELP);
 });
 
 test('the serialised song bytes match the golden file', () => {
@@ -73,11 +79,13 @@ test('the fingerprint does not change when the player code only moves', () => {
 
 // An older set must end as the example project once the migrations ran. A migration may only change
 // what it declares in `losses`: with no losses declared, the result must equal the example project.
-function checkOlderSet(projectText, options) {
+// `expected` is the example project as that older format can hold it: a field that a later format added
+// has the value its migration gives it (goldenProjectAsOf).
+function checkOlderSet(projectText, options, expected = goldenProject()) {
   const info = inspectProject(projectText, options);
   assert.equal(info.status, 'older');
   assert.ok(info.project, info.problems.join('; '));
-  if (info.losses.length === 0) assert.deepEqual(info.project, goldenProject());
+  if (info.losses.length === 0) assert.deepEqual(info.project, expected);
   return info;
 }
 
@@ -85,7 +93,7 @@ test('every older golden set still loads through the migrations to the example p
   const dirs = readdirSync(new URL('./golden/', import.meta.url)).filter((d) => /^format-\d+$/.test(d));
   for (const dir of dirs) {
     const n = Number(dir.slice('format-'.length));
-    if (n < FORMAT) checkOlderSet(text(golden(n, 'project.json')));
+    if (n < FORMAT) checkOlderSet(text(golden(n, 'project.json')), undefined, goldenProjectAsOf(n));
   }
 });
 

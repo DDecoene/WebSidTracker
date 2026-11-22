@@ -42,6 +42,7 @@ jobs:
       - name: Tests
         run: |
           node --test web/version.test.mjs web/model/migrate.test.mjs web/model/golden.test.mjs web/model/test.mjs web/model/player.test.mjs
+          node --test web/model/demos/*.test.mjs
           node --test web/app/files.test.mjs web/app/live.test.mjs web/app/session.test.mjs web/app/store.test.mjs web/app/integration.test.mjs web/app/manual.test.mjs
           node --test web/app/handover.test.mjs web/app/releases.test.mjs web/app/upgrade.test.mjs web/app/autosave-lock.test.mjs web/app/autosave.test.mjs
           node --test web/ui/editor-logic.test.mjs web/ui/instruments-logic.test.mjs

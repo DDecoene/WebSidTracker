@@ -11,6 +11,7 @@
 //                    defaultLength (shared with the rest of the app)
 //   here             the cursor ROW inside the pattern (a sustained note has many
 //                    rows but one event, so the row cannot live in the store), the
+//                    selected block (the row where it started; it runs to the cursor), the
 //                    order entry shown for each voice, which part has the keyboard
 //                    (grid or order list) and which field of the entry, the pattern
 //                    picked in the Patterns panel, the "follow the song" switch.
@@ -26,10 +27,15 @@
 // stays fast. Row height is fixed (ROW_H, measured from the stylesheet) for that reason. The
 // order lists are small, their rows hold real controls and are kept between renders.
 //
+// One-voice mode (`single`): the Effects view uses the same editor for one sound effect. It gets a store
+// that shows the effect as a song with one pattern on voice 1 (see effects.js). The Patterns panel, the
+// order lists and voices 2 and 3 are hidden, and the keys that would reach them do nothing.
+//
 // Part of the WebSidTracker web app, GPL version 3 or later (see ../LICENSE).
 
 import {
-  MAX_LENGTH, MAX_PATTERNS, MAX_PITCH, addPattern, assignPattern, buildLayout, canInsertEntry, clearAt,
+  MAX_LENGTH, MAX_PATTERNS, MAX_PITCH, addPattern, assignPattern, blockRange, buildLayout, canInsertEntry, clearAt,
+  clearBlock, copyBlock, deleteBlock, insertBlock, pasteBlock, patternBytes, setBlockInstrument, transposeBlock,
   deleteEntry, dropPattern, duplicatePattern, enterNote, enterRest, entryChoice, entryFields, entryInstruments,
   entryKind, entryLabel, eventIndexAtRow, formatTranspose, insertEntry, insertRow, deleteRow, instrumentTitle, keyHelp,
   moveEntry, neighbourField, nextUse, noteLabel, nudgeEntryField, parseHexIndex, parseTranspose,
@@ -53,13 +59,22 @@ const NARROW_REM = 50;     // an editor narrower than this (in rem) folds the Pa
 const rootPx = () => Number.parseFloat(getComputedStyle(document.documentElement).fontSize) || 14;
 const hex2 = (n) => n.toString(16).toUpperCase().padStart(2, '0');
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+const MAX_PATTERN_BYTES = 255;   // what the player can read of one pattern, end marker included
+
+// What Copy and Cut keep (see copyBlock). It lives outside the editor instance, so it survives
+// opening another project: a block can be carried from one song to another.
+let clipboard = null;
+
 const escapeHtml = (text) => String(text).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
-export function mountEditor(container, store) {
+export function mountEditor(container, store, { single = false } = {}) {
   const ui = {
     zone: 'pattern',               // which part has the keyboard: 'pattern' or 'order'
     field: 'pattern',              // in the order list: which field of the entry ('pattern', 'transpose', 'target')
     row: 0,                        // cursor row in the pattern of the selected voice
+    anchor: -1,                    // the row where the selected block started, -1 = no block
+    anchorKey: '',                 // the voice, entry and pattern the block belongs to
+    stopDrag: null,                // while the mouse drags a block: ends the drag
     shown: [0, 0, 0],              // order entry shown per voice
     pat: -1,                       // the pattern picked in the Patterns panel
     drag: -1,                      // the pattern being dragged from the panel
@@ -84,6 +99,7 @@ export function mountEditor(container, store) {
   // ---- the DOM, built once ---------------------------------------------------------
 
   container.classList.add('ed');
+  container.classList.toggle('ed-single', single);
   container.tabIndex = 0;
   container.setAttribute('aria-label', 'Pattern editor');
   container.innerHTML = `
@@ -93,7 +109,7 @@ export function mountEditor(container, store) {
       <div class="ed-instbar">
         <label class="ed-inst" title="The instrument new notes are entered with. The same one is selected in the instrument panel.">Instrument
           <select data-role="instrument"></select></label>
-        <button type="button" data-act="instNote" title="Give the note under the cursor this instrument (Enter)">To note</button>
+        <button type="button" data-act="instNote" title="Give the note under the cursor, or every note of the selected block, this instrument (Enter)">To note</button>
         <button type="button" data-act="instRest" title="Give the note under the cursor and every note after it in this pattern this instrument (Shift+Enter)">To rest of pattern</button>
       </div>
       <span class="ed-msg" role="status" aria-live="polite" data-role="message"></span>
@@ -201,7 +217,7 @@ export function mountEditor(container, store) {
 
   const song = () => store.project.song;
   const sel = () => store.selection;
-  const voiceOf = () => clamp(sel().voice | 0, 0, 2);
+  const voiceOf = () => (single ? 0 : clamp(sel().voice | 0, 0, 2));
   const entryOf = (v) => song().orders[v][ui.shown[v]];
   const patternIndexOf = (v) => {
     const entry = entryOf(v);
@@ -232,10 +248,37 @@ export function mountEditor(container, store) {
   const usageOf = () => memo(usageCache, patternUsage);
   const incomingOf = () => memo(incomingCache, entryInstruments);
 
+  // ---- the selected block --------------------------------------------------------------
+  //
+  // A block is a run of rows in the pattern of the selected voice, from the row where the
+  // selection started (ui.anchor) to the cursor row. It belongs to one voice, order entry and
+  // pattern: when the cursor goes somewhere else the block is gone.
+
+  const blockKey = () => {
+    const v = voiceOf();
+    return `${v}:${ui.shown[v]}:${patternIndexOf(v)}`;
+  };
+  const dropBlock = () => { ui.anchor = -1; };
+  // Start a block at the cursor unless one is being extended already.
+  function holdBlock() {
+    if (ui.anchor >= 0 && ui.anchorKey === blockKey()) return;
+    ui.anchor = ui.row;
+    ui.anchorKey = blockKey();
+  }
+  // { from, to } of the block (to = the row after it), or null.
+  function blockOf() {
+    if (ui.anchor < 0 || ui.anchorKey !== blockKey()) return null;
+    return blockRange(ui.anchor, ui.row, totalOf(voiceOf()));
+  }
+
   // Keep every index inside what exists (after undo, load, deleting things...).
   function normalise() {
     for (let v = 0; v < 3; v++) ui.shown[v] = clamp(ui.shown[v], 0, Math.max(0, song().orders[v].length - 1));
     ui.row = clamp(ui.row, 0, totalOf(voiceOf()));
+    if (ui.anchor >= 0) {
+      if (ui.anchorKey !== blockKey()) dropBlock();
+      else ui.anchor = clamp(ui.anchor, 0, totalOf(voiceOf()));
+    }
     if (ui.pat >= song().patterns.length) ui.pat = -1;
   }
 
@@ -314,8 +357,11 @@ export function mountEditor(container, store) {
     const patNo = patternIndexOf(v);
     const where = ui.zone === 'order' ? 'order list' : 'pattern';
     const typing = ui.instEntry !== null ? `   instrument: ${ui.instEntry.padEnd(2, '_')}` : '';
-    statusEl.textContent =
-      `Voice ${v + 1} ${where}  entry ${hex2(ui.shown[v])}  pattern ${patNo >= 0 ? hex2(patNo) : '--'}  row ${hex2(ui.row)}` +
+    const block = blockOf();
+    const picked = block ? `  block ${hex2(block.from)}-${hex2(block.to - 1)} (${block.to - block.from})` : '';
+    statusEl.textContent = (single
+      ? `Effect  row ${hex2(ui.row)}${picked}`
+      : `Voice ${v + 1} ${where}  entry ${hex2(ui.shown[v])}  pattern ${patNo >= 0 ? hex2(patNo) : '--'}  row ${hex2(ui.row)}${picked}`) +
       `  |  octave ${s.octave}  length ${s.defaultLength}  step ${s.step}${typing}`;
     followBox.checked = ui.follow;
 
@@ -512,6 +558,7 @@ export function mountEditor(container, store) {
     rowsEl.style.height = `${bodyHeight}px`;
     const viewH = Math.max(0, scroller.clientHeight - HEAD_H);
     const playing = playRows();
+    const block = blockOf();
 
     if (ui.follow && store.playhead && store.playhead.running) {
       const followed = playing[v0] >= 0 ? v0 : playing.findIndex((r) => r >= 0);
@@ -534,7 +581,9 @@ export function mountEditor(container, store) {
       const label = layout
         ? `<b>P${hex2(n)}</b> ${pattern.name ? escapeHtml(pattern.name) : ''}<i>${layout.total} ticks</i>`
         : `<i>${entryKind(entryOf(v)) === 'none' ? 'no entry' : escapeHtml(entryLabel(entryOf(v)))}</i>`;
-      head += `<div class="ed-vh${v === v0 ? ' sel' : ''}">V${v + 1} ${label}</div>`;
+      head += single && layout
+        ? `<div class="ed-vh sel">${pattern.name ? escapeHtml(pattern.name) : 'Effect'}<i>${layout.total} ticks</i></div>`
+        : `<div class="ed-vh${v === v0 ? ' sel' : ''}">V${v + 1} ${label}</div>`;
     });
     setHtml(headEl, head);
 
@@ -548,6 +597,7 @@ export function mountEditor(container, store) {
         const layout = layouts[v];
         const classes = ['ed-c'];
         if (layout && r > layout.total) classes.push('void');
+        if (block && v === v0 && r >= block.from && r < block.to) classes.push('block');
         if (v === v0 && r === ui.row) classes.push(ui.zone === 'pattern' ? 'cursor' : 'cursordim');
         if (playing[v] === r) classes.push('play');
         html += `<div class="${classes.join(' ')}" data-v="${v}">${layout ? cellHtml(layout.rows[r], incoming[v][ui.shown[v]] ?? 0) : ''}</div>`;
@@ -567,7 +617,9 @@ export function mountEditor(container, store) {
 
   // ---- cursor movement ---------------------------------------------------------------
 
-  function moveRow(row) {
+  // With `extend` (Shift held) the block grows or shrinks with the cursor; without it the block is dropped.
+  function moveRow(row, extend = false) {
+    if (extend) holdBlock(); else dropBlock();
     ui.row = clamp(row, 0, totalOf(voiceOf()));
     ui.reveal = true;
     syncSelection();
@@ -575,7 +627,9 @@ export function mountEditor(container, store) {
   }
 
   function setVoice(v) {
+    if (single) return;
     v = (v + 3) % 3;
+    dropBlock();
     selfSelecting = true;
     store.select({ voice: v });
     selfSelecting = false;
@@ -589,6 +643,7 @@ export function mountEditor(container, store) {
   // everywhere (the grid shows its pattern, the Patterns panel picks it, the other panels follow
   // store.selection).
   function focusEntry(v, i, { zone, field } = {}) {
+    dropBlock();
     selfSelecting = true;
     store.select({ voice: v });
     selfSelecting = false;
@@ -608,7 +663,9 @@ export function mountEditor(container, store) {
 
   // Run an event-list edit from editor-logic on the pattern of the selected voice.
   // `edit(events)` returns the new events or null. Returns the new list or null.
-  function editPattern(label, edit) {
+  // The selected block is dropped unless `keepBlock` says the edit leaves its rows where they are.
+  function editPattern(label, edit, keepBlock = false) {
+    if (!keepBlock) dropBlock();
     const v = voiceOf();
     const n = patternIndexOf(v);
     if (n < 0) {
@@ -662,6 +719,84 @@ export function mountEditor(container, store) {
     const length = runLengthAtCursor();
     if (!length) return;
     editPattern('change length', (ev) => setRunLength(ev, ui.row, length + delta));
+  }
+
+  // ---- block actions: copy, cut, paste, and the keys that work on a whole block -------------
+
+  // The rows Copy and Cut take: the selected block, or without one the whole note or rest
+  // under the cursor. Null on the end row or without a pattern.
+  function copyRange() {
+    const block = blockOf();
+    if (block) return block;
+    const layout = layoutOf(voiceOf());
+    const row = layout && layout.rows[ui.row];
+    if (!row || row.kind === 'end') return null;
+    const from = rowOfEvent(layout, row.event);
+    return { from, to: from + layout.rows[from].length };
+  }
+
+  const rowsText = (n) => `${n} row${n === 1 ? '' : 's'}`;
+
+  function copySelection(cut) {
+    const v = voiceOf();
+    const pattern = patternOf(v);
+    const range = pattern && copyRange();
+    if (!range) { say('Nothing to copy here. Select rows with Shift+Up / Down or drag over them with the mouse.'); return; }
+    const clip = copyBlock(pattern.events, range.from, range.to, incomingOf()[v][ui.shown[v]] ?? 0);
+    if (!clip) return;
+    clipboard = clip;
+    if (cut) editPattern('cut', (ev) => clearBlock(ev, range.from, range.to), true);
+    say(`${cut ? 'Cut' : 'Copied'} ${rowsText(clip.ticks)}. Ctrl+V pastes over the rows at the cursor, Ctrl+Shift+V inserts.`);
+    render();
+  }
+
+  // Paste at the first row of the block, or at the cursor. `insert` moves the later rows down
+  // instead of replacing them. The cursor ends after the pasted rows, so pasting again repeats.
+  function pasteClipboard(insert) {
+    if (!clipboard) { say('Nothing to paste yet. Copy rows with Ctrl+C first.'); return; }
+    const clip = clipboard;
+    const block = blockOf();
+    const at = block ? block.from : ui.row;
+    const events = editPattern(insert ? 'paste insert' : 'paste', (ev) => (insert ? insertBlock : pasteBlock)(ev, at, clip));
+    if (!events) return;
+    ui.row = clamp(at + clip.ticks, 0, buildLayout(events).total);
+    ui.reveal = true;
+    syncSelection();
+    const bytes = patternBytes(events);
+    say(bytes > MAX_PATTERN_BYTES
+      ? `Pasted ${rowsText(clip.ticks)}. The pattern is now ${bytes} bytes and a pattern can be at most ${MAX_PATTERN_BYTES}: split it into two patterns.`
+      : `Pasted ${rowsText(clip.ticks)}.`);
+    render();
+  }
+
+  function selectAll() {
+    const total = totalOf(voiceOf());
+    if (!total) return;
+    ui.anchor = 0;
+    ui.anchorKey = blockKey();
+    ui.row = total - 1;
+    syncSelection();
+    render();
+  }
+
+  // Shift a semitone or an octave: the notes of the block, or the note under the cursor.
+  function transposeAtCursor(delta) {
+    const block = blockOf();
+    if (block) editPattern('transpose block', (ev) => transposeBlock(ev, block.from, block.to, delta), true);
+    else editPattern('transpose note', (ev) => transposeNote(ev, ui.row, delta));
+  }
+
+  // Ctrl or Cmd with a key, on the pattern grid. Returns true when the key was ours.
+  function commandKey(e) {
+    switch (e.key.toLowerCase()) {
+      case 'c': if (e.shiftKey) return false; copySelection(false); return true;
+      case 'x': if (e.shiftKey) return false; copySelection(true); return true;
+      case 'v': pasteClipboard(e.shiftKey); return true;
+      case 'a': if (e.shiftKey) return false; selectAll(); return true;
+      case 'arrowup': transposeAtCursor(e.shiftKey ? 12 : 1); return true;
+      case 'arrowdown': transposeAtCursor(e.shiftKey ? -12 : -1); return true;
+      default: return false;
+    }
   }
 
   function setSelection(partial) {
@@ -1080,21 +1215,34 @@ export function mountEditor(container, store) {
   // Keys on the pattern grid.
   function patternKey(e) {
     const s = sel();
+    const block = blockOf();
     switch (e.key) {
-      case 'ArrowUp':
-        if (e.shiftKey) { editPattern('transpose note', (ev) => transposeNote(ev, ui.row, 1)); return true; }
-        moveRow(ui.row - 1); return true;
-      case 'ArrowDown':
-        if (e.shiftKey) { editPattern('transpose note', (ev) => transposeNote(ev, ui.row, -1)); return true; }
-        moveRow(ui.row + 1); return true;
-      case 'PageUp': moveRow(ui.row - 16); return true;
-      case 'PageDown': moveRow(ui.row + 16); return true;
-      case 'Home': moveRow(0); return true;
-      case 'End': moveRow(totalOf(voiceOf())); return true;
-      case 'Delete': case '.': editPattern('clear note', (ev) => clearAt(ev, ui.row)); return true;
-      case 'Backspace': editPattern('delete row', (ev) => deleteRow(ev, ui.row)); return true;
+      case 'ArrowUp': moveRow(ui.row - 1, e.shiftKey); return true;
+      case 'ArrowDown': moveRow(ui.row + 1, e.shiftKey); return true;
+      case 'PageUp': moveRow(ui.row - 16, e.shiftKey); return true;
+      case 'PageDown': moveRow(ui.row + 16, e.shiftKey); return true;
+      case 'Home': moveRow(0, e.shiftKey); return true;
+      case 'End': moveRow(totalOf(voiceOf()), e.shiftKey); return true;
+      case 'Escape':
+        if (!blockOf()) return false;
+        dropBlock();
+        render();
+        return true;
+      case 'Delete': case '.':
+        if (block) editPattern('clear block', (ev) => clearBlock(ev, block.from, block.to), true);
+        else editPattern('clear note', (ev) => clearAt(ev, ui.row));
+        return true;
+      case 'Backspace':
+        if (block) {
+          if (editPattern('delete rows', (ev) => deleteBlock(ev, block.from, block.to))) moveRow(block.from);
+        } else editPattern('delete row', (ev) => deleteRow(ev, ui.row));
+        return true;
       case 'Insert': editPattern('insert row', (ev) => insertRow(ev, ui.row)); return true;
       case 'Enter':
+        if (block && !e.shiftKey) {
+          editPattern('set instrument', (ev) => setBlockInstrument(ev, block.from, block.to, s.instrument), true);
+          return true;
+        }
         editPattern('set instrument', (ev) => (e.shiftKey ? setInstrumentFrom(ev, ui.row, s.instrument) : setNoteInstrument(ev, ui.row, s.instrument)));
         return true;
       case 'I': {
@@ -1129,8 +1277,13 @@ export function mountEditor(container, store) {
     const tag = e.target.tagName;
     if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA' || tag === 'BUTTON') return;
     if (e.target.closest('.ed-pats, .ed-pop')) return;   // those have their own keys
-    if (e.ctrlKey || e.metaKey) return;                 // undo, save and friends belong to the app
+    if (e.ctrlKey || e.metaKey) {                       // undo, save and friends belong to the app
+      if (!e.altKey && ui.zone === 'pattern' && ui.instEntry === null && commandKey(e)) e.preventDefault();
+      return;
+    }
     let handled = true;
+    // One-voice mode: no order list, no other voices, no pattern list. Tab leaves the editor as usual.
+    if (single && (e.altKey || e.key === 'Tab' || e.key === 'o' || (e.shiftKey && 'NDXP'.includes(e.key)))) return;
 
     if (ui.instEntry !== null) {                        // typing an instrument number
       if (/^[0-9a-fA-F]$/.test(e.key)) typeInstrumentDigit(e.key);
@@ -1167,6 +1320,8 @@ export function mountEditor(container, store) {
     const v = Number(cellEl.dataset.v);
     const chip = e.target.closest('.chip');
     const rect = chip ? chip.getBoundingClientRect() : null;
+    // Shift+click in the voice of the cursor: the block runs from where it started to the click.
+    if (e.shiftKey && !chip && ui.zone === 'pattern' && v === voiceOf()) holdBlock(); else dropBlock();
     selfSelecting = true;
     store.select({ voice: v });
     selfSelecting = false;
@@ -1177,6 +1332,36 @@ export function mountEditor(container, store) {
     container.focus();
     e.preventDefault();
     if (chip) openInstrumentList({ getBoundingClientRect: () => rect }, ui.row);
+    else if (e.button === 0) startDrag(v, ui.row);
+  }
+
+  // Dragging with the button held selects a block from the row of the press to the row under
+  // the pointer, in the voice of the press. The row comes from the pointer height, so the drag
+  // may leave the column, and past the top or bottom edge the grid scrolls along.
+  function startDrag(v, startRow) {
+    if (ui.stopDrag) ui.stopDrag();
+    const move = (ev) => {
+      if (v !== voiceOf()) return;
+      const top = rowsEl.getBoundingClientRect().top;
+      const row = clamp(Math.floor((ev.clientY - top) / ROW_H), 0, totalOf(v));
+      if (row === ui.row) return;
+      if (ui.anchor < 0 || ui.anchorKey !== blockKey()) {
+        ui.anchor = startRow;
+        ui.anchorKey = blockKey();
+      }
+      ui.row = row;
+      ui.reveal = true;
+      syncSelection();
+      render();
+    };
+    const stop = () => {
+      document.removeEventListener('mousemove', move);
+      document.removeEventListener('mouseup', stop);
+      ui.stopDrag = null;
+    };
+    document.addEventListener('mousemove', move);
+    document.addEventListener('mouseup', stop);
+    ui.stopDrag = stop;
   }
 
   // The order lists: a click on an entry selects that voice and entry. Clicks on the buttons and
@@ -1327,7 +1512,9 @@ export function mountEditor(container, store) {
     const button = e.target.closest('button[data-act]');
     if (!button) return;
     const s = sel();
-    if (button.dataset.act === 'instNote') editPattern('set instrument', (ev) => setNoteInstrument(ev, ui.row, s.instrument));
+    const block = blockOf();
+    if (button.dataset.act === 'instNote' && block) editPattern('set instrument', (ev) => setBlockInstrument(ev, block.from, block.to, s.instrument), true);
+    else if (button.dataset.act === 'instNote') editPattern('set instrument', (ev) => setNoteInstrument(ev, ui.row, s.instrument));
     else editPattern('set instrument', (ev) => setInstrumentFrom(ev, ui.row, s.instrument));
     container.focus();
   });
@@ -1395,6 +1582,7 @@ export function mountEditor(container, store) {
   return {
     destroy() {
       unsubscribe();
+      if (ui.stopDrag) ui.stopDrag();
       closeInstrumentList();
       panel.destroy();
       if (resizeObserver) resizeObserver.disconnect();

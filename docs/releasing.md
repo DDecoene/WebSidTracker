@@ -33,8 +33,9 @@ The golden test (`web/model/golden.test.mjs`) fails when the bytes or fields of 
 
 1. Raise `FORMAT` in `web/version.js` and `format_version` in `src/music.asm`; `make player`.
 2. Add a migration to `MIGRATIONS` in `web/model/migrate.js`: `MIGRATIONS[n - 1]` takes the data of format n to n + 1 and returns `{ data, losses }`; `losses` says in plain words what could not be kept.
-3. Make the new golden set: `node web/model/golden/make.mjs <FORMAT>`. The older sets stay: the tests run them through the migrations.
-4. This is a new minor (or major) release.
+3. If the format has a new field, set it in the example project (`web/model/golden/example.js`) and name it in `ADDED_FIELDS` there with the value the migration gives it, so the tests know what an older set cannot contain. Then make the new golden set: `node web/model/golden/make.mjs <FORMAT>`. The older sets stay: the tests run them through the migrations.
+4. Say in the tracker guide ("Older project files") what the new format is and what porting loses.
+5. This is a new minor (or major) release.
 
 The test cannot see a change of *meaning* where the bytes stay the same; that is a point for review.
 

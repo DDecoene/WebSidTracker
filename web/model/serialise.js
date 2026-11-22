@@ -19,12 +19,19 @@ export const HEADER_SIZE = 9;
 export const MAX_PATTERN_BYTES = 255;   // a pattern, its $FF end marker included
 export const MAX_ORDER_ENTRIES = 128;   // one order list, an added STOP entry included (offset 2*i must fit a byte)
 
-// Names of the 15 instrument tables, in the order of the memory map (table k lives at $2000 + k*$100).
+// Names of the 17 instrument tables, in the order of the memory map (table k lives at $2000 + k*$100).
+// inst_arp2 and inst_slide came with format 2 and are the last ones, so the tables before them kept their addresses.
 export const INSTRUMENT_TABLES = [
   'inst_wave', 'inst_ad', 'inst_sr', 'inst_pw_lo', 'inst_pw_hi', 'inst_pw_step', 'inst_pw_min',
   'inst_pw_max', 'inst_vib_delay', 'inst_vib_depth', 'inst_vib_speed', 'inst_arp',
-  'inst_drum_noise', 'inst_drum_fall', 'inst_release',
+  'inst_drum_noise', 'inst_drum_fall', 'inst_release', 'inst_arp2', 'inst_slide',
 ];
+
+// Sound effects (docs/design-sound-effects.md). In the tracker's image the effect area starts with three
+// tables of MAX_EFFECTS bytes (sfx_lo, sfx_hi, sfx_voice) and the count, then the effects one after the other.
+export const MAX_EFFECTS = 64;
+export const MAX_EFFECT_BYTES = 255;    // one effect: its speed byte, its events and the $FF end marker
+export const EFFECT_TABLES_SIZE = 3 * MAX_EFFECTS + 1;
 
 const EV_REST = 0x60;
 const EV_INST = 0x61;
@@ -73,8 +80,58 @@ export function serialiseInstruments(instruments) {
     tables.inst_drum_noise[n] = at('drumNoise', 0, 255);
     tables.inst_drum_fall[n] = at('drumFall', 0, 255);
     tables.inst_release[n] = at('release', 0, 255);
+    tables.inst_arp2[n] = at('arp2', -128, 127) & 0xFF;
+    tables.inst_slide[n] = at('slide', -128, 127) & 0xFF;
   });
   return tables;
+}
+
+// ---------------------------------------------------------------- effects
+
+// Bytes of one effect: the speed byte, the events and the $FF end marker.
+export function effectBytes(effect) {
+  return 1 + patternBytes(effect);
+}
+
+// The bytes of the events of a pattern or an effect, without the end marker.
+function eventBytes(events, what) {
+  const out = [];
+  events.forEach((ev) => {
+    switch (ev.type) {
+      case 'note': out.push(checkInt(ev.pitch, 0, 95, `${what} note pitch`), checkInt(ev.length, 1, 255, `${what} note length`)); break;
+      case 'rest': out.push(EV_REST, checkInt(ev.length, 1, 255, `${what} rest length`)); break;
+      case 'inst': out.push(EV_INST, checkInt(ev.instrument, 0, 255, `${what} instrument number`)); break;
+      case 'legato': out.push(EV_LEGATO); break;
+      default: throw new RangeError(`unknown event type "${ev.type}"`);
+    }
+  });
+  return out;
+}
+
+/**
+ * The effect area of the tracker's image, at `base`: sfx_lo, sfx_hi and sfx_voice (MAX_EFFECTS bytes each,
+ * unused entries 0), the count, then every effect (speed, events, $FF).
+ * Returns { bytes, size, addresses } where addresses[n] is the address of effect n.
+ */
+export function serialiseEffects(effects, base = 0x3100) {
+  if (effects.length > MAX_EFFECTS) throw new RangeError(`at most ${MAX_EFFECTS} sound effects`);
+  const data = [];
+  const addresses = [];
+  effects.forEach((effect, n) => {
+    const bytes = [checkInt(effect.speed, 1, 255, `effect ${n} speed`), ...eventBytes(effect.events, `effect ${n}`), EV_END];
+    if (bytes.length > MAX_EFFECT_BYTES) throw new RangeError(`effect ${n} is ${bytes.length} bytes, the player allows ${MAX_EFFECT_BYTES}`);
+    addresses.push(base + EFFECT_TABLES_SIZE + data.length);
+    data.push(...bytes);
+  });
+  const bytes = new Uint8Array(EFFECT_TABLES_SIZE + data.length);
+  effects.forEach((effect, n) => {
+    bytes[n] = addresses[n] & 0xFF;
+    bytes[MAX_EFFECTS + n] = addresses[n] >> 8;
+    bytes[2 * MAX_EFFECTS + n] = checkInt(effect.voice, 0, 2, `effect ${n} voice`);
+  });
+  bytes[3 * MAX_EFFECTS] = effects.length;
+  bytes.set(data, EFFECT_TABLES_SIZE);
+  return { bytes, base, size: bytes.length, addresses };
 }
 
 // ---------------------------------------------------------------- song
@@ -123,7 +180,7 @@ export function measureSong(song) {
   return { size: pos, tableOffset, orderOffsets, patternOffsets, patterns };
 }
 
-export function serialiseSong(song, base = 0x3000) {
+export function serialiseSong(song, base = 0x3800) {
   const layout = measureSong(song);
   if (layout.patterns > 254) throw new RangeError('at most 254 patterns (numbers 0 to 253)');
   if (base + layout.size > 0x10000) throw new RangeError('song does not fit in 64 KB at this address');
@@ -208,7 +265,7 @@ export function serialiseSong(song, base = 0x3000) {
 // Inverse of serialiseSong, for tests and import. Names are not stored in the bytes,
 // so they come back empty. The pattern count is derived from the layout above:
 // the pattern table runs up to the first order list that follows it.
-export function parseSong(bytes, base = 0x3000) {
+export function parseSong(bytes, base = 0x3800) {
   const at = (address) => {
     const i = address - base;
     if (i < 0 || i >= bytes.length) throw new RangeError(`address $${address.toString(16)} is outside the song data`);

@@ -1,22 +1,26 @@
 ; music.asm - the WebSidTracker music player (MIT licence, see ../LICENSE)
-; websidtracker format 1, release 0.1.0
+; websidtracker format 2, release 0.2.0
 ;
 ; Three voices, patterns and order lists, instruments that change the SID every frame
-; (pulse sweep, late vibrato, arpeggio, drums). The byte formats and the timing rules are
-; described in docs/design-player-format-and-timing.md, how to use the player in docs/player.md.
+; (pulse sweep, late vibrato, arpeggio, drums, pitch slides), and sound effects that borrow a voice.
+; The byte formats and the timing rules are described in docs/design-player-format-and-timing.md and
+; docs/design-sound-effects.md, how to use the player in docs/player.md.
 ;
 ; HOW TO USE (two calls, plus one more to stop):
 ;       lda #<my_song : ldx #>my_song : jsr music_init     ; start a song
 ;       jsr music_play                                       ; once per frame, from the raster IRQ
 ;       jsr music_stop                                       ; silence everything
-; The player also needs the instrument tables of instruments.asm (labels inst_wave ... inst_release).
+;       lda #SFX_BOOM : ldx #2 : jsr sfx_play                ; a sound effect on voice 3
+; The player also needs the instrument tables of instruments.asm (labels inst_wave ... inst_slide) and
+; the effect tables of sfx.asm (labels sfx_lo and sfx_hi).
 ;
 ; HOW THE FILE IS BUILT, top to bottom:
 ;   [1] names and constants     [2] the three entry points      [3] reading the song (events)
 ;   [4] one voice, one frame    [5] the sound features          [6] small helpers
 ;   [7] the frequency table     [8] the state block (the player's variables)
 ;
-; Registers: X is the voice number (0, 1 or 2) almost everywhere. Y is used for indexing: the instrument
+; Registers: X is the lane number almost everywhere: 0, 1, 2 for the music on voice 1, 2, 3, and 3, 4, 5 for
+; the sound effects on voice 1, 2, 3. Y is used for indexing: the instrument
 ; number, the pitch, or an offset into the song data. Every routine says what it changes.
 
 music_start
@@ -27,9 +31,9 @@ music_start
 
 ; Version of this player (see docs/design-versioning-and-releases.md). They produce no bytes; the tracker
 ; and the tests read them from the symbol list. Keep them equal to FORMAT and RELEASE in web/version.js.
-format_version  = 1
+format_version  = 2
 release_major   = 0
-release_minor   = 1
+release_minor   = 2
 release_patch   = 0
 
 ; The SID chip. Voice 1 starts at $D400, voice 2 at $D407, voice 3 at $D40E: seven registers each.
@@ -57,6 +61,11 @@ EV_END          = $FF                   ; end of the pattern
 ; Order list entries: pattern number and transpose, or one of these two:
 ORDER_STOP      = $FE                   ; $FE: this voice stops
 ORDER_LOOP      = $FF                   ; $FF n: go on at entry n
+
+; Lanes: three for the music and three for the sound effects (one per SID voice). Lane 3 + v is the effect
+; lane of voice v.
+LANES           = 6
+SFX_LANE        = 3                     ; the first effect lane
 
 ; A song header is 9 bytes: the speed, three order list addresses, the pattern table address.
 HEADER_ORDER    = 1                     ; offset of the order list address of voice 1 (voice 2 at +2, voice 3 at +4)
@@ -107,14 +116,16 @@ music_init
         jsr clear_sid                   ; all SID registers to 0: no sound, all gates off
         lda #$0F
         sta SID_VOLUME                  ; full volume. The game may change this later
-        ; Set every per-voice variable to 0 (instrument 0, pitch 0, no gate, ...)
+        ; Set every per-lane variable to 0 (instrument 0, pitch 0, no gate, no effect, ...)
         lda #0
-        ldx #st_voice_size - 1
+        tax
 @clear  sta st_voice_block,x
-        dex
-        bpl @clear
+        inx
+        cpx #st_voice_size
+        bne @clear
         sta st_frame_in_tick            ; 0 means: the very next frame is a tick
         sta st_frames
+        sta st_arp_step
         jsr read_speed
         ; Put each voice on entry 0 of its order list
         ldx #2
@@ -129,22 +140,53 @@ music_init
         sta st_running
         rts
 
-; music_stop: silence all voices and stop the player. music_play does nothing after this.
+; music_stop: silence all voices and stop the player and the sound effects. After this music_play only
+; plays the effects that are started again.
 music_stop
         jsr clear_sid
         lda #0
         sta st_running
+        ldx #2
+@sfx    sta st_active + SFX_LANE,x      ; no effect lane plays
+        sta st_sfx_req,x                ; and no request waits
+        dex
+        bpl @sfx
         rts
 
-; music_play: call once per frame. Does all the work: the tick clock, then the three voices in turn.
-music_play
-        lda st_running
-        bne @go
-        rts                             ; not playing
-@go     cld                             ; binary arithmetic (an interrupt does not clear the decimal flag by itself)
-        inc st_frames                   ; counts every frame, the arpeggio uses its lowest bit
+; sfx_play: start sound effect A on SID voice X (0, 1 or 2). Only the request is stored; the effect starts
+; at the next music_play, so a game may call this from its main loop while music_play runs in an interrupt.
+; A new effect on a voice replaces the one that plays there. Effect A is at the address in sfx_lo/sfx_hi.
+; Changes A.
+sfx_play
+        clc
+        adc #1                          ; the request is the effect number + 1 (0 means: no request)
+        sta st_sfx_req,x
+        rts
 
-        ; --- The tick clock, shared by all voices. st_frame_in_tick = frames left until the next tick.
+; sfx_stop: stop the sound effect on SID voice X (at the next music_play). Changes A.
+sfx_stop
+        lda #$FF
+        sta st_sfx_req,x
+        rts
+
+; music_play: call once per frame, also when no song plays (the sound effects need it too). Does all the
+; work: the effect requests, then the tick clock and the three music lanes, then the three effect lanes.
+music_play
+        cld                             ; binary arithmetic (an interrupt does not clear the decimal flag by itself)
+        inc st_frames                   ; counts every frame, the two-note arpeggio uses its lowest bit
+        ; The three-note arpeggio needs a counter that goes 0, 1, 2, 0, 1, 2 ... A bit of st_frames cannot
+        ; do that (bits count in twos, fours, eights), so it has a counter of its own.
+        ldy st_arp_step
+        iny
+        cpy #3
+        bcc @step                       ; still below 3
+        ldy #0                          ; 3 becomes 0 again
+@step   sty st_arp_step
+        jsr sfx_requests                ; start or stop the effects the game asked for
+        lda st_running
+        beq play_effects                ; no song: only the effects
+
+        ; --- The tick clock, shared by the music lanes. st_frame_in_tick = frames left until the next tick.
         ; When it is 0 this frame is a tick: read the speed (the song may have changed it) and start over.
         lda st_frame_in_tick
         beq @tick
@@ -159,24 +201,148 @@ music_play
         lda #1
         sta zp_tick
 
-        ; --- Play the three voices. A voice that has stopped (st_active = 0) is skipped.
-@voices ldx #0
+        ; --- Play the three music lanes. A lane that has stopped (st_active = 0) is skipped.
+@voices lda st_frame_in_tick            ; the clock that check_release counts with
+        sta lane_fit
+        lda st_speed
+        sta lane_speed
+        ldx #0
 @next   stx zp_voice
         lda st_active,x
         beq @skip
         jsr play_voice
 @skip   ldx zp_voice
         inx
-        cpx #3
+        cpx #SFX_LANE
         bne @next
 
-        ; --- When all three voices have stopped the song is over.
+        ; --- When all three music lanes have stopped the song is over.
         lda st_active
         ora st_active + 1
         ora st_active + 2
-        bne @alive
+        bne play_effects
         sta st_running                  ; A is 0 here
-@alive  rts
+        ; fall through
+
+; play_effects: the three effect lanes. Each one has its own tick clock, at the speed of its effect; the
+; first frame of an effect is a tick.
+play_effects
+        ldx #SFX_LANE
+@next   stx zp_voice
+        lda st_active,x
+        beq @skip
+        lda st_sfx_fit - SFX_LANE,x
+        beq @tick
+        dec st_sfx_fit - SFX_LANE,x
+        lda #0
+        sta zp_tick
+        beq @play                       ; (always jumps: A is 0)
+@tick   lda st_sfx_speed - SFX_LANE,x
+        sec
+        sbc #1
+        sta st_sfx_fit - SFX_LANE,x
+        lda #1
+        sta zp_tick
+@play   lda st_sfx_fit - SFX_LANE,x
+        sta lane_fit
+        lda st_sfx_speed - SFX_LANE,x
+        sta lane_speed
+        jsr play_voice
+@skip   ldx zp_voice
+        inx
+        cpx #LANES
+        bne @next
+        rts
+
+; sfx_requests: look at what sfx_play and sfx_stop asked for, one SID voice at a time (X = voice).
+; It runs inside music_play, which the game's main loop cannot interrupt, so a request cannot change
+; while it is read and cleared here.
+sfx_requests
+        ldx #2
+@next   lda st_sfx_req,x
+        beq @skip                       ; nothing asked
+        pha
+        lda #0
+        sta st_sfx_req,x                ; the request is handled
+        pla
+        cmp #$FF
+        beq @stop
+        jsr sfx_start
+        jmp @skip
+@stop   jsr sfx_silence
+@skip   dex
+        bpl @next
+        rts
+
+; sfx_start: start effect A - 1 on SID voice X. Clears the voice's effect lane, then points it at the
+; effect: the first byte is its speed, the events follow. Keeps X.
+sfx_start
+        sec
+        sbc #1
+        tay                             ; Y = the effect number
+        lda sfx_lo,y
+        sta zp_ptr
+        lda sfx_hi,y
+        sta zp_ptr + 1
+        stx zp_t0                       ; the voice
+        txa
+        clc
+        adc #SFX_LANE
+        tax                             ; X = its effect lane
+        lda #0                          ; every field of this lane to 0 (written out: a loop would take
+        sta st_order_pos,x              ; four times as long)
+        sta st_pat_lo,x
+        sta st_pat_hi,x
+        sta st_pat_pos,x
+        sta st_ticks_left,x
+        sta st_instr,x
+        sta st_pitch,x
+        sta st_transpose,x
+        sta st_active,x
+        sta st_gate,x
+        sta st_hold,x
+        sta st_age,x
+        sta st_pw_lo,x
+        sta st_pw_hi,x
+        sta st_pw_step,x
+        sta st_freq_lo,x
+        sta st_freq_hi,x
+        sta st_vib_cnt,x
+        sta st_vib_off_lo,x
+        sta st_vib_off_hi,x
+        sta st_vib_step_lo,x
+        sta st_vib_step_hi,x
+        ldy #0
+        lda (zp_ptr),y                  ; the speed of the effect
+        bne @speed
+        lda #1                          ; 0 makes no sense, use 1
+@speed  ldy zp_t0
+        sta st_sfx_speed,y
+        lda #0
+        sta st_sfx_fit,y                ; the first frame is a tick
+        lda zp_ptr
+        sta st_pat_lo,x                 ; the effect is read like a pattern ...
+        lda zp_ptr + 1
+        sta st_pat_hi,x
+        lda #1
+        sta st_pat_pos,x                ; ... that starts after the speed byte
+        sta st_active,x
+        ldx zp_t0
+        rts
+
+; sfx_silence: stop the effect on SID voice X at once and close the voice (gate off, no waveform, the
+; fastest release). The music of that voice comes back at its next note. Keeps X.
+sfx_silence
+        lda st_active + SFX_LANE,x
+        beq @done                       ; no effect plays there
+        lda #0
+        sta st_active + SFX_LANE,x
+        sta st_gate + SFX_LANE,x
+        ldy sid_offset,x
+        sta SID_BASE + SID_CTRL,y
+        sta SID_BASE + SID_AD,y
+        sta SID_BASE + SID_SR,y
+@done   rts
 
 ; ============================================================================================================
 ; [3] READING THE SONG
@@ -305,7 +471,9 @@ read_events
         lda #0
         sta st_gate,x                   ; a rest is silent: gate off
         rts
-@end    lda st_order_pos,x              ; end of the pattern: go on with the next order list entry
+@end    cpx #SFX_LANE
+        bcs @over                       ; an effect has no order list: its end marker ends it
+        lda st_order_pos,x              ; end of the pattern: go on with the next order list entry
         clc
         adc #2
         sta st_order_pos,x
@@ -313,6 +481,7 @@ read_events
         lda st_active,x
         bne @event                      ; the voice goes on with the new pattern
         rts                             ; or it has stopped
+@over   jmp stop_voice                  ; the effect is over: the rest of this frame closes its gate
 
 ; ev_note: a note event was read; A = its pitch (0-95). It is reached by a jump from read_events,
 ; so it also ends with the rts that read_events ends with.
@@ -360,7 +529,7 @@ start_note
         sta st_pw_hi,x
         lda inst_pw_step,y
         sta st_pw_step,x
-        ; A drum starts its falling tone at the note's frequency, so remember that frequency
+        ; A drum (its falling tone) and a sliding note start at the note's frequency, so remember it
         ldy st_pitch,x
         lda freq_lo,y
         sta st_freq_lo,x
@@ -372,11 +541,11 @@ start_note
 ; [4] ONE VOICE, ONE FRAME
 ; ============================================================================================================
 
-; play_voice: everything one voice does in one frame (X = voice).
+; play_voice: everything one lane does in one frame (X = lane).
 ;   1. on a tick: count the note down, and read the next events when it is over
 ;   2. the end of the note: clear the gate in the last frames (the clean end)
 ;   3. work out the SID values for this frame (out_freq_lo ... out_sr)
-;   4. write them to the SID
+;   4. write them to the SID, unless an effect has the voice (see below)
 ;   5. move the counters on
 play_voice
         lda #0
@@ -392,9 +561,27 @@ play_voice
         jsr calc_frequency
         jsr calc_pulse
         jsr calc_control
-        jsr write_voice
+        ; A music lane does not write while the effect lane of its voice plays: the music goes on counting
+        ; (so it stays in time) but it is not heard. After the effect it waits for its next note, or for a
+        ; moment where its gate is closed anyway, so it never comes back in the middle of a note.
+        cpx #SFX_LANE
+        bcs @write                      ; an effect lane always writes
+        lda st_active + SFX_LANE,x
+        beq @free
+        lda #1
+        sta st_wait,x                   ; an effect has this voice
+        bne @after                      ; (always jumps)
+@free   lda st_wait,x
+        beq @write
+        lda zp_start
+        bne @back                       ; a new note: the music has its voice back
+        lda st_gate,x
+        bne @after                      ; still inside a note: stay quiet
+@back   lda #0
+        sta st_wait,x
+@write  jsr write_voice
         ldx zp_voice                    ; write_voice used X for something else
-        jmp advance_voice               ; (its rts returns from play_voice)
+@after  jmp advance_voice               ; (its rts returns from play_voice)
 
 ; check_release: the clean end of a note. In the last inst_release frames of a note the gate is cleared
 ; (the envelope fades with AD = SR = 0, so it is empty when the next note starts). The count is in frames,
@@ -438,7 +625,7 @@ check_release
         bcc @rel_ok
         lda #RELEASE_MAX                ; a larger value would only make the loop below slow
 @rel_ok sta zp_t0                       ; zp_t0 = inst_release, limited to the allowed range
-        lda st_frame_in_tick
+        lda lane_fit                    ; frames left in this tick (the music's or the effect's clock)
         clc
         adc #1
         sta zp_frames_left              ; frames left, counting only the current tick
@@ -456,7 +643,7 @@ check_release
         dec zp_ticks_left
         lda zp_frames_left
         clc
-        adc st_speed                    ; add one more tick
+        adc lane_speed                  ; add one more tick
         sta zp_frames_left
         bcc @more                       ; (a sum over 255 is certainly more than inst_release)
 @done   rts
@@ -470,11 +657,15 @@ check_release
         sta st_gate,x
         rts
 
-; advance_voice: at the end of the frame: the drum tone falls, and the note gets one frame older.
-; X = voice. The age stops at 255.
+; advance_voice: at the end of the frame: a sliding note moves, the drum tone falls, and the note gets one
+; frame older. X = lane. The age stops at 255.
 advance_voice
         ldy st_instr,x
-        lda inst_drum_noise,y
+        lda inst_slide,y
+        beq @fall                       ; no slide
+        jsr slide_step
+        ldy st_instr,x
+@fall   lda inst_drum_noise,y
         beq @age                        ; not a drum
         lda st_age,x
         cmp inst_drum_noise,y
@@ -494,6 +685,40 @@ advance_voice
         cmp #255
         beq @done
         inc st_age,x
+@done   rts
+
+; slide_step: st_freq = st_freq + inst_slide * 8, kept between 0 and $FFFF. A = inst_slide (signed, not 0).
+; X = lane. Times 8, so a slide of 127 sweeps about 1000 frequency units per frame: two octaves of a
+; high note in a quarter of a second; small values give slow bends and sirens.
+slide_step
+        sta zp_t0                       ; low byte of the step
+        and #$80
+        beq @sign
+        lda #$FF                        ; a negative slide: the high byte is all ones
+@sign   sta zp_r0                       ; high byte of the step
+        ldy #3
+@times8 asl zp_t0
+        rol zp_r0
+        dey
+        bne @times8
+        clc
+        lda st_freq_lo,x
+        adc zp_t0
+        sta st_freq_lo,x
+        lda st_freq_hi,x
+        adc zp_r0
+        sta st_freq_hi,x
+        lda zp_r0                       ; (lda does not change the carry)
+        bmi @minus
+        bcc @done
+        lda #$FF                        ; going up and past $FFFF: stay at the top
+        sta st_freq_lo,x
+        sta st_freq_hi,x
+        rts
+@minus  bcs @done                       ; going down, carry set: still at 0 or above
+        lda #0
+        sta st_freq_lo,x
+        sta st_freq_hi,x
 @done   rts
 
 ; write_voice: copy the values of this frame to the SID. The order is always the same: frequency, pulse width,
@@ -549,7 +774,8 @@ write_voice
 @done   rts
 
 sid_offset
-        !byte 0, 7, 14                  ; first SID register of voice 1, 2 and 3
+        !byte 0, 7, 14                  ; first SID register of voice 1, 2 and 3: the music lanes ...
+        !byte 0, 7, 14                  ; ... and the effect lanes
 
 ; ============================================================================================================
 ; [5] THE SOUND FEATURES (what an instrument does while a note sounds)
@@ -667,8 +893,13 @@ pw_top
 
 ; calc_frequency: out_freq_lo/hi. X = voice.
 ;   A drum uses its running frequency (st_freq), which starts at the note and falls (see advance_voice).
+;   A sliding note (inst_slide not 0) uses its running frequency too, plus the vibrato. No arpeggio.
 ;   Any other note: look the pitch up in the frequency table, then add the vibrato.
-;   The arpeggio raises the pitch by inst_arp semitones on every second frame.
+;   The arpeggio changes the pitch that is looked up:
+;     inst_arp2 = 0 (two notes):   even frames the note, odd frames the note + inst_arp. 25 times a second.
+;     inst_arp2 not 0 (three notes): the note, the note + inst_arp, the note + inst_arp2, one frame each,
+;                                  and again. A whole round is three frames, so 16.7 times a second.
+;   Both counters (st_frames and st_arp_step) are shared by the three voices and are not reset by a new note.
 calc_frequency
         ldy st_instr,x
         lda inst_drum_noise,y
@@ -678,22 +909,41 @@ calc_frequency
         lda st_freq_hi,x
         sta out_freq_hi
         rts
+        ; --- three notes. A = inst_arp2 (not 0), Y = the instrument
+@three  sta zp_t0                       ; the offset of step 2, unless the code below picks another one
+        lda st_arp_step
+        beq @lookup                     ; step 0: the note itself
+        cmp #2
+        beq @offset                     ; step 2: the note plus the second offset
+        lda inst_arp,y                  ; step 1: the note plus the first offset ...
+        beq @lookup                     ; ... which may be 0: then it is the note itself
+        sta zp_t0
+        bne @offset                     ; (always jumps: A is not 0)
 @melodic
+        lda inst_slide,y
+        bne @slide
         lda st_pitch,x
         sta zp_pitch
+        lda inst_arp2,y
+        bne @three                      ; a second offset: the three-note arpeggio
         lda inst_arp,y
         beq @lookup                     ; 0 = no arpeggio
         sta zp_t0
         lda st_frames
         and #1
         beq @lookup                     ; even frames: the note itself
-        lda st_pitch,x                  ; odd frames: the note plus the offset
+@offset lda st_pitch,x                  ; the note plus the offset in zp_t0
         jsr add_semitones
         sta zp_pitch
 @lookup ldy zp_pitch
         lda freq_lo,y
         sta out_freq_lo
         lda freq_hi,y
+        sta out_freq_hi
+        jmp vibrato
+@slide  lda st_freq_lo,x                ; a sliding note: its running frequency, then the vibrato
+        sta out_freq_lo
+        lda st_freq_hi,x
         sta out_freq_hi
         ; fall through into the vibrato
 
@@ -920,7 +1170,10 @@ st_song_hi      !byte 0
 st_speed        !byte 0                 ; frames per tick (read from the song header at every tick)
 st_frame_in_tick !byte 0                ; frames left until the next tick (0: the next frame is a tick)
 st_running      !byte 0                 ; 1 while a song plays, 0 when stopped or finished
-st_frames       !byte 0                 ; frame counter, wraps around. Bit 0 drives the arpeggio
+st_frames       !byte 0                 ; frame counter, wraps around. Bit 0 drives the two-note arpeggio
+st_arp_step     !byte 0                 ; counts 0, 1, 2, 0, 1, 2 ... one step per frame: the three-note arpeggio
+lane_fit        !byte 0                 ; the tick clock of the lane being played: st_frame_in_tick for the music,
+lane_speed      !byte 0                 ; st_sfx_fit for an effect (and the speed that goes with it)
 
 ; --- what the SID gets this frame (the values are worked out first, then written together)
 out_freq_lo     !byte 0
@@ -931,31 +1184,42 @@ out_ctrl        !byte 0
 out_ad          !byte 0
 out_sr          !byte 0
 
-; --- per voice. music_init clears this whole block to 0.
+; --- per lane. A lane is one stream of notes: lanes 0, 1, 2 are the music on voice 1, 2, 3, and lanes
+; 3, 4, 5 are the sound effects on voice 1, 2, 3 (see sfx_play). Every field is an array of LANES bytes, so
+; field F of lane X is at F + X. music_init clears this whole block to 0, the arrays after it included.
 st_voice_block
-st_order_pos    !fill 3, 0              ; byte offset in the voice's order list (a multiple of 2)
-st_pat_lo       !fill 3, 0              ; address of the current pattern's first byte
-st_pat_hi       !fill 3, 0
-st_pat_pos      !fill 3, 0              ; offset in the pattern of the NEXT event to read
-st_ticks_left   !fill 3, 0              ; ticks left of the current note or rest (0: read the next event)
-st_instr        !fill 3, 0              ; the current instrument
-st_pitch        !fill 3, 0              ; the pitch of the current note (0-95, transpose included)
-st_transpose    !fill 3, 0              ; transpose of the current order entry (signed)
-st_active       !fill 3, 0              ; 1 = the voice plays, 0 = it has stopped
-st_gate         !fill 3, 0              ; 1 = the note sounds (gate open), 0 = silent
-st_hold         !fill 3, 0              ; 1 = a legato note follows, so the gate stays open to the end
-st_age          !fill 3, 0              ; frames since the note started (stops at 255)
-st_pw_lo        !fill 3, 0              ; the pulse width now (12 bits) ...
-st_pw_hi        !fill 3, 0
-st_pw_step      !fill 3, 0              ; ... and the step it moves by (signed, turns around at the limits)
-st_freq_lo      !fill 3, 0              ; a drum's running frequency
-st_freq_hi      !fill 3, 0
-st_vib_cnt      !fill 3, 0              ; vibrato: frames left in this swing (0: not started)
-st_vib_off_lo   !fill 3, 0              ; vibrato: the offset added to the frequency (signed 16 bits) ...
-st_vib_off_hi   !fill 3, 0
-st_vib_step_lo  !fill 3, 0              ; ... and the signed step it changes by per frame
-st_vib_step_hi  !fill 3, 0
+st_order_pos    !fill LANES, 0          ; byte offset in the voice's order list (a multiple of 2)
+st_pat_lo       !fill LANES, 0          ; address of the current pattern's first byte
+st_pat_hi       !fill LANES, 0
+st_pat_pos      !fill LANES, 0          ; offset in the pattern of the NEXT event to read
+st_ticks_left   !fill LANES, 0          ; ticks left of the current note or rest (0: read the next event)
+st_instr        !fill LANES, 0          ; the current instrument
+st_pitch        !fill LANES, 0          ; the pitch of the current note (0-95, transpose included)
+st_transpose    !fill LANES, 0          ; transpose of the current order entry (signed)
+st_active       !fill LANES, 0          ; 1 = the voice plays, 0 = it has stopped
+st_gate         !fill LANES, 0          ; 1 = the note sounds (gate open), 0 = silent
+st_hold         !fill LANES, 0          ; 1 = a legato note follows, so the gate stays open to the end
+st_age          !fill LANES, 0          ; frames since the note started (stops at 255)
+st_pw_lo        !fill LANES, 0          ; the pulse width now (12 bits) ...
+st_pw_hi        !fill LANES, 0
+st_pw_step      !fill LANES, 0          ; ... and the step it moves by (signed, turns around at the limits)
+st_freq_lo      !fill LANES, 0          ; the running frequency of a drum or a sliding note
+st_freq_hi      !fill LANES, 0
+st_vib_cnt      !fill LANES, 0          ; vibrato: frames left in this swing (0: not started)
+st_vib_off_lo   !fill LANES, 0          ; vibrato: the offset added to the frequency (signed 16 bits) ...
+st_vib_off_hi   !fill LANES, 0
+st_vib_step_lo  !fill LANES, 0          ; ... and the signed step it changes by per frame
+st_vib_step_hi  !fill LANES, 0
+st_lanes_size = * - st_voice_block
+!if st_lanes_size != 22 * LANES { !error "a lane field was added: clear it in sfx_start too" }
+
+; --- per SID voice (3 bytes each), cleared together with the lanes above
+st_wait         !fill 3, 0              ; 1 = an effect had this voice: the music stays quiet until its next note
+st_sfx_req      !fill 3, 0              ; set by sfx_play/sfx_stop: 0 nothing, n + 1 start effect n, $FF stop
+st_sfx_fit      !fill 3, 0              ; the effect lane's frames left until its next tick (like st_frame_in_tick)
+st_sfx_speed    !fill 3, 0              ; the effect's frames per tick
 st_voice_size = * - st_voice_block
+
 
 music_end
 music_size = music_end - music_start

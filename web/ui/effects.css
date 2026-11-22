@@ -1,0 +1,48 @@
+/* effects.css - the Effects view: the list of sound effects and the one-voice editor.
+   Part of the WebSidTracker web app, GPL version 3 or later (see ../LICENSE). */
+
+.fx {
+  display: grid;
+  grid-template-columns: 13rem minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  overflow: hidden;
+}
+
+.fx-side {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--border);
+  background: var(--panel-2, var(--panel));
+}
+
+.fx-tools { display: flex; flex-wrap: wrap; gap: 0.286rem; padding: 0.571rem; border-bottom: 1px solid var(--border); }
+.fx-tools button { min-height: 1.714rem; padding: 0 0.571rem; }
+
+.fx-list { list-style: none; margin: 0; padding: 0.286rem 0; overflow: auto; flex: 1 1 0; min-height: 0; }
+.fx-list li {
+  display: grid; grid-template-columns: 2em minmax(0, 1fr) auto; gap: 0.429rem; align-items: center;
+  padding: 0.214rem 0.571rem; cursor: pointer; font-family: var(--mono, monospace); font-size: 0.857rem;
+}
+.fx-list li span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-family: system-ui, sans-serif; }
+.fx-list li b { color: var(--accent); font-weight: 700; }
+.fx-list li i { font-style: normal; color: var(--muted); }
+.fx-list li:hover { background: var(--accent-soft, rgba(0, 0, 0, 0.05)); }
+.fx-list li[aria-selected="true"] { background: var(--accent); color: var(--accent-fg, #fff); }
+.fx-list li[aria-selected="true"] b, .fx-list li[aria-selected="true"] i { color: inherit; }
+.fx-list li:focus-visible { outline: 2px solid var(--focus, var(--accent)); outline-offset: -2px; }
+
+.fx-note { margin: 0; padding: 0.429rem 0.571rem; color: var(--muted); font-size: 0.786rem; border-top: 1px solid var(--border); }
+
+.fx-main { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+.fx-fields { display: flex; flex-wrap: wrap; align-items: end; gap: 0.571rem; padding: 0.571rem; border-bottom: 1px solid var(--border); }
+.fx-fields.off { opacity: 0.5; }
+.fx-field { display: flex; flex-direction: column; gap: 0.143rem; font-size: 0.786rem; color: var(--muted); }
+.fx-field.grow { flex: 1 1 10rem; }
+.fx-field input[type="number"] { width: 4.5em; }
+.fx-fields button.play { min-height: 1.857rem; }
+
+.fx-editor { flex: 1 1 0; min-height: 0; overflow: hidden; }
+.fx-editor[hidden] { display: none; }
+.fx-empty { padding: 1.143rem; color: var(--muted); max-width: 36rem; }
+.fx-empty b { color: var(--fg); }

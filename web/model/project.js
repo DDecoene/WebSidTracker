@@ -3,9 +3,10 @@
 // A project is plain data (see the shapes in the comments below). Everything the
 // editor changes lives here; bytes are made from it by serialise.js.
 //
-//   project    = { instruments: Instrument[], song: Song }
+//   project    = { instruments: Instrument[], song: Song, effects: Effect[] }
 //   Instrument = { name, wave, ad, sr, pw, pwStep, pwMin, pwMax, vibDelay, vibDepth, vibSpeed,
-//                  arp, drumNoise, drumFall, release }          (unused slot = null)
+//                  arp, arp2, drumNoise, drumFall, release, slide }    (unused slot = null)
+//   Effect     = { name, speed, voice (0-2, where the tracker plays it), events: Event[] }
 //   Song       = { name, speed, patterns: Pattern[], orders: [Entry[], Entry[], Entry[]] }
 //   Pattern    = { name, events: Event[] }
 //   Event      = {type:'note', pitch, length} | {type:'rest', length} | {type:'inst', instrument} | {type:'legato'}
@@ -13,7 +14,10 @@
 //
 // Part of the WebSidTracker web app, GPL version 3 or later (see ../LICENSE).
 
-import { MAX_ORDER_ENTRIES, MAX_PATTERN_BYTES, measureSong, orderListLength, patternBytes } from './serialise.js';
+import {
+  EFFECT_TABLES_SIZE, MAX_EFFECTS, MAX_EFFECT_BYTES, MAX_ORDER_ENTRIES, MAX_PATTERN_BYTES, effectBytes, measureSong,
+  orderListLength, patternBytes,
+} from './serialise.js';
 
 export const LIMITS = {
   maxInstruments: 256,
@@ -25,8 +29,12 @@ export const LIMITS = {
   maxTranspose: 96,
   maxEntries: MAX_ORDER_ENTRIES,        // per voice, an added STOP included; loop targets are 0..127
   maxPatternBytes: MAX_PATTERN_BYTES,   // events plus the $FF end marker
-  instrumentBase: 0x2000,    // 15 tables x 256 bytes
-  songBase: 0x3000,
+  instrumentBase: 0x2000,    // 17 tables x 256 bytes, up to $30FF
+  effectBase: 0x3100,        // the sound effects, up to $37FF
+  effectEnd: 0x3800,
+  maxEffects: MAX_EFFECTS,
+  maxEffectBytes: MAX_EFFECT_BYTES,   // speed, events and the $FF end marker
+  songBase: 0x3800,
   songEnd: 0xC000,           // the song must end below this address
   scratchBase: 0xC000,       // note auditions
 };
@@ -60,8 +68,13 @@ export function transposedPitch(pitch, transpose) {
 export function defaultInstrument() {
   return {
     name: 'New instrument', wave: 0x40, ad: 0x09, sr: 0xA0, pw: 0x0800, pwStep: 0, pwMin: 0x20, pwMax: 0xE0,
-    vibDelay: 0, vibDepth: 0, vibSpeed: 0, arp: 0, drumNoise: 0, drumFall: 0, release: 2,
+    vibDelay: 0, vibDepth: 0, vibSpeed: 0, arp: 0, arp2: 0, drumNoise: 0, drumFall: 0, release: 2, slide: 0,
   };
+}
+
+// A new sound effect: one note of instrument 0 on voice 3, a tick per frame.
+export function defaultEffect(name = 'New effect') {
+  return { name, speed: 1, voice: 2, events: [{ type: 'inst', instrument: 0 }, { type: 'note', pitch: 60, length: 8 }] };
 }
 
 // One empty pattern; voice 1 plays it once then stops, the other voices are silent.
@@ -75,7 +88,7 @@ export function defaultSong() {
 }
 
 export function newProject() {
-  return { instruments: [{ ...defaultInstrument(), name: 'Instrument 0' }], song: defaultSong() };
+  return { instruments: [{ ...defaultInstrument(), name: 'Instrument 0' }], song: defaultSong(), effects: [] };
 }
 
 export function clone(project) {
@@ -87,7 +100,8 @@ export function clone(project) {
 const INSTRUMENT_FIELDS = [
   ['wave', 0, 255], ['ad', 0, 255], ['sr', 0, 255], ['pw', 0, 4095], ['pwStep', -128, 127],
   ['pwMin', 0, 255], ['pwMax', 0, 255], ['vibDelay', 0, 255], ['vibDepth', 0, 255], ['vibSpeed', 0, 255],
-  ['arp', -128, 127], ['drumNoise', 0, 255], ['drumFall', 0, 255], ['release', 0, 255],
+  ['arp', -128, 127], ['arp2', -128, 127], ['drumNoise', 0, 255], ['drumFall', 0, 255], ['release', 0, 255],
+  ['slide', -128, 127],
 ];
 
 const isInt = (v, lo, hi) => Number.isInteger(v) && v >= lo && v <= hi;
@@ -119,26 +133,22 @@ export function validate(project) {
     if (size > LIMITS.maxPatternBytes) {
       problems.push(`pattern ${n} is ${size} bytes, the player allows ${LIMITS.maxPatternBytes} (the end marker included): split it into two patterns`);
     }
-    pattern.events.forEach((ev, i) => {
-      const where = `pattern ${n} event ${i}`;
-      switch (ev && ev.type) {
-        case 'note':
-          if (!isInt(ev.pitch, 0, LIMITS.maxPitch)) problems.push(`${where}: pitch must be 0 to ${LIMITS.maxPitch}`);
-          if (!isInt(ev.length, 1, LIMITS.maxLength)) problems.push(`${where}: length must be 1 to ${LIMITS.maxLength}`);
-          break;
-        case 'rest':
-          if (!isInt(ev.length, 1, LIMITS.maxLength)) problems.push(`${where}: length must be 1 to ${LIMITS.maxLength}`);
-          break;
-        case 'inst':
-          if (!isInt(ev.instrument, 0, 255)) problems.push(`${where}: instrument must be 0 to 255`);
-          else if (!instruments[ev.instrument]) problems.push(`${where}: instrument ${ev.instrument} does not exist`);
-          break;
-        case 'legato':
-          break;
-        default:
-          problems.push(`${where}: unknown event type`);
-      }
-    });
+    checkEvents(pattern.events, `pattern ${n}`, instruments, problems);
+  });
+
+  const effects = project.effects ?? [];
+  if (!Array.isArray(effects)) return [...problems, 'the sound effects are not a list'];
+  if (effects.length > LIMITS.maxEffects) problems.push(`more than ${LIMITS.maxEffects} sound effects`);
+  effects.forEach((effect, n) => {
+    const where = `effect ${n}${effect && effect.name ? ` (${effect.name})` : ''}`;
+    if (!effect || typeof effect !== 'object' || !Array.isArray(effect.events)) { problems.push(`${where} has no event list`); return; }
+    if (typeof effect.name !== 'string') problems.push(`${where} has no name`);
+    if (!isInt(effect.speed, LIMITS.minSpeed, LIMITS.maxSpeed)) problems.push(`${where}: speed must be a whole number from ${LIMITS.minSpeed} to ${LIMITS.maxSpeed}`);
+    if (!isInt(effect.voice, 0, 2)) problems.push(`${where}: voice must be 0, 1 or 2`);
+    checkEvents(effect.events, where, instruments, problems);
+    if (!effect.events.some((ev) => ev && (ev.type === 'note' || ev.type === 'rest'))) problems.push(`${where} has no notes: add a note or a rest`);
+    const size = effectBytes(effect);
+    if (size > LIMITS.maxEffectBytes) problems.push(`${where} is ${size} bytes, the player allows ${LIMITS.maxEffectBytes} (its speed and end marker included)`);
   });
 
   const ticks = (n) => song.patterns[n].events.reduce((sum, ev) => sum + (ev.type === 'note' || ev.type === 'rest' ? ev.length : 0), 0);
@@ -172,8 +182,33 @@ export function validate(project) {
   if (!problems.length) {
     const info = songSizeInfo(project);
     if (!info.fits) problems.push(`song is ${info.songBytes} bytes, only ${info.capacity} fit below $${LIMITS.songEnd.toString(16).toUpperCase()}`);
+    if (!info.effectsFit) problems.push(`the sound effects are ${info.effectBytes} bytes, only ${info.effectCapacity} fit: make them shorter or remove some`);
   }
   return problems;
+}
+
+// The checks for the events of a pattern or an effect. Adds to `problems`.
+function checkEvents(events, what, instruments, problems) {
+  events.forEach((ev, i) => {
+    const where = `${what} event ${i}`;
+    switch (ev && ev.type) {
+      case 'note':
+        if (!isInt(ev.pitch, 0, LIMITS.maxPitch)) problems.push(`${where}: pitch must be 0 to ${LIMITS.maxPitch}`);
+        if (!isInt(ev.length, 1, LIMITS.maxLength)) problems.push(`${where}: length must be 1 to ${LIMITS.maxLength}`);
+        break;
+      case 'rest':
+        if (!isInt(ev.length, 1, LIMITS.maxLength)) problems.push(`${where}: length must be 1 to ${LIMITS.maxLength}`);
+        break;
+      case 'inst':
+        if (!isInt(ev.instrument, 0, 255)) problems.push(`${where}: instrument must be 0 to 255`);
+        else if (!instruments[ev.instrument]) problems.push(`${where}: instrument ${ev.instrument} does not exist`);
+        break;
+      case 'legato':
+        break;
+      default:
+        problems.push(`${where}: unknown event type`);
+    }
+  });
 }
 
 // ---------------------------------------------------------------- warnings
@@ -196,7 +231,8 @@ export function lint(project) {
     if (inst.release > RELEASE_MAX) w(`release above ${RELEASE_MAX} is played as ${RELEASE_MAX}`);
     if (inst.vibDepth > 127) w('vibrato depth above 127 is played as 127');
     if (inst.vibDepth && (inst.vibSpeed < 2 || inst.vibSpeed % 2)) w(`vibrato speed ${inst.vibSpeed} is played as ${Math.max(2, inst.vibSpeed & 0xFE)} (even numbers from 2)`);
-    if (inst.drumNoise && (inst.vibDepth || inst.arp)) w('vibrato and arpeggio are not applied to a drum (drum noise is above 0)');
+    if (inst.drumNoise && (inst.vibDepth || inst.arp || inst.arp2)) w('vibrato and arpeggio are not applied to a drum (drum noise is above 0)');
+    else if (inst.slide && (inst.arp || inst.arp2)) w('the arpeggio is not applied to a sliding note (slide is not 0)');
     if (inst.pwStep && inst.pwMin > inst.pwMax) w('pulse sweep minimum is above the maximum');
   });
 
@@ -253,6 +289,8 @@ export function lint(project) {
 
 export function songSizeInfo(project) {
   const layout = measureSong(project.song);
+  const effectBytesTotal = (project.effects ?? []).reduce((sum, effect) => sum + effectBytes(effect), 0);
+  const effectCapacity = LIMITS.effectEnd - LIMITS.effectBase - EFFECT_TABLES_SIZE;
   const used = project.instruments.reduce((top, inst, n) => (inst ? n + 1 : top), 0);
   const instrumentCount = Math.max(1, used);
   const capacity = LIMITS.songEnd - LIMITS.songBase;
@@ -265,7 +303,11 @@ export function songSizeInfo(project) {
     patternBytes: layout.patternOffsets.length ? layout.size - layout.patternOffsets[0] : 0,
     patternCount: layout.patterns,
     instrumentCount,
-    instrumentBytes: 15 * instrumentCount,   // size of the trimmed instruments.asm tables
+    instrumentBytes: 17 * instrumentCount,   // size of the trimmed instruments.asm tables
+    effectCount: (project.effects ?? []).length,
+    effectBytes: effectBytesTotal,           // the effects themselves, without the tables in front of them
+    effectCapacity,
+    effectsFit: effectBytesTotal <= effectCapacity,
     capacity,
     free: capacity - layout.size,
     fits: layout.size <= capacity,
@@ -376,5 +418,5 @@ export function demoProject() {
   for (let bar = 0; bar < 16; bar++) drums.push(entry(bar % 4 === 3 ? FILL : BEAT));
   drums.push({ loop: 0 });
 
-  return { instruments, song: { name: 'demo', speed: 6, patterns, orders: [bass, lead, drums] } };
+  return { instruments, song: { name: 'demo', speed: 6, patterns, orders: [bass, lead, drums] }, effects: [] };
 }

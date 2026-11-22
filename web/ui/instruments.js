@@ -132,6 +132,19 @@ const SECTIONS = [
         get: (i) => i.arp, set: (i, v) => { i.arp = v; },
         text: (v) => (v === 0 ? 'off' : `${signed(v)} semitones`),
         hint: 'Every frame the pitch jumps between the note and the note plus this many semitones: 12 is an octave, 7 a fifth, 4 a major third. The fast flutter sounds like a chord.' },
+      { key: 'arp2', label: 'Second offset', min: -96, max: 96, sliderMin: -24, sliderMax: 24, digits: 2,
+        get: (i) => i.arp2, set: (i, v) => { i.arp2 = v; },
+        text: (v) => (v === 0 ? 'off: two notes' : `${signed(v)} semitones: three notes`),
+        hint: 'Above 0 (or below) the arpeggio has three steps of one frame each: the note, the note plus Offset, the note plus this. Offset 4 with 7 here is a major chord, 3 with 7 a minor chord. Three notes go round a little slower than two (16.7 against 25 times a second). 0 keeps the two-note arpeggio.' },
+    ],
+  },
+  {
+    title: 'Slide',
+    controls: [
+      { key: 'slide', label: 'Slide', min: -128, max: 127, sliderMin: -64, sliderMax: 64, digits: 3,
+        get: (i) => i.slide, set: (i, v) => { i.slide = v; },
+        text: (v) => (v === 0 ? 'off' : `${v > 0 ? 'up' : 'down'} ${Math.abs(v * 8)} per frame`),
+        hint: 'From the second frame of a note the pitch slides: up for a positive number, down for a negative one, by this times 8 in frequency units every frame. Big numbers make lasers and falling bombs, small ones bends and sirens. A high note slides faster in semitones than a low one. The vibrato still works on a sliding note, the arpeggio does not.' },
     ],
   },
   {

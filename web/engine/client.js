@@ -44,6 +44,7 @@ export async function createEngineClient({ model = 0 } = {}) {
       edit(edit) { node.port.postMessage({ type: 'edit', writes: edit.writes, playhead: edit.playhead, remap: edit.remap }); },
       setModel(m) { node.port.postMessage({ type: 'model', model: m }); },
       setMuted(voice, muted) { node.port.postMessage({ type: 'mute', voice, muted }); },
+      playEffect(voice, effect) { node.port.postMessage({ type: 'sfx', voice, effect }); },
       setVolume(value) { node.port.postMessage({ type: 'volume', value }); },
       resume() { return context.state === 'running' ? Promise.resolve() : context.resume(); },
       close() {

@@ -1,23 +1,47 @@
 // example.js - the fixed project the golden files are made from. Do not "improve" it: a change here
 // changes every golden set. It uses every kind of event, every kind of order entry, a negative transpose
 // and sets every instrument field to a value other than the default on at least one instrument.
+// The one change that is allowed: a new format that adds a field sets that field here, and names it in
+// ADDED_FIELDS, so the tests know what an older golden set cannot contain.
 //
 // Part of the WebSidTracker web app, GPL version 3 or later (see ../../LICENSE).
+
+/** Instrument fields that did not exist before a format, with the value a migration gives them. */
+export const ADDED_FIELDS = {
+  2: { arp2: 0, slide: 0 },
+};
+
+/** Project parts that did not exist before a format, with the value a migration gives them. */
+export const ADDED_PARTS = {
+  2: { effects: [] },
+};
+
+/** The example project as a file of an older format ends up after the migrations: the fields added later have their migrated value. */
+export function goldenProjectAsOf(format) {
+  let project = goldenProject();
+  for (const [added, fields] of Object.entries(ADDED_FIELDS)) {
+    if (Number(added) > format) project.instruments = project.instruments.map((inst) => (inst ? { ...inst, ...fields } : inst));
+  }
+  for (const [added, parts] of Object.entries(ADDED_PARTS)) {
+    if (Number(added) > format) project = { ...project, ...parts };
+  }
+  return project;
+}
 
 export function goldenProject() {
   return {
     instruments: [
       {
         name: 'Bass', wave: 0x41, ad: 0x08, sr: 0xA3, pw: 0x0A00, pwStep: 3, pwMin: 0x30, pwMax: 0xD0,
-        vibDelay: 0, vibDepth: 0, vibSpeed: 0, arp: 0, drumNoise: 0, drumFall: 0, release: 3,
+        vibDelay: 0, vibDepth: 0, vibSpeed: 0, arp: 0, arp2: 0, drumNoise: 0, drumFall: 0, release: 3, slide: 0,
       },
       {
         name: 'Lead', wave: 0x41, ad: 0x2A, sr: 0x84, pw: 0x0600, pwStep: -2, pwMin: 0x18, pwMax: 0xE8,
-        vibDelay: 12, vibDepth: 5, vibSpeed: 4, arp: 7, drumNoise: 0, drumFall: 0, release: 2,
+        vibDelay: 12, vibDepth: 5, vibSpeed: 4, arp: 7, arp2: -5, drumNoise: 0, drumFall: 0, release: 2, slide: 0,
       },
       {
         name: 'Snare', wave: 0x81, ad: 0x00, sr: 0x00, pw: 0x0800, pwStep: 0, pwMin: 0x20, pwMax: 0xE0,
-        vibDelay: 0, vibDepth: 0, vibSpeed: 0, arp: -3, drumNoise: 2, drumFall: 40, release: 1,
+        vibDelay: 0, vibDepth: 0, vibSpeed: 0, arp: -3, arp2: 0, drumNoise: 2, drumFall: 40, release: 1, slide: -7,
       },
     ],
     song: {
@@ -45,5 +69,12 @@ export function goldenProject() {
         [{ pattern: 2, transpose: 0 }, { loop: 0 }],
       ],
     },
+    effects: [
+      { name: 'zap', speed: 1, voice: 2, events: [
+        { type: 'inst', instrument: 2 }, { type: 'note', pitch: 72, length: 6 }, { type: 'legato' },
+        { type: 'note', pitch: 60, length: 4 }, { type: 'rest', length: 1 },
+      ] },
+      { name: 'ting', speed: 3, voice: 0, events: [{ type: 'inst', instrument: 1 }, { type: 'note', pitch: 78, length: 2 }] },
+    ],
   };
 }

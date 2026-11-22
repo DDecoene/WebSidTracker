@@ -26,7 +26,7 @@ To check the SID without a browser: `node web/sid/test.mjs`. It plays the same t
 ## Layers
 
 ```
- ui/ (pattern editor, instrument editor)   app/ (shell: header, dialogs, keys)
+ ui/ (pattern editor, effects, instruments)   app/ (shell: header, dialogs, keys)
         |  every change goes through store.update
         v
  app/store.js      project + undo + selection + playhead
@@ -67,21 +67,23 @@ Two things worth knowing:
 
 | Path | What |
 |---|---|
-| `tracker.html`, `style.css` | the tracker page: header with file, transport and chip controls, the two panes, the export and help dialogs |
-| `app/main.js` | starts the app: loads the autosave (browser storage) or the demo tune, wires the header, dialogs, Space, Ctrl/Cmd+Z, Ctrl/Cmd+S and `?` |
+| `tracker.html`, `style.css` | the tracker page: header with file, transport and chip controls, the Song / Effects switch, the two panes, the export and help dialogs |
+| `app/main.js` | starts the app: loads the autosave (browser storage) or the demo tune, wires the header, the Song / Effects switch, dialogs, Space, Ctrl/Cmd+Z, Ctrl/Cmd+S, Ctrl/Cmd+Enter and `?` |
 | `app/store.js` | the shared state: project, undo/redo (200 steps), selection, playhead |
-| `app/session.js` | glue between store, model and engine: creates the engine on the first click or key, play, stop, mute, note audition, live edits, size and problem reports |
-| `app/live.js` | the pure part of live editing: which bytes the engine holds, the smallest set of RAM writes for a change, the playhead fix-up |
+| `app/session.js` | glue between store, model and engine: creates the engine on the first click or key, play, stop, mute, note audition, playing an effect, live edits, size and problem reports |
+| `app/live.js` | the pure part of live editing: which bytes the engine holds (tables, effects, song), the smallest set of RAM writes for a change, the playhead fix-up |
 | `app/panels.js` | the message strip, the help dialog and the export dialog |
 | `app/files.js` | file names, download, open, copy to clipboard |
 | `app/fake-model.mjs` | small stand-ins used by the session and live tests |
 | `app/*.test.mjs` | tests for `files`, `live`, `session` and `store` |
 | `model/project.js` | the song model: shapes, limits, validation, size info, the demo tune |
 | `model/serialise.js` | model to the exact bytes of the player format, and back; the playhead maps |
-| `model/export.js` | `instruments.asm`, `song_<name>.asm`, the `.prg`, and the project file (JSON) |
+| `model/export.js` | `instruments.asm`, `sfx.asm`, `song_<name>.asm`, the `.prg`, the `.sid` file (PSID version 2), and the project file (JSON) |
+| `model/demos/` | the demo projects (six songs and the Sound effects demo) and their tests |
 | `model/test.mjs` | tests for the three files above |
 | `ui/editor.js`, `ui/editor.css` | the pattern and order editor (DOM, keyboard, mouse) |
 | `ui/editor-logic.js` | its pure part: grid layout and every edit |
+| `ui/effects.js`, `ui/effects.css` | the Effects view: the list of sound effects, their fields, and the pattern editor in one-voice mode on a store that shows one effect as a one-pattern song |
 | `ui/instruments.js`, `ui/instruments.css` | the instrument editor (list, presets, sliders, graphs, audition piano) |
 | `ui/instruments-logic.js` | its pure part: SID time tables, presets, field limits |
 | `ui/*.test.mjs` | tests for the two logic files |

@@ -159,6 +159,8 @@ export const FIELD_LIMITS = {
   vibDepth: [0, 255],
   vibSpeed: [0, 255],
   arp: [-96, 96],
+  arp2: [-96, 96],
+  slide: [-128, 127],
   drumNoise: [0, 255],
   drumFall: [0, 255],
   release: [0, 255],
@@ -201,9 +203,11 @@ export function blankInstrument(name = 'New') {
     vibDepth: 0,
     vibSpeed: 0,
     arp: 0,
+    arp2: 0,
     drumNoise: 0,
     drumFall: 0,
     release: 2,
+    slide: 0,
   };
 }
 

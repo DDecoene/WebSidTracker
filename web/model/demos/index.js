@@ -5,12 +5,13 @@
 //
 // Part of the WebSidTracker web app, GPL version 3 or later (see ../../LICENSE).
 
-import { demoProject } from '../project.js';
+import { defaultInstrument, demoProject } from '../project.js';
 import * as odeToJoy from './ode-to-joy.js';
 import * as furElise from './fur-elise.js';
 import * as rondoAllaTurca from './rondo-alla-turca.js';
 import * as toccata from './toccata.js';
 import * as mountainKing from './mountain-king.js';
+import * as soundEffects from './sound-effects.js';
 
 const original = {
   info: {
@@ -22,9 +23,16 @@ const original = {
   build: demoProject,
 };
 
+// The demos were written before instruments had a slide and projects had sound effects: fill those in.
+const complete = (project) => ({
+  ...project,
+  instruments: project.instruments.map((inst) => (inst ? { ...defaultInstrument(), ...inst } : inst)),
+  effects: project.effects ?? [],
+});
+
 /** [{ id, title, composer, note, build }], Ode to Joy first as the friendly starter. */
-export const DEMOS = [odeToJoy, furElise, rondoAllaTurca, toccata, mountainKing, original]
-  .map((demo) => ({ ...demo.info, build: demo.build }));
+export const DEMOS = [odeToJoy, furElise, rondoAllaTurca, toccata, mountainKing, original, soundEffects]
+  .map((demo) => ({ ...demo.info, build: () => complete(demo.build()) }));
 
 /** The demo with this id, or undefined. */
 export function findDemo(id) {
