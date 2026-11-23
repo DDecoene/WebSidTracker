@@ -103,10 +103,12 @@ button.btn { font: inherit; font-weight: 600; cursor: pointer; }
 
 .hero { padding-top: clamp(2.5rem, 7vw, 6rem); }
 .hero h1 {
-  margin: 0 0 1.25rem; max-width: 18ch;
+  margin: 0 0 1.25rem; max-width: 22ch;
   font: 700 clamp(2.1rem, 1.3rem + 3.6vw, 5rem)/1.05 var(--mono); letter-spacing: -0.03em;
   text-wrap: balance;
 }
+.hero h1 span { display: block; }
+.hero h1 span:last-child { display: inline; }
 /* a block cursor, as on a C64 screen */
 .hero h1::after {
   content: ""; display: inline-block; width: 0.5em; height: 0.8em; margin-left: 0.15em;
