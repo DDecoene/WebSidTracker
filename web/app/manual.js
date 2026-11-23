@@ -138,6 +138,7 @@ export const SECTIONS = [
       { type: 'piano', lower: 'zsxdcvgbhnjm', upper: 'q2w3er5t6y7u' },
       { type: 'p', text: 'The bottom letter row is one octave from C to B, with the black keys on the row above it; the next two rows give the octave above. The **octave** is shown in the first line of the editor (the starting value is 3, so [[z]] gives `C-3` and [[q]] gives `C-4`). [[<]] and [[>]] (or [[F1]] and [[F2]]) move it down and up, from 0 to 7. Every note key plays the sound and puts the note in the pattern at the cursor, replacing what was there.' },
       { type: 'tip', text: 'While a song is playing, a note key edits the pattern but does not play the note, because there is only one player and it is busy with the song. Stop the song to hear the notes as you enter them.' },
+      { type: 'p', text: 'To check a note that is already in the pattern, put the cursor on it and press [[a]], or the **Play note** button above the grid. It plays with its own instrument and the transpose of the order entry, for a fixed time, and nothing is changed. It works while the song is stopped.' },
       { type: 'h', text: 'Lengths, steps and rests' },
       { type: 'ul', items: [
         '[[9]] and [[0]] make the **default length** of new notes shorter and longer (in ticks, 1 to 255). With length 2, every note you enter lasts two rows.',
