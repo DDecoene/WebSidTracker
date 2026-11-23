@@ -39,7 +39,7 @@ export const SECTIONS = [
     blocks: [
       { type: 'p', text: 'WebSidTracker is a music editor for the sound chip of the Commodore 64, the SID. You write a song in a grid, you hear it at once, and you export it for your own C64 program. What you hear in the browser is made by the same small player program that runs on a real C64, driving an emulated SID chip, so it sounds like your game will (PAL timing).' },
       { type: 'ol', items: [
-        '**Open the tracker.** The first time it starts with the demo song Ode to Joy; afterwards it starts with the project you worked on last. Sound starts at your first click or key press, because browsers do not allow it earlier.',
+        '**Open the tracker.** The first time it starts with the original demo tune; afterwards it starts with the project you worked on last. Sound starts at your first click or key press, because browsers do not allow it earlier.',
         '**Press Play** (or [[Space]]). The three voices play. Press [[Space]] again, or Stop, to stop. The Demos menu in the top bar has more songs to listen to and to take apart, and a set of sound effects.',
         '**Change a note while it plays.** Click a note in the pattern grid, then press a letter key such as [[z]] or [[q]]: the keys of your computer keyboard are a piano. The note under the cursor is replaced, and you hear it the next time the song gets there. Edit an instrument on the right in the same way: moving a slider is heard at once.',
         '**Save your work.** Save downloads the project as a JSON file. The tracker also keeps an automatic copy in your browser, but a file is the copy you can trust.',
@@ -63,7 +63,7 @@ export const SECTIONS = [
         ['**Open**', 'Opens a project file (JSON) that Save made. If the file is damaged, the current project stays as it is and a message tells you why.'],
         ['**Save**', 'Downloads the project as a JSON file ([[Ctrl]]+[[S]] or [[Cmd]]+[[S]] does the same).'],
         ['**Export**', 'Shows the files for your game: assembler source and a .prg, and a .sid file to share. See section 7. It refuses while the project has problems.'],
-        ['**Demos**', 'A menu with seven projects: Ode to Joy, Für Elise, Rondo alla Turca, Toccata in D minor, In the Hall of the Mountain King, an original tune, and Sound effects (the original tune with a set of game effects). Choosing one replaces the current project; with unsaved changes it asks first. Hover an entry to read what is in it.'],
+        ['**Demos**', 'A menu with seven projects: an original tune, Ode to Joy, Für Elise, Rondo alla Turca, Toccata in D minor, In the Hall of the Mountain King, and Sound effects (the original tune with a set of game effects). Choosing one replaces the current project; with unsaved changes it asks first. Hover an entry to read what is in it.'],
         ['**Undo / Redo**', 'Step back and forward through your edits (the last 200). The tooltip names the edit. Loading a project, New or a demo clears the history.'],
         ['**Help**', 'Opens this manual in a dialog.'],
       ] },
