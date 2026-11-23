@@ -296,7 +296,9 @@ export function createLive({ model, symbols = {}, songBase = SONG_BASE, effectBa
 
     /**
      * Engine state -> `store.playhead`. A voice that is not inside a pattern (it stopped, or
-     * the engine plays something else) becomes null.
+     * the engine plays something else) becomes null. `eventIndex` is the NEXT event the player
+     * reads (events.length = the end marker), as in the state block: the sounding row is the
+     * start of that event minus `ticksLeft` (see playRow in ui/editor-logic.js).
      */
     toStorePlayhead(state, project = null) {
       const map = mirror && mirror.song.map;
@@ -305,12 +307,11 @@ export function createLive({ model, symbols = {}, songBase = SONG_BASE, effectBa
       const voices = state.voices.map((now, voice) => {
         const loc = now && model.locatePlayhead(map, now, voice);
         if (!loc) return null;
-        const events = project && project.song.patterns[loc.patternIndex]
-          ? project.song.patterns[loc.patternIndex].events.length : Infinity;
-        const sounding = loc.playingIndex >= 0 ? loc.playingIndex : loc.eventIndex;
+        const pattern = project && project.song.patterns[loc.patternIndex];
+        const events = pattern ? pattern.events.length : Infinity;
         return {
           orderIndex: loc.entry,
-          eventIndex: Math.min(sounding, Math.max(events - 1, 0)),
+          eventIndex: Math.min(loc.eventIndex, events),
           patternIndex: loc.patternIndex,
           ticksLeft: now.ticksLeft,
         };
