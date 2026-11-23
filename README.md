@@ -2,7 +2,7 @@
 
 Rob Hubbard never had a tracker. WebSidTracker brings the tricks of his C64 sound (pulses that sweep, vibrato that comes in late, chords from one voice, drums that share the bass channel) to a tracker in your browser, with a small clean-room player you can drop into your own Commodore 64 game. Not affiliated with Rob Hubbard; none of his code or music is used.
 
-> **Status: working, not finished (alpha, release 0.2.1).** The C64 player is built and measured, the browser tracker runs it live: a 6502 core, reSIDfp as WebAssembly, the song model with export, the pattern and order editor and the instrument editor all exist. Try it at <https://ddecoene.github.io/WebSidTracker/>. What is still open is listed in the [roadmap](#roadmap). How to use the tracker: [docs/tracker-guide.md](docs/tracker-guide.md).
+> **Status: working, not finished (alpha, release 0.2.2).** The C64 player is built and measured, the browser tracker runs it live: a 6502 core, reSIDfp as WebAssembly, the song model with export, the pattern and order editor and the instrument editor all exist. Try it at <https://ddecoene.github.io/WebSidTracker/>. What is still open is listed in the [roadmap](#roadmap). How to use the tracker: [docs/tracker-guide.md](docs/tracker-guide.md).
 
 ## How it started
 
