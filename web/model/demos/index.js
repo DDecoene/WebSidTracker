@@ -30,8 +30,8 @@ const complete = (project) => ({
   effects: project.effects ?? [],
 });
 
-/** [{ id, title, composer, note, build }], Ode to Joy first as the friendly starter. */
-export const DEMOS = [odeToJoy, furElise, rondoAllaTurca, toccata, mountainKing, original, soundEffects]
+/** [{ id, title, composer, note, build }], the original tune first: it is what a first visit starts with. */
+export const DEMOS = [original, odeToJoy, furElise, rondoAllaTurca, toccata, mountainKing, soundEffects]
   .map((demo) => ({ ...demo.info, build: () => complete(demo.build()) }));
 
 /** The demo with this id, or undefined. */

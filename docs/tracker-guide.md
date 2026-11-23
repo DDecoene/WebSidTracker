@@ -24,7 +24,7 @@ The sound is the part to check by ear. The numbers on screen say nothing about t
 
 ## 2. Quick start
 
-1. Open the page. It starts with the project you last worked on (kept in your browser) or, the first time, with the Ode to Joy demo. **New** starts an empty project.
+1. Open the page. It starts with the project you last worked on (kept in your browser) or, the first time, with the Original demo tune. **New** starts an empty project.
 2. Click the pattern grid and play notes on the computer keyboard like a piano: the row `z s x d c v g b h n j m` is the lower octave, `q 2 w 3 e r 5 t 6 y 7 u` the next one up. Each key press plays the note and enters it at the cursor.
 3. `<` and `>` change the octave. `9` and `0` change the default length of new notes. `;` and `'` change how many rows the cursor moves down after entering a note.
 4. Press `[` and `]` (or use the Instrument selector in the bar above the grid) to pick the instrument that new notes get, or edit the instrument on the right. The piano at the bottom of the instrument panel plays it. To change the instrument of a note that is already there, click its chip in the grid.
@@ -34,7 +34,7 @@ The sound is the part to check by ear. The numbers on screen say nothing about t
 8. **Export** gives you the files for your game (section 6).
 9. The **Effects** tab above the grid holds the sound effects of your game (section 8).
 
-The header has a **Demos** menu with seven projects to listen to and learn from: Ode to Joy, Für Elise, Rondo alla Turca, Toccata in D minor, In the Hall of the Mountain King, the Original demo tune, and Sound effects (the original tune with a set of game effects in the Effects tab). A first visit starts with Ode to Joy, so Play gives you something to hear at once. Choosing a demo stops the playback and replaces the current project; if you have unsaved changes the tracker first asks whether to discard them. Hover an entry to read what is in it.
+The header has a **Demos** menu with seven projects to listen to and learn from: the Original demo tune, Ode to Joy, Für Elise, Rondo alla Turca, Toccata in D minor, In the Hall of the Mountain King, and Sound effects (the original tune with a set of game effects in the Effects tab). A first visit starts with the Original demo tune, so Play gives you something to hear at once. Choosing a demo stops the playback and replaces the current project; if you have unsaved changes the tracker first asks whether to discard them. Hover an entry to read what is in it.
 
 The header also has a SID chip switch (MOS 6581 or CSG 8580), a master volume (for listening only; the game sets its own volume), a mute button for each voice (M1, M2, M3), and a level meter. A line shows how many bytes the song, the instrument tables and the sound effects take and how many are left. The strip below the header lists problems that stop the song from playing or exporting (for example a loop that plays no notes).
 
@@ -47,7 +47,7 @@ Keys work when the pattern editor or the page has the focus, not when you are ty
 | Key | What |
 |---|---|
 | Space | Play the song from the start / stop |
-| Shift+Space | Play from the cursor |
+| Shift+Space | Play from the note under the cursor; the other voices start at the same moment of the song |
 | Ctrl+Z / Cmd+Z | Undo |
 | Ctrl+Shift+Z / Ctrl+Y / Cmd+Shift+Z | Redo |
 | Ctrl+S / Cmd+S | Save the project as a file |
@@ -61,6 +61,7 @@ Keys work when the pattern editor or the page has the focus, not when you are ty
 | `z s x d c v g b h n j m` | Play and enter a note, lower octave (C to B) |
 | `q 2 w 3 e r 5 t 6 y 7 u` | Play and enter a note, one octave higher |
 | < and >  (or F1 / F2) | Octave down / up |
+| `a` | Play the note under the cursor, without changing anything (the Play note button does the same) |
 | `1` | Enter a rest |
 | `9 / 0` | Default length of new notes: shorter / longer (ticks) |
 | ;  and  ' | Step: rows to move down after entering: less / more |

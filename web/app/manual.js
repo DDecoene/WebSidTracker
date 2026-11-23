@@ -39,7 +39,7 @@ export const SECTIONS = [
     blocks: [
       { type: 'p', text: 'WebSidTracker is a music editor for the sound chip of the Commodore 64, the SID. You write a song in a grid, you hear it at once, and you export it for your own C64 program. What you hear in the browser is made by the same small player program that runs on a real C64, driving an emulated SID chip, so it sounds like your game will (PAL timing).' },
       { type: 'ol', items: [
-        '**Open the tracker.** The first time it starts with the demo song Ode to Joy; afterwards it starts with the project you worked on last. Sound starts at your first click or key press, because browsers do not allow it earlier.',
+        '**Open the tracker.** The first time it starts with the original demo tune; afterwards it starts with the project you worked on last. Sound starts at your first click or key press, because browsers do not allow it earlier.',
         '**Press Play** (or [[Space]]). The three voices play. Press [[Space]] again, or Stop, to stop. The Demos menu in the top bar has more songs to listen to and to take apart, and a set of sound effects.',
         '**Change a note while it plays.** Click a note in the pattern grid, then press a letter key such as [[z]] or [[q]]: the keys of your computer keyboard are a piano. The note under the cursor is replaced, and you hear it the next time the song gets there. Edit an instrument on the right in the same way: moving a slider is heard at once.',
         '**Save your work.** Save downloads the project as a JSON file. The tracker also keeps an automatic copy in your browser, but a file is the copy you can trust.',
@@ -63,14 +63,14 @@ export const SECTIONS = [
         ['**Open**', 'Opens a project file (JSON) that Save made. If the file is damaged, the current project stays as it is and a message tells you why.'],
         ['**Save**', 'Downloads the project as a JSON file ([[Ctrl]]+[[S]] or [[Cmd]]+[[S]] does the same).'],
         ['**Export**', 'Shows the files for your game: assembler source and a .prg, and a .sid file to share. See section 7. It refuses while the project has problems.'],
-        ['**Demos**', 'A menu with seven projects: Ode to Joy, Für Elise, Rondo alla Turca, Toccata in D minor, In the Hall of the Mountain King, an original tune, and Sound effects (the original tune with a set of game effects). Choosing one replaces the current project; with unsaved changes it asks first. Hover an entry to read what is in it.'],
+        ['**Demos**', 'A menu with seven projects: an original tune, Ode to Joy, Für Elise, Rondo alla Turca, Toccata in D minor, In the Hall of the Mountain King, and Sound effects (the original tune with a set of game effects). Choosing one replaces the current project; with unsaved changes it asks first. Hover an entry to read what is in it.'],
         ['**Undo / Redo**', 'Step back and forward through your edits (the last 200). The tooltip names the edit. Loading a project, New or a demo clears the history.'],
         ['**Help**', 'Opens this manual in a dialog.'],
       ] },
       { type: 'h', text: 'Top bar, second row' },
       { type: 'table', head: ['Control', 'What it does'], rows: [
         ['**Play**', 'Plays the song from the beginning.'],
-        ['**From cursor**', 'Plays from the row where the cursor is, in all three voices.'],
+        ['**From cursor**', 'Plays from the note under the cursor. The other two voices start at the same moment of the song, wherever that is in their own order lists; a voice that is in the middle of a note there comes in at its next note.'],
         ['**Stop**', 'Stops and silences the chip. It is greyed out when nothing plays.'],
         ['**Speed**', 'Frames per tick, 1 to 255; lower is faster. The text next to it is the tempo in beats per minute, if four ticks make a beat. See section 3.'],
         ['**Chip**', 'Which SID chip is emulated: the MOS 6581 or the later CSG 8580. They sound a little different. It only changes what you hear in the tracker; the exported files are the same.'],
@@ -138,6 +138,7 @@ export const SECTIONS = [
       { type: 'piano', lower: 'zsxdcvgbhnjm', upper: 'q2w3er5t6y7u' },
       { type: 'p', text: 'The bottom letter row is one octave from C to B, with the black keys on the row above it; the next two rows give the octave above. The **octave** is shown in the first line of the editor (the starting value is 3, so [[z]] gives `C-3` and [[q]] gives `C-4`). [[<]] and [[>]] (or [[F1]] and [[F2]]) move it down and up, from 0 to 7. Every note key plays the sound and puts the note in the pattern at the cursor, replacing what was there.' },
       { type: 'tip', text: 'While a song is playing, a note key edits the pattern but does not play the note, because there is only one player and it is busy with the song. Stop the song to hear the notes as you enter them.' },
+      { type: 'p', text: 'To check a note that is already in the pattern, put the cursor on it and press [[a]], or the **Play note** button above the grid. It plays with its own instrument and the transpose of the order entry, for a fixed time, and nothing is changed. It works while the song is stopped.' },
       { type: 'h', text: 'Lengths, steps and rests' },
       { type: 'ul', items: [
         '[[9]] and [[0]] make the **default length** of new notes shorter and longer (in ticks, 1 to 255). With length 2, every note you enter lasts two rows.',
@@ -244,7 +245,7 @@ export const SECTIONS = [
     blocks: [
       { type: 'p', text: 'The tracker is built to be edited while it plays. Every change you make is sent to the running player between two frames, and the playing position is kept, so you hear an edit the next time the song reaches it.' },
       { type: 'ul', items: [
-        '**Play** starts from the beginning, **From cursor** ([[Shift]]+[[Space]]) starts all three voices at the row of the cursor, and [[Space]] toggles between play and stop.',
+        '**Play** starts from the beginning, **From cursor** ([[Shift]]+[[Space]]) starts all three voices at the moment of the note under the cursor, and [[Space]] toggles between play and stop.',
         '**Follow** (the checkbox in the editor bar) scrolls the grid along with the song. Switch it off to look at one place while the song goes on elsewhere.',
         '**Mute** (M1, M2, M3) silences a voice for your ears only. Nothing in the project or the export changes.',
         '**Change the chip** (6581 or 8580), the volume or the speed while playing; the speed also changes the tempo you hear at once.',

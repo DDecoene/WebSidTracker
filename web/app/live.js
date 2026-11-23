@@ -260,9 +260,11 @@ export function createLive({ model, symbols = {}, songBase = SONG_BASE, effectBa
     },
 
     /**
-     * Edit that makes a freshly started song begin at the cursor: every voice at the
-     * selected order entry, the selected voice also at the selected event. Also writes
-     * the transpose and instrument the voice would have at that point.
+     * Edit that makes a freshly started song begin at the cursor: the selected voice at the
+     * selected event, the other voices where they are at that moment of the song (each one walks
+     * its own order list, loops included). A voice that is in the middle of a note there waits for
+     * its next one; a voice that has stopped by then stays silent. Also writes the transpose and
+     * instrument each voice has at that point.
      * Needs the mirror to be in sync with `project` (call rebuild first).
      */
     startAt(project, selection) {
@@ -270,25 +272,38 @@ export function createLive({ model, symbols = {}, songBase = SONG_BASE, effectBa
       const playhead = [null, null, null];
       const writes = [];
       if (!map) return { writes, playhead };
+      const { song } = project;
+      const tick = tickOf(song, selection);
 
       for (let voice = 0; voice < 3; voice++) {
-        const entries = project.song.orders[voice];
-        const entry = entries[selection.orderIndex];
-        const mapEntry = map.orders[voice][selection.orderIndex];
-        const pattern = entry && entry.pattern !== undefined && mapEntry && map.patterns[entry.pattern];
-        if (!pattern) continue;
+        const entries = song.orders[voice];
+        let at = null;
+        if (voice === selection.voice && song.patterns[entries[selection.orderIndex]?.pattern]) {
+          // Straight to the cursor: this also works for an entry the song itself never reaches.
+          const { events } = song.patterns[entries[selection.orderIndex].pattern];
+          const eventIndex = Math.min(Math.max(selection.eventIndex, 0), events.length);
+          at = {
+            orderIndex: selection.orderIndex, eventIndex, ticksLeft: 0,
+            instrument: instrumentBefore(song, entries, selection.orderIndex, eventIndex),
+          };
+        } else {
+          at = placeAtTick(song, voice, tick);
+        }
+        const entry = at && entries[at.orderIndex];
+        const pattern = entry && map.patterns[entry.pattern];
+        const mapEntry = at && map.orders[voice][at.orderIndex];
+        if (!pattern || !mapEntry) {                    // this voice is over by then
+          if (symbols.st_active !== undefined) writes.push({ address: symbols.st_active + voice, bytes: Uint8Array.of(0) });
+          continue;
+        }
 
-        const eventIndex = voice === selection.voice
-          ? Math.min(Math.max(selection.eventIndex, 0), pattern.events.length) : 0;
-        const patPos = eventIndex < pattern.events.length ? pattern.events[eventIndex].offset : pattern.endOffset;
-        playhead[voice] = { orderPos: mapEntry.offset, patAddr: pattern.address, patPos, ticksLeft: 0 };
-
+        const patPos = at.eventIndex < pattern.events.length ? pattern.events[at.eventIndex].offset : pattern.endOffset;
+        playhead[voice] = { orderPos: mapEntry.offset, patAddr: pattern.address, patPos, ticksLeft: at.ticksLeft };
         if (symbols.st_transpose !== undefined) {
           writes.push({ address: symbols.st_transpose + voice, bytes: Uint8Array.of(entry.transpose & 0xFF) });
         }
         if (symbols.st_instr !== undefined) {
-          const instrument = instrumentBefore(project.song, entries, selection.orderIndex, eventIndex);
-          writes.push({ address: symbols.st_instr + voice, bytes: Uint8Array.of(instrument) });
+          writes.push({ address: symbols.st_instr + voice, bytes: Uint8Array.of(at.instrument) });
         }
       }
       return { writes, playhead };
@@ -319,6 +334,49 @@ export function createLive({ model, symbols = {}, songBase = SONG_BASE, effectBa
       return { running: true, voices, frameInTick: state.frameInTick };
     },
   };
+}
+
+const ticksOf = (event) => (event.type === 'note' || event.type === 'rest' ? event.length : 0);
+const sumTicks = (events) => events.reduce((sum, event) => sum + ticksOf(event), 0);
+
+// How many ticks after the start of the song the selected voice first reaches the cursor.
+function tickOf(song, { voice, orderIndex, eventIndex }) {
+  let tick = 0;
+  song.orders[voice].slice(0, orderIndex + 1).forEach((entry, i) => {
+    const pattern = song.patterns[entry.pattern];
+    if (pattern) tick += sumTicks(i === orderIndex ? pattern.events.slice(0, Math.max(eventIndex, 0)) : pattern.events);
+  });
+  return tick;
+}
+
+// Where a voice is `tick` ticks after the start of the song, or null when it has stopped by then:
+// { orderIndex, eventIndex (the next event to read), ticksLeft (as the player counts it), instrument }.
+function placeAtTick(song, voice, tick) {
+  const entries = song.orders[voice];
+  let instrument = 0;
+  let now = 0;
+  let idle = 0;                                          // entries passed without a tick: a loop that plays nothing
+  for (let i = 0; i < entries.length && idle <= entries.length;) {
+    const entry = entries[i];
+    if (entry.stop) return null;
+    if (entry.loop !== undefined) { i = entry.loop; idle++; continue; }
+    const { events } = song.patterns[entry.pattern] ?? { events: [] };
+    const from = now;
+    let next = 0;                                        // the first event that is not behind us
+    for (let e = 0; e < events.length; e++) {
+      const length = ticksOf(events[e]);
+      if (length === 0) continue;                        // it goes with the note after it
+      if (now === tick) return { orderIndex: i, eventIndex: next, ticksLeft: 0, instrument };
+      for (; next <= e; next++) if (events[next].type === 'inst') instrument = events[next].instrument;
+      now += length;
+      // In the middle of this note. The player counts down before it looks, hence the 1.
+      if (now > tick) return { orderIndex: i, eventIndex: next, ticksLeft: now - tick + 1, instrument };
+    }
+    for (; next < events.length; next++) if (events[next].type === 'inst') instrument = events[next].instrument;
+    idle = now === from ? idle + 1 : 0;
+    i++;
+  }
+  return null;
 }
 
 // The instrument a voice has when it reaches (orderIndex, eventIndex): the last instrument

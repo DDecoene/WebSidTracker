@@ -11,9 +11,9 @@ import { DEMOS, findDemo, demoLabel } from './index.js';
 import { lint, songSizeInfo, validate } from '../project.js';
 import { parseSong, serialiseSong } from '../serialise.js';
 
-test('seven demos, Ode to Joy first, ids unique', () => {
+test('seven demos, the original tune first, ids unique', () => {
   assert.equal(DEMOS.length, 7);
-  assert.equal(DEMOS[0].id, 'ode-to-joy');
+  assert.equal(DEMOS[0].id, 'original');
   assert.equal(new Set(DEMOS.map((d) => d.id)).size, DEMOS.length);
   assert.equal(findDemo('original').title, 'Original demo tune');
   assert.equal(findDemo('nope'), undefined);

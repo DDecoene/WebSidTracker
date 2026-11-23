@@ -41,7 +41,7 @@ import {
   moveEntry, neighbourField, nextUse, noteLabel, nudgeEntryField, parseHexIndex, parseTranspose,
   patternTitle, patternUsage, patternUsers, pianoSemitone, playRow, removePattern, removeUnusedPatterns,
   rowOfEvent, setEntryChoice, setEntryLoop, setEntryStop, setInstrumentFrom, setNoteInstrument,
-  setRunLength, toggleLegato, transposeNote, typeHexDigit, validField, setLoopTarget,
+  setRunLength, soundAtRow, toggleLegato, transposeNote, typeHexDigit, validField, setLoopTarget,
 } from './editor-logic.js';
 import { createPatternsPanel } from './patterns.js';
 
@@ -50,9 +50,8 @@ export { keyHelp };
 // Row and header heights come from the stylesheet (--ed-row-size and --ed-head-size, in rem, so
 // they scale with the page). They are measured in pixels at mount and again whenever the
 // container resizes (window size, browser zoom), rounded to whole pixels so that every row is
-// the same height and the virtual scrolling maths stays exact.
-let ROW_H = 20;            // px, the same for every grid row
-let HEAD_H = 30;           // px, the sticky header with the voice names
+// the same height and the virtual scrolling maths stays exact. Every editor has its own: the page
+// has two (the song and the effects), and the one on the hidden tab cannot be measured.
 const EXTRA_ROWS = 8;      // empty space after the last row so the end can scroll up
 const NARROW_REM = 50;     // an editor narrower than this (in rem) folds the Patterns panel to its strip
 
@@ -68,6 +67,8 @@ let clipboard = null;
 const escapeHtml = (text) => String(text).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
 export function mountEditor(container, store, { single = false } = {}) {
+  let ROW_H = 20;                  // px, the same for every grid row
+  let HEAD_H = 30;                 // px, the sticky header with the voice names
   const ui = {
     zone: 'pattern',               // which part has the keyboard: 'pattern' or 'order'
     field: 'pattern',              // in the order list: which field of the entry ('pattern', 'transpose', 'target')
@@ -109,6 +110,7 @@ export function mountEditor(container, store, { single = false } = {}) {
       <div class="ed-instbar">
         <label class="ed-inst" title="The instrument new notes are entered with. The same one is selected in the instrument panel.">Instrument
           <select data-role="instrument"></select></label>
+        <button type="button" data-act="playNote" title="Play the note under the cursor; nothing is changed (a)">Play note</button>
         <button type="button" data-act="instNote" title="Give the note under the cursor, or every note of the selected block, this instrument (Enter)">To note</button>
         <button type="button" data-act="instRest" title="Give the note under the cursor and every note after it in this pattern this instrument (Shift+Enter)">To rest of pattern</button>
       </div>
@@ -170,8 +172,10 @@ export function mountEditor(container, store, { single = false } = {}) {
     return px;
   }
 
-  // Returns true when the sizes changed.
+  // Returns true when the sizes changed. On a hidden tab everything measures 0: keep what we have;
+  // the resize observer calls again when the editor is shown.
   function measureSizes() {
+    if (container.getClientRects().length === 0) return false;
     const row = Math.max(8, Math.round(measure('var(--ed-row-size)')));
     const head = Math.max(8, Math.round(measure('var(--ed-head-size)')));
     if (row === ROW_H && head === HEAD_H && container.style.getPropertyValue('--ed-row-h')) return false;
@@ -690,6 +694,18 @@ export function mountEditor(container, store, { single = false } = {}) {
     const events = editPattern('enter note', (ev) =>
       enterNote(ev, ui.row, { pitch, length: s.defaultLength, instrument: s.instrument }));
     if (events) advance(events);
+  }
+
+  // Let the note under the cursor be heard, as the pattern has it. Nothing is changed.
+  function playNoteAtCursor() {
+    const v = voiceOf();
+    const layout = layoutOf(v);
+    const entry = entryOf(v);
+    const transpose = entryKind(entry) === 'pattern' ? entry.transpose || 0 : 0;
+    const sound = layout && soundAtRow(layout, ui.row, incomingOf()[v][ui.shown[v]] ?? 0, transpose);
+    if (!sound) { say('Put the cursor on a note to hear it.'); return; }
+    if (store.playhead && store.playhead.running) { say('Stop the song to hear one note.'); return; }
+    if (store.auditionNote) store.auditionNote(sound.instrument, sound.pitch);
   }
 
   function enterRestKey() {
@@ -1250,6 +1266,7 @@ export function mountEditor(container, store, { single = false } = {}) {
         if (chip) openInstrumentList(chip, ui.row); else say('Put the cursor on a note to change its instrument.');
         return true;
       }
+      case 'a': if (!e.repeat) playNoteAtCursor(); return true;
       case '1': enterRestKey(); return true;
       case 'l': editPattern('toggle legato', (ev) => toggleLegato(ev, ui.row)); return true;
       case '-': changeRunLength(-1); return true;
@@ -1513,7 +1530,8 @@ export function mountEditor(container, store, { single = false } = {}) {
     if (!button) return;
     const s = sel();
     const block = blockOf();
-    if (button.dataset.act === 'instNote' && block) editPattern('set instrument', (ev) => setBlockInstrument(ev, block.from, block.to, s.instrument), true);
+    if (button.dataset.act === 'playNote') playNoteAtCursor();
+    else if (button.dataset.act === 'instNote' && block) editPattern('set instrument', (ev) => setBlockInstrument(ev, block.from, block.to, s.instrument), true);
     else if (button.dataset.act === 'instNote') editPattern('set instrument', (ev) => setNoteInstrument(ev, ui.row, s.instrument));
     else editPattern('set instrument', (ev) => setInstrumentFrom(ev, ui.row, s.instrument));
     container.focus();
