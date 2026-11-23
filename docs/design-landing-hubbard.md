@@ -8,7 +8,7 @@ What does set it apart is the name everyone recognises: the sound of Rob Hubbard
 
 ## Goals
 
-- The first screen says why this is different, in one sentence a retro computing fan recognises: "Rob Hubbard never had a tracker."
+- The first screen says why this is different in words a retro computing fan recognises as Hubbard's sound, without naming him: "Sweeping pulses. Late vibrato. Drums on the bass. Now with a tracker." His name is in the body, where the page says what he did.
 - The visitor can hear the sound within seconds, on the landing page itself, without opening the tracker.
 - Each Hubbard trick is tied to the instrument field that makes it, so the claim is concrete.
 
@@ -25,8 +25,12 @@ What does set it apart is the name everyone recognises: the sound of Rob Hubbard
 
 ## As built
 
-- Hero: kicker line, the headline, a lead that names the tricks, buttons "Hear it" (shown only with JavaScript; then "Open the tracker" is no longer the primary button), "Open the tracker", "Play raster rumble", and a fine-print line saying what the clip is and that the project is not affiliated with him.
+- Hero: kicker line, the headline of three tricks, a lead without his name, buttons "Hear it" (shown only with JavaScript; then "Open the tracker" is no longer the primary button), "Open the tracker", "Play raster rumble", and a fine-print line saying what the clip is.
 - New section "The Hubbard sound, with a grid": six tricks, each with the editor field that makes it, and "Why this did not exist before".
 - The first paragraph of "What it is" was removed, because the new section says it better.
 - Title, description and Open Graph text lead with the same message. The licence section names the clip's music and has the "not affiliated" note.
 - The README's opening and "Why", the instrument chapter of the guide and of the in-app manual got the same framing in one or two sentences.
+
+## Change in 0.2.3: his name out of the headline
+
+Release 0.2.2 had "Rob Hubbard never had a tracker." as the headline. On reflection the name of a living person as the biggest line of the page felt like leaning on him. The headline now names three of his tricks, which the audience recognises, and his name stays in the body: the section "The Hubbard sound, with a grid" says what he did, and the licence section says the project is not affiliated with or endorsed by him. A headline like "The 1985 SID sound never had a tracker" was rejected: it is not true, other trackers can make that sound.
