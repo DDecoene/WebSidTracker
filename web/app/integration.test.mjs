@@ -183,6 +183,45 @@ test('the highlighted row is the tick that sounds, on every frame, for every voi
   }
 });
 
+// ---- play from the cursor ------------------------------------------------------------------
+
+// Whatever the cursor stands on, the notes that start after it must be the ones of a normal play, at the
+// same distance in time. (A note that was already sounding is not heard: its voice waits for the next.)
+test('play from the cursor: the three voices are in step with each other', () => {
+  const project = songProject();
+  const speed = project.song.speed;
+  // order lists of different shape: other lengths, a transpose, a loop with an intro, a voice that stops early
+  project.song.patterns[0].events.splice(5, 0, { type: 'inst', instrument: 1 });
+  project.instruments[1] = { ...project.instruments[0] };
+  project.song.patterns.push({ name: 'd', events: [note(50, 5), note(52, 2)] });
+  project.song.orders = [
+    [{ pattern: 0, transpose: 0 }, { pattern: 3, transpose: 2 }, { pattern: 0, transpose: -3 }, { stop: true }],
+    [{ pattern: 3, transpose: 0 }, { pattern: 1, transpose: 1 }, { loop: 1 }],
+    [{ pattern: 2, transpose: 0 }, { pattern: 2, transpose: 12 }, { stop: true }],
+  ];
+  const total = 60 * speed;
+  const whole = noteStarts(run(project, total));
+  const lengthOf = (ev) => (ev.type === 'note' || ev.type === 'rest' ? ev.length : 0);
+  let checked = 0;
+  for (let voice = 0; voice < 3; voice++) {
+    let tick = 0;
+    project.song.orders[voice].forEach((entry, orderIndex) => {
+      if (entry.pattern === undefined) return;
+      project.song.patterns[entry.pattern].events.forEach((ev, eventIndex) => {
+        const live = start(project);
+        rig.engine.applyEdit(live.startAt(project, { voice, orderIndex, eventIndex, instrument: 0 }));
+        rig.step(total - tick * speed);
+        const got = noteStarts(rig.frames);
+        const want = whole.map((list) => list.filter((n) => n.frame >= tick * speed).map((n) => ({ ...n, frame: n.frame - tick * speed })));
+        assert.deepEqual(got, want, `voice ${voice}, entry ${orderIndex}, event ${eventIndex}`);
+        checked++;
+        tick += lengthOf(ev);
+      });
+    });
+  }
+  assert.ok(checked > 40);
+});
+
 // ---- edits that move bytes, with a fresh state and with an old one -----------------------
 
 const LAGS = [0, 1, 2, 3, 4, 5];

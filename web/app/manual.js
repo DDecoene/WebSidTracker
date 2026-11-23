@@ -70,7 +70,7 @@ export const SECTIONS = [
       { type: 'h', text: 'Top bar, second row' },
       { type: 'table', head: ['Control', 'What it does'], rows: [
         ['**Play**', 'Plays the song from the beginning.'],
-        ['**From cursor**', 'Plays from the row where the cursor is, in all three voices.'],
+        ['**From cursor**', 'Plays from the note under the cursor. The other two voices start at the same moment of the song, wherever that is in their own order lists; a voice that is in the middle of a note there comes in at its next note.'],
         ['**Stop**', 'Stops and silences the chip. It is greyed out when nothing plays.'],
         ['**Speed**', 'Frames per tick, 1 to 255; lower is faster. The text next to it is the tempo in beats per minute, if four ticks make a beat. See section 3.'],
         ['**Chip**', 'Which SID chip is emulated: the MOS 6581 or the later CSG 8580. They sound a little different. It only changes what you hear in the tracker; the exported files are the same.'],
@@ -245,7 +245,7 @@ export const SECTIONS = [
     blocks: [
       { type: 'p', text: 'The tracker is built to be edited while it plays. Every change you make is sent to the running player between two frames, and the playing position is kept, so you hear an edit the next time the song reaches it.' },
       { type: 'ul', items: [
-        '**Play** starts from the beginning, **From cursor** ([[Shift]]+[[Space]]) starts all three voices at the row of the cursor, and [[Space]] toggles between play and stop.',
+        '**Play** starts from the beginning, **From cursor** ([[Shift]]+[[Space]]) starts all three voices at the moment of the note under the cursor, and [[Space]] toggles between play and stop.',
         '**Follow** (the checkbox in the editor bar) scrolls the grid along with the song. Switch it off to look at one place while the song goes on elsewhere.',
         '**Mute** (M1, M2, M3) silences a voice for your ears only. Nothing in the project or the export changes.',
         '**Change the chip** (6581 or 8580), the volume or the speed while playing; the speed also changes the tempo you hear at once.',

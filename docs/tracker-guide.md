@@ -47,7 +47,7 @@ Keys work when the pattern editor or the page has the focus, not when you are ty
 | Key | What |
 |---|---|
 | Space | Play the song from the start / stop |
-| Shift+Space | Play from the cursor |
+| Shift+Space | Play from the note under the cursor; the other voices start at the same moment of the song |
 | Ctrl+Z / Cmd+Z | Undo |
 | Ctrl+Shift+Z / Ctrl+Y / Cmd+Shift+Z | Redo |
 | Ctrl+S / Cmd+S | Save the project as a file |

@@ -174,8 +174,8 @@ test('startAt: playhead and state writes for play-from-cursor', () => {
   live.rebuild(p);
   const map = live.map;
   const edit = live.startAt(p, { voice: 1, orderIndex: 1, eventIndex: 1, instrument: 0 });
-  // voice 0: entry 1 = pattern 1, event 0; voice 1: entry 1 = pattern 1, event 1; voice 2: no entries
-  assert.deepEqual(edit.playhead[0], { orderPos: 2, patAddr: map.patterns[1].address, patPos: 0, ticksLeft: 0 });
+  // voices 0 and 1 have the same patterns: both at entry 1 = pattern 1, event 1; voice 2: no entries
+  assert.deepEqual(edit.playhead[0], { orderPos: 2, patAddr: map.patterns[1].address, patPos: 2, ticksLeft: 0 });
   assert.deepEqual(edit.playhead[1], { orderPos: 2, patAddr: map.patterns[1].address, patPos: 2, ticksLeft: 0 });
   assert.equal(edit.playhead[2], null);
   const at = (a) => [...edit.writes.find((w) => w.address === a).bytes];
