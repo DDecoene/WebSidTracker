@@ -5,12 +5,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>WebSidTracker - a SID tracker for the browser</title>
-<meta name="description" content="A Commodore 64 SID music tracker that runs in the browser, with a small original 6502 player you can use in your own game. Edit while the song plays, export assembler source or a ready-to-run .prg.">
+<title>WebSidTracker - the Rob Hubbard sound, now with a tracker</title>
+<meta name="description" content="Rob Hubbard never had a tracker. WebSidTracker brings his C64 tricks (sweeping pulses, late vibrato, one-voice chords, drums on the bass channel) to a tracker in your browser, with a 2 KB MIT player for your own game.">
 <meta name="color-scheme" content="light dark">
 <meta property="og:type" content="website">
-<meta property="og:title" content="WebSidTracker - a SID tracker for the browser">
-<meta property="og:description" content="Write Commodore 64 music in the browser and export the player and the song as ACME source or a .prg. Free, no account, works offline.">
+<meta property="og:title" content="WebSidTracker - Rob Hubbard never had a tracker">
+<meta property="og:description" content="The 1985 SID sound, now with a tracker: sweeping pulses, late vibrato, one-voice chords, drums on the bass channel. In your browser, with a 2 KB MIT player for your C64 game.">
 <meta property="og:image" content="img/tracker-dark.webp">
 <meta property="og:image:alt" content="The tracker playing Ode to Joy: three voice columns and the instrument editor">
 <meta name="twitter:card" content="summary_large_image">
@@ -40,14 +40,16 @@
 
 <section class="hero" aria-labelledby="h-hero">
   <div class="wrap">
-    <h1 id="h-hero">Write Commodore 64 music in your browser.</h1>
-    <p class="lead">WebSidTracker is a tracker for the SID sound chip. It comes with a small original 6502 music player that you can drop into your own game. The tracker runs that very same player, so what you hear is what the exported files do on a real C64.</p>
+    <p class="kicker">The 1985 SID sound &middot; now with a tracker &middot; 2 KB player, MIT</p>
+    <h1 id="h-hero">Rob Hubbard never had a tracker.</h1>
+    <p class="lead">He typed his music as numbers into assembly. Now his tricks have a grid: pulses that sweep, vibrato that comes in late, chords from one voice, drums that share the bass channel. See the music, change it while it plays, and drop it into your own C64 game.</p>
     <p class="actions">
-      <a class="btn primary" href="tracker.html">Open the tracker</a>
-      <a class="btn" href="manual.html">Read the manual</a>
-      <a class="btn" href="https://github.com/DDecoene/WebSidTracker">Source on GitHub</a>
+      <button class="btn primary" type="button" id="hear" aria-describedby="hear-what" hidden>&#9654; Hear it</button>
+      <a class="btn primary" href="tracker.html" id="open-cta">Open the tracker</a>
+      <a class="btn" href="https://ddecoene.github.io/raster-rumble/play/">Play raster rumble</a>
     </p>
-    <p class="fine">Free. No account, no server, works offline once loaded. Sound starts at your first click or key press.</p>
+    <audio id="hear-audio" src="audio/raster-rumble.m4a" preload="none"></audio>
+    <p class="fine" id="hear-what">&ldquo;Hear it&rdquo; plays 40 seconds of the raster rumble soundtrack, recorded from this tracker&rsquo;s own engine: the real 6502 player on the reSIDfp chip emulation. Free, no account, no server. Rebuilt from scratch; not affiliated with Rob Hubbard.</p>
   </div>
   <div class="shot-wrap">
     <figure class="shot shot-hero">
@@ -59,11 +61,29 @@
   </div>
 </section>
 
+<section class="sheet" id="sound" aria-labelledby="h-sound">
+  <div class="wrap sheet-grid">
+    <h2 id="h-sound">The Hubbard sound, with a grid</h2>
+    <div class="body">
+      <p>Rob Hubbard&rsquo;s music for <em>Monty on the Run</em>, <em>Commando</em> or <em>Sanxion</em> made three voices sound like a band. The secret was not in the notes but in his player, which changed the sound of the SID chip 50 times a second while a note was playing. Every one of those tricks is a field in the instrument editor here:</p>
+      <dl class="tricks">
+        <div><dt>Pulses that sweep</dt><dd>The pulse width moves while a note holds, so one note breathes instead of buzzing. <span class="field">Pulse width: sweep step, min, max</span></dd></div>
+        <div><dt>Vibrato that comes in late</dt><dd>A note starts clean and only then begins to wobble, like a hand on a guitar string. <span class="field">Vibrato: delay, depth, speed</span></dd></div>
+        <div><dt>Chords from one voice</dt><dd>One voice runs through two or three notes so fast that you hear a chord. <span class="field">Arpeggio: offset, second offset</span></dd></div>
+        <div><dt>Drums that share the bass channel</dt><dd>A burst of noise and a falling tone make a kick or a snare, and the voice plays bass again on the next note. <span class="field">Drum: noise frames, fall</span></dd></div>
+        <div><dt>Slides and dives</dt><dd>Leads bend into notes, effects swoop down. <span class="field">Slide</span></dd></div>
+        <div><dt>Small songs</dt><dd>Short patterns, reused and transposed, make minutes of music out of a few hundred bytes. <span class="field">Order list: transpose per entry</span></dd></div>
+      </dl>
+      <h3>Why this did not exist before</h3>
+      <p>Hubbard wrote his music as numbers in his assembly source and played it with his own player. That player was never a tool anyone else could use, and its code is not free to copy. The trackers that came later show you the notes, but you have to build that per-frame sound yourself. Here the player was written from scratch around exactly those tricks, and the tracker runs that player: what you hear while you edit is what the exported files do on a real C64.</p>
+    </div>
+  </div>
+</section>
+
 <section class="sheet" id="what" aria-labelledby="h-what">
   <div class="wrap sheet-grid">
     <h2 id="h-what">What it is</h2>
     <div class="body">
-      <p>The sound of the classic C64 game composers comes from playing the SID chip every frame: the pulse width sweeps while a note sounds, vibrato starts late like a hand on a string, one voice runs through a chord, a drum is a puff of noise followed by a falling tone. A tiny player and a few hundred bytes of data do all of that.</p>
       <p>This project has two parts. The <strong>player</strong> is about 2 KB of 6502 assembly, written to be read in an afternoon. The <strong>tracker</strong> is a web page where you write songs for it. The page contains a 6502 core in JavaScript and the reSIDfp chip emulation, and it runs the real player code on them. Nothing is imitated: if it sounds right in the tracker, the same bytes sound right on the machine.</p>
       <h3>How it started</h3>
       <p>It began with a game. <a href="https://github.com/DDecoene/raster-rumble">raster-rumble</a>, a small C64 game, had a few hand-written sound effects and a simple tune, and they dragged it down. The classic players that sound right are not free to copy, and none of them came with a tracker where you can see the music while you write it. So both were built from scratch. raster-rumble now plays all of its sound through this player, and its music is a project you can open in the tracker.</p>
@@ -272,7 +292,8 @@ irq     jsr music_play       ; once per frame, from the raster interrupt
       </ul>
       <p><strong>Clean room.</strong> The player is an original design. It does not contain code, data, labels or byte formats from any other player or tracker, and it is not compatible with their formats on purpose.</p>
       <p><strong>Sound.</strong> The SID emulation is libresidfp (reSIDfp) by Dag Lem, Antti S. Lankila, Ken Händel and Leandro Nini, GPL.</p>
-      <p><strong>Music.</strong> The demo songs are arrangements of public-domain compositions. The notes were read from public-domain editions of the scores, typeset for the Mutopia Project. The tune labelled original is original.</p>
+      <p><strong>Rob Hubbard.</strong> His name is used here only to describe the style of music this player is built for. WebSidTracker is not affiliated with or endorsed by him, and it contains none of his code or music.</p>
+      <p><strong>Music.</strong> The clip behind &ldquo;Hear it&rdquo; is the soundtrack of <a href="https://github.com/DDecoene/raster-rumble">raster rumble</a>, by Dennis Decoene. The demo songs are arrangements of public-domain compositions. The notes were read from public-domain editions of the scores, typeset for the Mutopia Project. The tune labelled original is original.</p>
     </div>
   </div>
 </section>
@@ -297,5 +318,20 @@ irq     jsr music_play       ; once per frame, from the raster interrupt
   </div>
 </footer>
 
+<script>
+  // "Hear it": a recorded clip, so it plays at once without starting the emulator. Without
+  // JavaScript the button stays hidden and "Open the tracker" is the first button.
+  (() => {
+    const button = document.getElementById('hear');
+    const audio = document.getElementById('hear-audio');
+    const label = (playing) => { button.innerHTML = playing ? '&#10074;&#10074; Pause' : '&#9654; Hear it'; };
+    button.hidden = false;
+    document.getElementById('open-cta').classList.remove('primary');
+    button.addEventListener('click', () => (audio.paused ? audio.play() : audio.pause()));
+    audio.addEventListener('play', () => label(true));
+    audio.addEventListener('pause', () => label(false));
+    audio.addEventListener('ended', () => { audio.currentTime = 0; label(false); });
+  })();
+</script>
 </body>
 </html>
