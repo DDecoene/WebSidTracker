@@ -2,7 +2,13 @@
 
 A SID music tracker for the browser, built clean-room, with a small player you can drop into your own Commodore 64 game.
 
-> **Status: working, not finished (alpha, release 0.2.0).** The C64 player is built and measured, the browser tracker runs it live: a 6502 core, reSIDfp as WebAssembly, the song model with export, the pattern and order editor and the instrument editor all exist. Try it at <https://ddecoene.github.io/WebSidTracker/>. What is still open is listed in the [roadmap](#roadmap). How to use the tracker: [docs/tracker-guide.md](docs/tracker-guide.md).
+> **Status: working, not finished (alpha, release 0.2.1).** The C64 player is built and measured, the browser tracker runs it live: a 6502 core, reSIDfp as WebAssembly, the song model with export, the pattern and order editor and the instrument editor all exist. Try it at <https://ddecoene.github.io/WebSidTracker/>. What is still open is listed in the [roadmap](#roadmap). How to use the tracker: [docs/tracker-guide.md](docs/tracker-guide.md).
+
+## How it started
+
+WebSidTracker began as a side quest of [raster-rumble](https://github.com/DDecoene/raster-rumble), a small C64 game. Its sound was basic: three effects written by hand (a blip, a ting, an explosion) and a simple tune, and it dragged the whole game down. Looking for how the classic games did it led to Rob Hubbard's players, and to two problems. His code is not ours to copy, and there was no tracker for it: you could not *see* the music while you wrote it, the way you can in a mod tracker. So this project builds both from scratch: an original player that drops into a game, and a tracker in the browser that runs it.
+
+raster-rumble was the first user. Since its release 0.0.5 all of its sound comes from this player, and its tune and effects are a WebSidTracker project ([`music/raster-rumble.json`](https://github.com/DDecoene/raster-rumble/blob/main/music/raster-rumble.json)) that you can open in the tracker. Nothing in the tracker or the player is specific to that game.
 
 ## Why
 
