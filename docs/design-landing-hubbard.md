@@ -34,3 +34,7 @@ What does set it apart is the name everyone recognises: the sound of Rob Hubbard
 ## Change in 0.2.3: his name out of the headline
 
 Release 0.2.2 had "Rob Hubbard never had a tracker." as the headline. On reflection the name of a living person as the biggest line of the page felt like leaning on him. The headline now names three of his tricks, which the audience recognises, and his name stays in the body: the section "The Hubbard sound, with a grid" says what he did, and the licence section says the project is not affiliated with or endorsed by him. A headline like "The 1985 SID sound never had a tracker" was rejected: it is not true, other trackers can make that sound.
+
+## Change in 0.2.4: sound effects on the first screen
+
+The sound effects (new in 0.2.0) were only a line in the feature list, while they are half of what a game maker needs. The kicker now says "music and sound effects", the lead says the effects are made with the same instruments and start with one call, and the section "The Hubbard sound, with a grid" has a part "Sound effects, made like the music" with links to the Sound effects demo and to raster rumble. It makes no claim about how his games did their effects.

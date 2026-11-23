@@ -10,7 +10,7 @@
 <meta name="color-scheme" content="light dark">
 <meta property="og:type" content="website">
 <meta property="og:title" content="WebSidTracker - sweeping pulses, late vibrato, drums on the bass. Now with a tracker.">
-<meta property="og:description" content="The 1985 SID sound, now with a tracker: sweeping pulses, late vibrato, one-voice chords, drums on the bass channel. In your browser, with a 2 KB MIT player for your C64 game.">
+<meta property="og:description" content="The 1985 SID sound, now with a tracker: sweeping pulses, late vibrato, one-voice chords, drums on the bass channel, and sound effects from the same instruments. In your browser, with a 2 KB MIT player for your C64 game.">
 <meta property="og:image" content="img/tracker-dark.webp">
 <meta property="og:image:alt" content="The tracker playing Ode to Joy: three voice columns and the instrument editor">
 <meta name="twitter:card" content="summary_large_image">
@@ -40,9 +40,9 @@
 
 <section class="hero" aria-labelledby="h-hero">
   <div class="wrap">
-    <p class="kicker">The 1985 SID sound &middot; now with a tracker &middot; 2 KB player, MIT</p>
+    <p class="kicker">The 1985 SID sound &middot; music and sound effects &middot; 2 KB player, MIT</p>
     <h1 id="h-hero"><span>Sweeping pulses.</span> <span>Late vibrato.</span> <span>Drums on the bass.</span> <span>Now with a tracker.</span></h1>
-    <p class="lead">The per-frame tricks of the classic C64 game music, in a grid you can see and edit while it plays. Drop the result into your own game.</p>
+    <p class="lead">The per-frame tricks of the classic C64 game music, in a grid you can see and edit while it plays. Make the sound effects with the same instruments, and drop music and effects into your own game: one call plays a laser over the tune.</p>
     <p class="actions">
       <button class="btn primary" type="button" id="hear" aria-describedby="hear-what" hidden>&#9654; Hear it</button>
       <a class="btn primary" href="tracker.html" id="open-cta">Open the tracker</a>
@@ -74,6 +74,8 @@
         <div><dt>Slides and dives</dt><dd>Leads bend into notes, effects swoop down. <span class="field">Slide</span></dd></div>
         <div><dt>Small songs</dt><dd>Short patterns, reused and transposed, make minutes of music out of a few hundred bytes. <span class="field">Order list: transpose per entry</span></dd></div>
       </dl>
+      <h3>Sound effects, made like the music</h3>
+      <p>The laser, the jump and the explosion come from the same player as the tune. An effect is a short pattern for one voice, made in the Effects tab with the same instruments and the same editor. Your game starts it with one call, the effect borrows a voice for a moment, and the music on that voice comes back in time. Hear it in the <a href="tracker.html?demo=sound-effects">Sound effects demo</a>, or play <a href="https://ddecoene.github.io/raster-rumble/play/">raster rumble</a>, which makes all of its sound this way.</p>
       <h3>Why this did not exist before</h3>
       <p>Hubbard wrote his music as numbers in his assembly source and played it with his own player. That player was never a tool anyone else could use, and its code is not free to copy. The trackers that came later show you the notes, but you have to build that per-frame sound yourself. Here the player was written from scratch around exactly those tricks, and the tracker runs that player: what you hear while you edit is what the exported files do on a real C64.</p>
     </div>
