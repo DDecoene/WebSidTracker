@@ -13,7 +13,7 @@ cd web
 python3 -m http.server 8010
 ```
 
-Open <http://127.0.0.1:8010/> for the landing page (`index.html` with `landing.css` and the screenshots in `img/`, plain HTML and CSS with no script), or <http://127.0.0.1:8010/tracker.html> for the tracker itself, which is the app. The published version is at <https://ddecoene.github.io/WebSidTracker/>: the root is the newest release, `/v<release>/` the frozen copies, `/dev/` the `develop` branch (see [docs/releasing.md](../docs/releasing.md); `.github/workflows/pages.yml` builds the site from the release tags). Audio starts at the first click or key press.
+Open <http://127.0.0.1:8010/> for the landing page (`index.html` with `landing.css`, the screenshots in `img/` and the "Hear it" clip in `audio/`; plain HTML and CSS, plus a few lines of script for the clip's button), or <http://127.0.0.1:8010/tracker.html> for the tracker itself, which is the app. The published version is at <https://ddecoene.github.io/WebSidTracker/>: the root is the newest release, `/v<release>/` the frozen copies, `/dev/` the `develop` branch (see [docs/releasing.md](../docs/releasing.md); `.github/workflows/pages.yml` builds the site from the release tags). Audio starts at the first click or key press.
 
 `sound-test.html` is the first piece of the project, kept as a check of the SID alone: a button and a 440 Hz pulse tone, a list to switch the chip model, and status text with the sample rate and peak level.
 
@@ -90,8 +90,9 @@ Two things worth knowing:
 | `engine/engine.js` | 6502 + SID on a frame clock; no DOM, runs in the worklet and in Node |
 | `engine/worklet.js` | the audio thread: turns messages into engine calls and fills sample blocks |
 | `engine/client.js` | the page's side: creates the audio context, loads the files, sends messages |
-| `engine/render-wav.mjs` | renders the demo song of the player image to a WAV file |
+| `engine/render-wav.mjs` | renders a song on the real player to a WAV file: the demo song of the player image, or a project file (`node web/engine/render-wav.mjs out.wav 40 6581 project.json`) |
 | `engine/test.mjs` | tests of the engine |
+| `audio/raster-rumble.m4a` | the landing page's "Hear it" clip: 40 s of the raster rumble tune (`music/raster-rumble.json` in that repository), made with `render-wav.mjs` on the 6581, a 3 s fade-out at the end, and `afconvert -f m4af -d aac -b 96000` |
 | `cpu/cpu6502.js` | the 6502 core: documented opcodes, exact cycle counts |
 | `cpu/test.mjs` | hand-made tests |
 | `cpu/klaus.mjs`, `cpu/singlestep.mjs`, `cpu/fetch-tests.sh`, `cpu/singlestep.sha256` | the public test material is downloaded by the script into `cpu/.cache` (not committed) and checked by checksum |

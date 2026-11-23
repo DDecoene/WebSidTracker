@@ -1,31 +1,38 @@
-// render-wav.mjs - plays the demo song of the real player and writes it to a WAV file.
+// render-wav.mjs - plays a song on the real player and writes it to a WAV file.
 //
-// Run:  node web/engine/render-wav.mjs out.wav 20 [6581|8580]
+// Run:  node web/engine/render-wav.mjs out.wav 20 [6581|8580] [project.json]
 //
-// The song sits at $3000 in the player image, so this is also a quick way to hear
-// whether the player, the engine and the SID work together.
+// Without a project file it plays the demo song built into the player image, a quick way to hear
+// whether the player, the engine and the SID work together. With a project file (saved by the
+// tracker) it plays that song, the same way the tracker does. The clip on the landing page is made so.
 //
 // Part of the WebSidTracker web app, GPL version 3 or later (see ../LICENSE).
 
 import { readFileSync, writeFileSync } from 'node:fs';
 import { Engine } from './engine.js';
+import { exportPrg, projectFromJson } from '../model/export.js';
+import { LIMITS } from '../model/project.js';
 
-const [outFile, secondsText = '10', chip = '6581'] = process.argv.slice(2);
+const [outFile, secondsText = '10', chip = '6581', projectFile] = process.argv.slice(2);
 if (!outFile) {
-  console.error('usage: node render-wav.mjs <out.wav> <seconds> [6581|8580]');
+  console.error('usage: node render-wav.mjs <out.wav> <seconds> [6581|8580] [project.json]');
   process.exit(1);
 }
 const RATE = 48000;
 const seconds = Number(secondsText);
 
+const playerImage = new Uint8Array(readFileSync(new URL('../player/player.prg', import.meta.url)));
+// A project replaces the built-in tables, effects and song of the image, exactly as an export does.
+const playerPrg = projectFile ? exportPrg(projectFromJson(readFileSync(projectFile, 'utf8')), playerImage) : playerImage;
+
 const engine = new Engine({
   sidModule: new WebAssembly.Module(readFileSync(new URL('../sid/sid.wasm', import.meta.url))),
-  playerPrg: new Uint8Array(readFileSync(new URL('../player/player.prg', import.meta.url))),
+  playerPrg,
   symbols: JSON.parse(readFileSync(new URL('../player/symbols.json', import.meta.url), 'utf8')),
   sampleRate: RATE,
   model: chip === '8580' ? 1 : 0,
 });
-engine.start(0x3000);
+engine.start(projectFile ? LIMITS.songBase : 0x3000);
 
 const samples = new Int16Array(Math.round(seconds * RATE));
 for (let at = 0; at < samples.length; at += 128) {

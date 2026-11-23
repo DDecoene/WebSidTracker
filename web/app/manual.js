@@ -200,7 +200,7 @@ export const SECTIONS = [
     id: 'instruments',
     title: 'Instruments',
     blocks: [
-      { type: 'p', text: 'An instrument is a set of fields, and the player applies them every frame while a note sounds. You will find them in the panel on the right. Fields that matter when a note begins (waveform, envelope, start pulse width and sweep step) are heard from the next note, and so are vibrato depth and speed (setting the depth to 0 stops a vibrato at once). The others (arpeggio, release, pulse limits) are heard at once.' },
+      { type: 'p', text: 'An instrument is a set of fields, and the player applies them every frame while a note sounds. You will find them in the panel on the right. Fields that matter when a note begins (waveform, envelope, start pulse width and sweep step) are heard from the next note, and so are vibrato depth and speed (setting the depth to 0 stops a vibrato at once). The others (arpeggio, release, pulse limits) are heard at once. These fields are the tricks behind the classic C64 game sound that Rob Hubbard made famous: a pulse width that sweeps, vibrato that comes in late, chords from one voice, drums that share a voice with the bass, slides.' },
       { type: 'h', text: 'The fields' },
       { type: 'table', head: ['Group', 'Field and what it does'], rows: [
         ['**Waveform**', 'Triangle is soft and flute-like, saw is bright and buzzy, pulse is full and its colour depends on the pulse width, noise is hiss for drums and effects. Triangle, saw and pulse can be combined (the SID mixes them, often to something thin, so use your ears); noise cannot be mixed. **Ring** (ring modulation, works with triangle) and **Sync** (hard sync with the voice before) are colour effects on top.'],
