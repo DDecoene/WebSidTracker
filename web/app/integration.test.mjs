@@ -23,6 +23,7 @@ import { readFileSync } from 'node:fs';
 import { Engine } from '../engine/engine.js';
 import * as projectModel from '../model/project.js';
 import * as serialiser from '../model/serialise.js';
+import { buildLayout, playRow } from '../ui/editor-logic.js';
 import { createLive, SONG_BASE, stateAfterEdit } from './live.js';
 
 const symbols = JSON.parse(readFileSync(new URL('../player/symbols.json', import.meta.url), 'utf8'));
@@ -160,6 +161,26 @@ test('the state block: order entry of the playing pattern, offset of the next ev
   loc = serialiser.locatePlayhead(map, state.voices[0], 0);
   assert.equal(loc.entry, 1);
   assert.equal(loc.playingIndex, 1);
+});
+
+// The whole chain the editor uses: player state -> store.playhead -> the highlighted grid row.
+test('the highlighted row is the tick that sounds, on every frame, for every voice', () => {
+  const project = songProject({ passes: 2 });
+  project.song.patterns[0].events.splice(4, 0, { type: 'inst', instrument: 0 });   // zero ticks long
+  const live = start(project);
+  const layouts = project.song.patterns.map((p) => buildLayout(p.events));
+  for (let frame = 0; frame < 2 * 12 * project.song.speed; frame++) {
+    rig.step(1);
+    const { voices } = live.toStorePlayhead(rig.engine.readState(), project);
+    const tick = Math.floor(frame / project.song.speed);
+    for (let v = 0; v < 3; v++) {
+      const total = layouts[v].total;
+      if (tick >= 2 * total) continue;                     // this voice has stopped
+      const where = `frame ${frame}, voice ${v}`;
+      assert.equal(voices[v].orderIndex, Math.floor(tick / total), where);
+      assert.equal(playRow(layouts[v], voices[v].eventIndex, voices[v].ticksLeft), tick % total, where);
+    }
+  }
 });
 
 // ---- edits that move bytes, with a fresh state and with an old one -----------------------
