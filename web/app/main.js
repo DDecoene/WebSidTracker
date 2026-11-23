@@ -27,7 +27,7 @@ import { createAutosaveLock } from './autosave-lock.js';
 
 const AUTOSAVE_STORAGE_KEY = autosaveKeyFor(location.pathname);   // one key per format; the development copy has its own
 const WELCOME_KEY = 'websidtracker.welcome.dismissed';
-const FIRST_START_DEMO = 'ode-to-joy';   // what a new visitor hears when they press Play
+const FIRST_START_DEMO = 'original';   // what a new visitor hears when they press Play
 const PAL_FRAMES_PER_SECOND = 985248 / 19656;
 
 const $ = (id) => document.getElementById(id);
