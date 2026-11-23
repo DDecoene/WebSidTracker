@@ -163,7 +163,7 @@ In the grid every note shows an instrument chip. A bright chip means the instrum
 
 ## 4. What the instrument fields do
 
-All of this runs on the real player, on every frame of the note (except where noted). Changing a field while a note sounds is heard at once for the per-frame features; fields that matter only when a note starts (waveform, envelope, start pulse width and the sweep step) apply from the next note.
+All of this runs on the real player, on every frame of the note (except where noted). Changing a field while a note sounds is heard at once for the per-frame features; fields that matter only when a note starts (waveform, envelope, start pulse width and the sweep step) apply from the next note. These fields are the tricks behind the classic C64 game sound that Rob Hubbard made famous: a pulse width that sweeps, vibrato that comes in late, chords from one voice, drums that share a voice with the bass, slides.
 
 **Waveform.** Triangle (soft, flute-like), Saw (bright, buzzy), Pulse (full, its colour depends on the pulse width), Noise (hiss, for drums and effects). Ring and Sync are the SID's ring modulation (works with triangle) and hard sync. Combining waveforms is possible; the SID mixes them in a way that often sounds thin, so check by ear.
 
