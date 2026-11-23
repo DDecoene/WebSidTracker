@@ -50,9 +50,8 @@ export { keyHelp };
 // Row and header heights come from the stylesheet (--ed-row-size and --ed-head-size, in rem, so
 // they scale with the page). They are measured in pixels at mount and again whenever the
 // container resizes (window size, browser zoom), rounded to whole pixels so that every row is
-// the same height and the virtual scrolling maths stays exact.
-let ROW_H = 20;            // px, the same for every grid row
-let HEAD_H = 30;           // px, the sticky header with the voice names
+// the same height and the virtual scrolling maths stays exact. Every editor has its own: the page
+// has two (the song and the effects), and the one on the hidden tab cannot be measured.
 const EXTRA_ROWS = 8;      // empty space after the last row so the end can scroll up
 const NARROW_REM = 50;     // an editor narrower than this (in rem) folds the Patterns panel to its strip
 
@@ -68,6 +67,8 @@ let clipboard = null;
 const escapeHtml = (text) => String(text).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
 export function mountEditor(container, store, { single = false } = {}) {
+  let ROW_H = 20;                  // px, the same for every grid row
+  let HEAD_H = 30;                 // px, the sticky header with the voice names
   const ui = {
     zone: 'pattern',               // which part has the keyboard: 'pattern' or 'order'
     field: 'pattern',              // in the order list: which field of the entry ('pattern', 'transpose', 'target')
@@ -171,8 +172,10 @@ export function mountEditor(container, store, { single = false } = {}) {
     return px;
   }
 
-  // Returns true when the sizes changed.
+  // Returns true when the sizes changed. On a hidden tab everything measures 0: keep what we have;
+  // the resize observer calls again when the editor is shown.
   function measureSizes() {
+    if (container.getClientRects().length === 0) return false;
     const row = Math.max(8, Math.round(measure('var(--ed-row-size)')));
     const head = Math.max(8, Math.round(measure('var(--ed-head-size)')));
     if (row === ROW_H && head === HEAD_H && container.style.getPropertyValue('--ed-row-h')) return false;
