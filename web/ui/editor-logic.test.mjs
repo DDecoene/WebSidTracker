@@ -65,6 +65,18 @@ test('playRow: start of the next event minus the ticks left', () => {
   assert.equal(L.playRow(lay, undefined, 0), -1);
 });
 
+test('soundAtRow: the note under the cursor, with its instrument and the transpose', () => {
+  const lay = L.buildLayout([note(48, 2), { type: 'inst', instrument: 5 }, note(50, 3), { type: 'rest', length: 2 }]);
+  assert.deepEqual(L.soundAtRow(lay, 0, 3, 0), { instrument: 3, pitch: 48 }, 'no instrument yet: the incoming one');
+  assert.deepEqual(L.soundAtRow(lay, 1, 3, 12), { instrument: 3, pitch: 60 }, 'a sustain row is its note, transposed');
+  assert.deepEqual(L.soundAtRow(lay, 2, 3, 0), { instrument: 5, pitch: 50 });
+  assert.deepEqual(L.soundAtRow(lay, 4, 3, -60), { instrument: 5, pitch: 0 }, 'kept inside the range');
+  assert.equal(L.soundAtRow(lay, 5, 3, 0), null, 'a rest');
+  assert.equal(L.soundAtRow(lay, 6, 3, 0), null, 'further down in a rest');
+  assert.equal(L.soundAtRow(lay, 7, 3, 0), null, 'the end row');
+  assert.equal(L.soundAtRow(L.buildLayout([]), 0, 0, 0), null, 'an empty pattern');
+});
+
 test('enter a note on an empty pattern appends and writes the instrument', () => {
   let ev = L.enterNote([], 0, { pitch: 48, length: 1, instrument: 3 });
   assert.equal(fmt(ev), 'i3 C-4:1');

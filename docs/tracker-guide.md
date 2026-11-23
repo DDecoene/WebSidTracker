@@ -61,6 +61,7 @@ Keys work when the pattern editor or the page has the focus, not when you are ty
 | `z s x d c v g b h n j m` | Play and enter a note, lower octave (C to B) |
 | `q 2 w 3 e r 5 t 6 y 7 u` | Play and enter a note, one octave higher |
 | < and >  (or F1 / F2) | Octave down / up |
+| `a` | Play the note under the cursor, without changing anything (the Play note button does the same) |
 | `1` | Enter a rest |
 | `9 / 0` | Default length of new notes: shorter / longer (ticks) |
 | ;  and  ' | Step: rows to move down after entering: less / more |

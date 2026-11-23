@@ -111,6 +111,15 @@ export function rowOfEvent(layout, eventIndex) {
   return row === undefined ? layout.total : row;
 }
 
+// What the voice plays at a row, for listening to one note: { instrument, pitch } with the transpose
+// of the order entry added, or null on a rest or the end row. A row further down in a note counts as
+// that note. `incoming` is the instrument in force at the start of the pattern.
+export function soundAtRow(layout, row, incoming, transpose) {
+  const r = layout.rows[layout.starts[eventIndexAtRow(layout, row)]];
+  if (!r || r.kind !== 'note') return null;
+  return { instrument: r.eff ?? incoming, pitch: clamp(r.pitch + transpose, 0, MAX_PITCH) };
+}
+
 // The row a voice is sounding, from the player state. `eventIndex` is the next
 // event the player will read (that is what the state block holds) and
 // `ticksLeft` the ticks left of the current note or rest, so the current row is
@@ -959,6 +968,7 @@ export function keyHelp() {
     ['z s x d c v g b h n j m', 'Play and enter a note, lower octave (C to B)'],
     ['q 2 w 3 e r 5 t 6 y 7 u', 'Play and enter a note, one octave higher'],
     ['< and >  (or F1 / F2)', 'Octave down / up'],
+    ['a', 'Play the note under the cursor (changes nothing)'],
     ['1', 'Enter a rest'],
     ['9 / 0', 'Default length of new notes: shorter / longer (ticks)'],
     [";  and  '", 'Step: rows to move down after entering: less / more'],
