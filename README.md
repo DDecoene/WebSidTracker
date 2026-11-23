@@ -1,6 +1,6 @@
 # WebSidTracker
 
-A SID music tracker for the browser, built clean-room, with a small player you can drop into your own Commodore 64 game.
+Rob Hubbard never had a tracker. WebSidTracker brings the tricks of his C64 sound (pulses that sweep, vibrato that comes in late, chords from one voice, drums that share the bass channel) to a tracker in your browser, with a small clean-room player you can drop into your own Commodore 64 game. Not affiliated with Rob Hubbard; none of his code or music is used.
 
 > **Status: working, not finished (alpha, release 0.2.1).** The C64 player is built and measured, the browser tracker runs it live: a 6502 core, reSIDfp as WebAssembly, the song model with export, the pattern and order editor and the instrument editor all exist. Try it at <https://ddecoene.github.io/WebSidTracker/>. What is still open is listed in the [roadmap](#roadmap). How to use the tracker: [docs/tracker-guide.md](docs/tracker-guide.md).
 
@@ -14,7 +14,7 @@ raster-rumble was the first user. Since its release 0.0.5 all of its sound comes
 
 The sound of the classic C64 game composers does not come from fancy notes. It comes from playing the SID chip **every frame**: the pulse width sweeps while a note sounds, vibrato starts late like a hand on a string, one voice arpeggiates a chord, a drum is a puff of noise followed by a falling tone. All of it is driven by tiny pattern data that costs a few hundred bytes for a whole song.
 
-The good desktop trackers exist (GoatTracker, SID-Wizard, SID Factory II). What is missing is a tracker that lives in the browser, shares with a link, and comes with a small player you fully understand and can read in an afternoon. That is this project.
+Hubbard himself never had a tracker: he typed his music as numbers into his assembly source, and his player was never a tool anyone else could use. The good desktop trackers came later (GoatTracker, SID-Wizard, SID Factory II); they show you the notes, but the per-frame sound you build yourself. What was missing is a tracker built around exactly those tricks, that lives in the browser, and comes with a small player you fully understand and can read in an afternoon. That is this project.
 
 The full story (what made that approach special, what such a player contains, what we do differently) is in **[docs/concept-hubbard-inspired-player.md](docs/concept-hubbard-inspired-player.md)**. Read that first.
 
