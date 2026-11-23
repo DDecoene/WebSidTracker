@@ -200,9 +200,9 @@ test('toStorePlayhead maps engine state to order/event indices', () => {
   const out = live.toStorePlayhead(state, p);
   assert.equal(out.running, true);
   assert.equal(out.frameInTick, 4);
-  assert.deepEqual(out.voices[0], { orderIndex: 1, eventIndex: 0, patternIndex: 1, ticksLeft: 2 });
+  assert.deepEqual(out.voices[0], { orderIndex: 1, eventIndex: 1, patternIndex: 1, ticksLeft: 2 });
   assert.equal(out.voices[1], null, 'an unknown pattern address is not shown');
-  assert.equal(out.voices[2].eventIndex, 2, 'at the end marker the last event is the sounding one');
+  assert.equal(out.voices[2].eventIndex, 3, 'the last event sounds: next is the end marker');
   assert.deepEqual(live.toStorePlayhead({ running: false, voices: [], frameInTick: 0 }, p).voices, [null, null, null]);
   assert.equal(live.toStorePlayhead(null, p).running, false);
 });
@@ -240,7 +240,7 @@ test('with the real serialiser: insert a note, the playhead lands on the same ev
   assert.equal(to.patPos, now.events[3].offset, 'still waiting for what was the third note');
   assert.equal(to.patAddr, now.address);
   const out = live.toStorePlayhead({ ...state, voices: [{ ...to, ticksLeft: 1 }, null, null] }, edited);
-  assert.equal(out.voices[0].eventIndex, 2, 'the second old note (now index 2) is sounding');
+  assert.equal(out.voices[0].eventIndex, 3, 'what was the third note (now index 3) is read next');
 });
 
 test('mapIndex follows inserts, deletes and changes', () => {
