@@ -8,7 +8,7 @@
 // Part of the WebSidTracker web app, GPL version 3 or later (see LICENSE).
 
 export const FORMAT = 2;
-export const RELEASE = '0.2.1';
+export const RELEASE = '0.2.2';
 
 /** sessionStorage key used to hand a project file to another release of the tracker. */
 export const HANDOVER_KEY = 'websidtracker.handover';
