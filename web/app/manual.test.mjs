@@ -99,7 +99,7 @@ test('the key sources come from the editor and the instrument panel', async () =
 });
 
 test('the demo ids named in the manual exist', () => {
-  assert.equal(DEMOS.length, 7);   // the manual says "seven projects"
+  assert.equal(DEMOS.length, 8);   // the manual says "eight projects"
 });
 
 // ---- inline markup and safety -------------------------------------------------------------------

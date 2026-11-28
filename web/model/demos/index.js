@@ -5,6 +5,7 @@
 // Part of the WebSidTracker web app, GPL version 3 or later (see ../../LICENSE).
 
 import { defaultInstrument } from '../project.js';
+import * as pulseDrive from './pulse-drive.js';
 import * as original from './original.js';
 import * as odeToJoy from './ode-to-joy.js';
 import * as furElise from './fur-elise.js';
@@ -20,8 +21,8 @@ const complete = (project) => ({
   effects: project.effects ?? [],
 });
 
-/** [{ id, title, composer, note, build }], the original tune first: it is what a first visit starts with. */
-export const DEMOS = [original, odeToJoy, furElise, rondoAllaTurca, toccata, mountainKing, soundEffects]
+/** [{ id, title, composer, note, build }], Pulse Drive first: it is what a first visit starts with. */
+export const DEMOS = [pulseDrive, original, odeToJoy, furElise, rondoAllaTurca, toccata, mountainKing, soundEffects]
   .map((demo) => ({ ...demo.info, build: () => complete(demo.build()) }));
 
 /** The demo with this id, or undefined. */
