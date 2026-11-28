@@ -51,7 +51,7 @@ export const info = {
   id: 'toccata',
   title: 'Toccata in D minor',
   composer: 'J. S. Bach (attributed), arranged for SID',
-  note: 'The whole organ piece, bar for bar: the famous opening, the runs and chords, the fugue and the closing recitative, with the fermatas held. Pulse organ in two voices, an arpeggio instrument for held chords, pedal bass.',
+  note: 'The whole organ piece, bar for bar: the famous opening, the runs and chords, the fugue and the closing recitative, with the fermatas held. Two sweeping pulse organ voices with a late vibrato, soft arpeggio chords, a pedal that flutters with its octave.',
   source: 'Score: Toccata and Fugue in D Minor, BWV 565, from the Bach-Gesellschaft Ausgabe (1867), typeset for the Mutopia Project (piece 1780, www.mutopiaproject.org), public domain.',
 };
 
@@ -61,22 +61,38 @@ const SPEED = 1;
 // instruments (instrument 3 + k flutters between the note and the note + ARP_OFFSETS[k]).
 const LEAD = 0, MID = 1, PEDAL = 2, ARP_FIRST = 3;
 const ARP_OFFSETS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+// The chords whose two notes get the octave of the lower note as a third note (arp2 = 12): the
+// thirds, fourths, fifths and sixths. The seconds, the tritone and the sevenths stay two notes,
+// and so does the octave itself.
+const CHORD_WITH_OCTAVE = new Set([3, 4, 5, 7, 8, 9]);
 
 function instruments() {
   const base = defaultInstrument();
-  // Organ: a pulse wave at full sustain with a short attack. The width moves slowly around 50
-  // percent so that two voices on the same note do not simply add up; no vibrato, an organ has none.
-  const organ = (name, pw, pwStep, pwMin, pwMax) => ({
-    ...base, name, wave: 0x40, ad: 0x10, sr: 0xF0, pw, pwStep, pwMin, pwMax, release: 1,
-  });
+  // Every instrument has decay 0: then the player needs only one frame to close a note
+  // (release 1), and a run of 4- and 5-frame notes stays legato. (With a decay above 0 the
+  // player takes two frames, and half of every short note would be silence.)
+  // The sound is in what moves while a note plays: the pulse width sweeps wide (the fat sound),
+  // a held note gets a gentle vibrato after half a second, the pedal flutters with its octave.
+  const pulse = (name, fields) => ({ ...base, name, wave: 0x40, ad: 0x10, sr: 0xF0, release: 1, ...fields });
   const list = [];
-  list[LEAD] = organ('Organ lead', 0x0800, 3, 0x60, 0xA0);
-  list[MID] = organ('Organ second voice', 0x0600, -3, 0x50, 0x90);
-  list[PEDAL] = { // a narrow pulse: the low notes keep their edge
-    ...base, name: 'Pedal', wave: 0x40, ad: 0x10, sr: 0xF0, pw: 0x0500, pwStep: 0, pwMin: 0x20, pwMax: 0xE0, release: 1,
-  };
+  // Lead: the width sweeps between 19 and 69 percent, one way in about 1.3 seconds.
+  list[LEAD] = pulse('Organ lead', {
+    pw: 0x0400, pwStep: 32, pwMin: 0x30, pwMax: 0xB0, vibDelay: 25, vibDepth: 3, vibSpeed: 4,
+  });
+  // Second voice: the other way round and at another rate, with a vibrato of another speed, so
+  // that the octaves of the opening float against the lead instead of adding up to one wave.
+  list[MID] = pulse('Organ second voice', {
+    pw: 0x0A00, pwStep: -23, pwMin: 0x28, pwMax: 0xC0, vibDelay: 30, vibDepth: 2, vibSpeed: 6,
+  });
+  // Pedal: a narrow pulse that sweeps slowly, fluttering with its octave above (arp 12): the
+  // sound of a 16-foot and an 8-foot stop together, and the classic C64 bass.
+  list[PEDAL] = pulse('Pedal', { pw: 0x0300, pwStep: 10, pwMin: 0x18, pwMax: 0x70, arp: 12 });
+  // Chords: softer than the lines (sustain 10 of 15), so that the shimmer stays behind the tune.
   ARP_OFFSETS.forEach((semitones, k) => {
-    list[ARP_FIRST + k] = { ...organ(`Chord +${semitones}`, 0x0600, -3, 0x50, 0x90), arp: semitones };
+    list[ARP_FIRST + k] = pulse(`Chord +${semitones}`, {
+      sr: 0xA0, pw: 0x0600, pwStep: -17, pwMin: 0x30, pwMax: 0xA0,
+      arp: semitones, arp2: CHORD_WITH_OCTAVE.has(semitones) ? 12 : 0,
+    });
   });
   return list;
 }
