@@ -2,16 +2,22 @@
 // reduced from the piano score to the three SID voices.
 //
 // Source: the Mutopia Project piano edition (see `info.source`). The notes below are read from that
-// edition's MIDI file, bar by bar, and every rhythm is kept exactly: one tick is a 96th of a whole
-// note, so a bar of 4/4 is 96 ticks, an eighth note 12, a sixteenth 6, an eighth-note triplet 8 and the
-// grace notes 3 each. The song speed is 1 frame per tick (125 beats per minute, a little slower than the
-// 138 and 154 of the printed score: a song has one fixed speed).
+// edition's MIDI file, bar by bar, and every rhythm is kept exactly: below, one score tick is a 96th
+// of a whole note, so a bar of 4/4 is 96 ticks, an eighth note 12, a sixteenth 6, an eighth-note
+// triplet 8 and the grace notes 3 each.
+//
+// The played song has speed 1 (a tick is a frame), and build() turns score ticks into frames bar by
+// bar with EIGHTH, the tempo: the piece is one long accelerando, from a creeping quarter of 125 to
+// 250 at the end. Every note up to a quarter is played staccato (the score says "e sempre
+// staccato"): its instrument's release frames silence a little under half of it. Grace notes keep
+// 2 frames at every tempo and run up legato into their chord.
 //
 // The reduction, voice by voice:
 //   voice 1  the melody: the top note of the right hand
 //   voice 2  the bass: the lowest note of the left hand
 //   voice 3  the harmony: everything else, as a note, or as a chord stab that alternates between the
-//            lowest chord note and the nearest chord tone above it (the instrument's arpeggio)
+//            lowest chord note and the nearest chord tone above it (the instrument's arpeggio); where
+//            the harmony is plain the missing chord tone is added as a third note (see TRIAD)
 // Where the score has only two lines (bars 2 to 25) the third voice is silent, as the score is.
 //
 // Pitches are written as in the score (the printed octave, as the MIDI file sounds them). The order
@@ -32,7 +38,7 @@ export const info = {
   id: 'mountain-king',
   title: 'In the Hall of the Mountain King',
   composer: 'Edvard Grieg (public domain), reduced for SID',
-  note: 'The creeping march theme from the real score: it starts quiet and staccato, climbs in pitch and loudness through the key changes and ends in the loud finale with the final chords.',
+  note: 'The creeping march theme from the real score: it starts quiet and staccato, climbs in pitch and loudness and speeds up all the way, from a quarter of 125 to 250, into the loud finale with the final chords.',
   source: 'Mutopia Project, piece 1888 (https://www.mutopiaproject.org/cgibin/piece-info.cgi?id=1888), '
     + 'edition of The University Society, 1918, typeset in LilyPond by Coyau, licence: Public Domain (CC0-style dedication by the typesetter). '
     + 'The MIDI file of that edition was used for the notes.',
@@ -335,6 +341,31 @@ const LEVEL = [
 const MELODY_WAVE = [[1, 'tri'], [26, 'pulse']];
 const BASS_WAVE = [[1, 'tri'], [26, 'pulse']];
 
+// The tempo: frames per eighth note, from that bar on. The piece is one long accelerando: it
+// creeps in at a quarter of 125 and races to the end ("Più vivo" at bar 50, "sempre stretto sin
+// al fine" from bar 58). Every step is a whole number of frames per eighth, so the pulse is even
+// within a step; the bars with sixteenths (26 to 41) have an even number, the bars with triplets
+// (42 to 49) a multiple of 3. Bar 1 is the fermata chord: 3 seconds.
+export const EIGHTH = [[1, 18], [2, 12], [18, 11], [26, 10], [42, 9], [50, 8], [62, 7], [74, 6]];
+// A grace note lasts this many frames at every tempo; the three run up legato into their chord.
+const GRACE_FRAMES = 2;
+
+// The chord stabs as three-note chords where the harmony is plain: the score's two notes plus the
+// chord tone that is missing ([arp, arp2] above the written lower note). The others stay two notes.
+const TRIAD = {
+  'A#3+8': [3, 8],   // A# C# F#: F sharp major
+  'B-2+3': [3, 7],   // B D F#: B minor
+  'B-5+3': [3, 7],
+  'A-5+5': [5, 9],   // A D F#: D major
+  'C#6+5': [5, 9],   // C# F# A#: F sharp major
+  'D-3+4': [4, 9],   // D F# B: B minor
+  'D#6+3': [3, 7],   // D# F# A#: D sharp minor
+  'F-3+3': [3, 6],   // E# G# B: the diminished chord under the grace-note stabs
+  'F#3+3': [3, 8],   // F# A D: D major
+  'F#3+4': [4, 7],   // F# A# C#: F sharp major
+  'F#3+5': [5, 8],   // F# B D: B minor
+};
+
 // ---------------------------------------------------------------- instruments
 
 // Instruments are made when a bar asks for them: the same description gives the same number.
@@ -353,26 +384,37 @@ function instrumentSet() {
 
 // What an instrument is made of, by role. `level` is the sustain, 0 to 15: a note jumps to full
 // volume, falls in a few frames to this level and stays there. A low level is a quiet note.
-function describe(set, role, level, wave, arp) {
+// `release` is the number of frames at the end of a note that are silent: that is the staccato.
+function describe(set, role, level, wave, release, arp = 0, arp2 = 0) {
   const sr = level << 4;
-  // quiet notes fall to their level in 24 ms, loud ones in about 70 ms: the louder, the more marcato
-  const ad = level <= 5 ? 0x01 : 0x03;
+  // quiet notes fall to their level in 24 ms, loud ones in about 70 ms: the louder, the more marcato.
+  // A release of 1 frame needs decay 0 (with a decay the player takes 2 frames to close a note).
+  const decay = (d) => (release === 1 ? 0 : d);
+  const ad = decay(level <= 5 ? 0x01 : 0x03);
+  const r = ` r${release}`;
   if (role === 'melody') {
     // vibrato only after 20 frames, so only the long notes (half and whole notes) get it
     const vib = { vibDelay: 20, vibDepth: 5, vibSpeed: 4 };
-    if (wave === 'tri') return set.get(`Lead triangle ${level}`, { wave: 0x10, ad, sr, ...vib });
-    return set.get(`Lead pulse ${level}`, { wave: 0x40, ad, sr, pw: 0x0800, pwStep: 6, pwMin: 0x30, pwMax: 0xC0, ...vib });
-  }
-  if (role === 'grace') {
-    // 3 ticks long: release 1 leaves two frames of sound
-    return set.get(`Grace ${level}`, { wave: 0x40, ad: 0x00, sr, pw: 0x0800, release: 1 });
+    if (wave === 'tri') return set.get(`Lead triangle ${level}${r}`, { wave: 0x10, ad, sr, release, ...vib });
+    // a wide, quick pulse sweep: the bite of the loud part
+    return set.get(`Lead pulse ${level}${r}`, { wave: 0x40, ad, sr, release, pw: 0x0400, pwStep: 28, pwMin: 0x20, pwMax: 0xC0, ...vib });
   }
   if (role === 'bass') {
-    if (wave === 'tri') return set.get(`Bass triangle ${level}`, { wave: 0x10, ad: 0x03, sr });
-    return set.get(`Bass pulse ${level}`, { wave: 0x40, ad: 0x04, sr, pw: 0x0600, pwStep: 5, pwMin: 0x20, pwMax: 0xA0 });
+    if (wave === 'tri') return set.get(`Bass triangle ${level}${r}`, { wave: 0x10, ad: decay(0x03), sr, release });
+    return set.get(`Bass pulse ${level}${r}`, { wave: 0x40, ad: decay(0x04), sr, release, pw: 0x0300, pwStep: 14, pwMin: 0x18, pwMax: 0x90 });
   }
-  // a chord stab: the pulse note, and the same note plus `arp` semitones on every other frame
-  return set.get(arp ? `Stab +${arp} ${level}` : `Stab ${level}`, { wave: 0x40, ad, sr, pw: 0x0500, pwStep: 4, pwMin: 0x20, pwMax: 0xE0, arp });
+  // a chord stab: the pulse note, flicking through the chord tones above it every frame
+  const name = arp ? `Stab +${arp}${arp2 ? `+${arp2}` : ''} ${level}${r}` : `Stab ${level}${r}`;
+  return set.get(name, { wave: 0x40, ad, sr, release, pw: 0x0500, pwStep: -20, pwMin: 0x20, pwMax: 0xB0, arp, arp2 });
+}
+
+// How many frames of a note are silent: a note up to a quarter is staccato (it sounds a little
+// over half its length), a longer note is held. At least 2 (the player's clean end when the decay
+// is above 0); a very short note (4 frames or less) gets 1, and describe() gives it decay 0.
+function releaseFor(frames, eighth) {
+  if (frames <= 4) return 1;
+  if (frames > 2 * eighth) return 2;
+  return Math.max(2, Math.round(frames * 0.45));
 }
 
 // ---------------------------------------------------------------- reading the bars
@@ -400,17 +442,49 @@ export function build() {
     score.forEach((text, i) => {
       const bar = i + 1;
       const level = from(LEVEL, bar);
+      const eighth = from(EIGHTH, bar);
+      const frames = (ticks) => {
+        const f = ticks * eighth / 12;
+        if (!Number.isInteger(f)) throw new Error(`mountain-king: bar ${bar}, voice ${voice + 1}: ${ticks} ticks is not a whole number of frames`);
+        return f;
+      };
+      const parsed = parseBar(text);
+      // the event before a run of grace notes gives up the frames the grace notes take
+      const lengths = parsed.map((note) => (note.grace ? GRACE_FRAMES : 0));
+      for (let k = 0; k < parsed.length; k++) {
+        if (parsed[k].grace) continue;
+        let graceTicks = 0, graces = 0;
+        for (let j = k + 1; j < parsed.length && parsed[j].grace; j++) { graceTicks += parsed[j].length; graces++; }
+        lengths[k] = frames(parsed[k].length + graceTicks) - graces * GRACE_FRAMES;
+      }
       const events = [];
       let current = -1;
-      for (const note of parseBar(text)) {
-        if (note.pitch === null) { events.push({ type: 'rest', length: note.length }); continue; }
+      parsed.forEach((note, k) => {
+        const length = lengths[k];
+        if (note.pitch === null) { events.push({ type: 'rest', length }); return; }
         let instrument;
-        if (voice === 0) instrument = note.grace ? describe(set, 'grace', level, 'pulse') : describe(set, 'melody', Math.min(15, level + (from(MELODY_WAVE, bar) === 'tri' ? 1 : 0)), from(MELODY_WAVE, bar));
-        else if (voice === 1) instrument = describe(set, 'bass', Math.max(1, level - (from(BASS_WAVE, bar) === 'tri' ? 2 : 3)), from(BASS_WAVE, bar));
-        else instrument = describe(set, 'harmony', Math.max(2, level - 3), 'pulse', note.arp);
+        if (voice === 0) {
+          // a grace note and the chord it runs into are one legato note, so they share the instrument
+          // of the chord note
+          // of the chord note (grace notes at the end of a bar run into the next bar: a legato marker
+          // cannot cross a pattern, so the next bar's chord starts as a new note)
+          let main = k;
+          while (main < parsed.length && parsed[main].grace) main++;
+          const wave = from(MELODY_WAVE, bar);
+          const release = main < parsed.length ? releaseFor(lengths[main], eighth) : 2;
+          instrument = describe(set, 'melody', Math.min(15, level + (wave === 'tri' ? 1 : 0)), wave, release);
+        } else if (voice === 1) {
+          const wave = from(BASS_WAVE, bar);
+          instrument = describe(set, 'bass', Math.max(1, level - (wave === 'tri' ? 2 : 3)), wave, releaseFor(length, eighth));
+        } else {
+          const token = `${text.split(' ')[k].split(':')[0]}`;
+          const [arp, arp2] = TRIAD[token] ?? [note.arp, 0];
+          instrument = describe(set, 'harmony', Math.max(2, level - 3), 'pulse', releaseFor(length, eighth), arp, arp2);
+        }
         if (instrument !== current) { events.push({ type: 'inst', instrument }); current = instrument; }
-        events.push({ type: 'note', pitch: note.pitch, length: note.length });
-      }
+        events.push({ type: 'note', pitch: note.pitch, length });
+        if (note.grace && k + 1 < parsed.length) events.push({ type: 'legato' });
+      });
       const key = JSON.stringify(events);
       if (!patternIndex.has(key)) {
         patternIndex.set(key, patterns.length);
