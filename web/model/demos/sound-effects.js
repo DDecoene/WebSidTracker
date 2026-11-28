@@ -7,7 +7,8 @@
 //
 // Part of the WebSidTracker web app, GPL version 3 or later (see ../../LICENSE).
 
-import { defaultInstrument, demoProject, parseNoteName } from '../project.js';
+import { defaultInstrument, parseNoteName } from '../project.js';
+import { build as originalTune } from './original.js';
 
 export const info = {
   id: 'sound-effects',
@@ -17,7 +18,7 @@ export const info = {
 };
 
 export function build() {
-  const project = demoProject();
+  const project = originalTune();
   const base = project.instruments.length;
   const instruments = [
     { // a short chirp that slides up: a dodged enemy, a scored point

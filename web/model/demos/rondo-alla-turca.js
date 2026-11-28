@@ -21,7 +21,8 @@
 //   2  the bass: the lowest note of every left-hand chord, and all the single left-hand notes
 //   3  the chords: the left hand's two upper chord notes, played as one note that alternates with the
 //      note above it every frame (an arpeggio instrument, one per interval), so it sounds like the chord
-//      the piano plays on the off-beats.
+//      the piano plays on the off-beats; thirds, fourths and fifths add the octave of the lower note.
+// The bass and the chords are staccato (4 silent frames at the end of a note), the "Turkish" march.
 // There are no drums, and the score has none: the "Turkish" march is the staccato bass-and-chord pattern
 // of the left hand and, in the A major sections, its strummed grace notes.
 //
@@ -46,7 +47,7 @@ export const info = {
   id: 'rondo-alla-turca',
   title: 'Rondo alla Turca',
   composer: 'W. A. Mozart (public domain), arranged for SID',
-  note: 'The whole third movement of the A major sonata K. 331, repeats included, from a printed score: the tune on a pulse lead, the left-hand bass, and the left-hand chords as arpeggios, at Allegretto.',
+  note: 'The whole third movement of the A major sonata K. 331, repeats included, from a printed score, at Allegretto: the tune on a struck, sweeping pulse lead, the staccato left-hand bass, and the left-hand chords as three-note arpeggios.',
   source: {
     url: 'https://www.mutopiaproject.org/cgibin/piece-info.cgi?id=108',
     files: 'https://www.mutopiaproject.org/ftp/MozartWA/KV331/KV331_3_RondoAllaTurca/KV331_3_RondoAllaTurca.mid',
@@ -324,25 +325,45 @@ const CHORD_ORDER = `
 
 // ---------------------------------------------------------------- instruments
 
-// The left-hand chord as an arpeggio: the note and the note `interval` semitones above, alternating
-// every frame (25 Hz). A narrow pulse with a quick decay, like a struck chord, softer than the lead.
+// The left-hand chord as an arpeggio: the note and the note `interval` semitones above, and, for the
+// thirds, fourths and fifths, the octave of the lower note as a third note (the bass already has the
+// root, so the octave is always a tone of the chord). A narrow pulse that is struck and falls quickly,
+// short (staccato: 4 silent frames), softer than the lead, its width sweeping slowly.
+const CHORD_WITH_OCTAVE = new Set([3, 4, 5, 7]);
 const chord = (interval) => ({
-  ...defaultInstrument(), name: `Chord +${interval}`, wave: 0x40, ad: 0x04, sr: 0x50, pw: 0x0400, arp: interval, release: 2,
+  ...defaultInstrument(), name: `Chord +${interval}`, wave: 0x40, ad: 0x03, sr: 0x40,
+  pw: 0x0400, pwStep: -12, pwMin: 0x20, pwMax: 0x90, arp: interval, arp2: CHORD_WITH_OCTAVE.has(interval) ? 12 : 0, release: 4,
 });
+
+// Instrument numbers that the note text above uses, and the short variants that build() puts in for
+// notes too short for the normal release (see `articulate`).
+const LEAD_SHORT = 10, BASS_SHORT = 11;
+
+// The instrument a note plays with: a lead note of 4 frames or less (the thirty-second turns and the
+// grace notes) uses a lead with decay 0 and 1 release frame, so it sounds for all but one frame; a bass
+// note of 6 frames or less (the sixteenths) a bass with 2 release frames instead of the staccato 4.
+function articulate(instrument, length) {
+  if (instrument === 0 && length <= 4) return LEAD_SHORT;
+  if (instrument === 1 && length <= 6) return BASS_SHORT;
+  return instrument;
+}
 
 // ---------------------------------------------------------------- the project
 
 export function build() {
+  const pulseSweep = { pwStep: 18, pwMin: 0x30, pwMax: 0xB0 };
+  const bassSweep = { pw: 0x0400, pwStep: 9, pwMin: 0x20, pwMax: 0x80 };
   const instruments = [
-    { // 0 lead: a pulse of about 50 percent with a slow, narrow sweep and a vibrato that only the long notes live to hear
-      ...defaultInstrument(), name: 'Lead', wave: 0x40, ad: 0x10, sr: 0xF0, pw: 0x0800,
-      pwStep: 3, pwMin: 0x70, pwMax: 0x90, vibDelay: 12, vibDepth: 5, vibSpeed: 6, release: 1,
+    { // 0 lead: struck and falling a little (sustain 10), like a piano key, with a wide pulse sweep and a
+      // vibrato that only the long notes live to hear; 2 release frames keep the runs clear and crisp
+      ...defaultInstrument(), name: 'Lead', wave: 0x40, ad: 0x08, sr: 0xA0, pw: 0x0500, ...pulseSweep,
+      vibDelay: 12, vibDepth: 5, vibSpeed: 6, release: 2,
     },
-    { // 1 bass: a pulse that is struck and settles on a lower level
-      ...defaultInstrument(), name: 'Bass', wave: 0x40, ad: 0x06, sr: 0x70, pw: 0x0600, release: 2,
+    { // 1 bass: a pulse that is struck and settles on a lower level, staccato (4 silent frames)
+      ...defaultInstrument(), name: 'Bass', wave: 0x40, ad: 0x06, sr: 0x70, ...bassSweep, release: 4,
     },
     { // 2 bass for the quick strummed grace notes: shortest gap between notes
-      ...defaultInstrument(), name: 'Bass strum', wave: 0x40, ad: 0x06, sr: 0x70, pw: 0x0600, release: 2,
+      ...defaultInstrument(), name: 'Bass strum', wave: 0x40, ad: 0x06, sr: 0x70, ...bassSweep, release: 2,
     },
     chord(2),
     chord(3),
@@ -351,12 +372,33 @@ export function build() {
     chord(6),
     chord(7),
     chord(12),
+    { // 10 the lead for very short notes: decay 0, so 1 release frame is enough
+      ...defaultInstrument(), name: 'Lead short', wave: 0x40, ad: 0x00, sr: 0xA0, pw: 0x0500, ...pulseSweep, release: 1,
+    },
+    { // 11 the bass for sixteenths: 2 release frames
+      ...defaultInstrument(), name: 'Bass short', wave: 0x40, ad: 0x06, sr: 0x70, ...bassSweep, release: 2,
+    },
   ];
+
+  // the events of a pattern with the instrument of every note chosen by `articulate`
+  const played = (list) => {
+    const out = [];
+    let wanted = 0, current = -1;
+    for (const ev of list) {
+      if (ev.type === 'inst') { wanted = ev.instrument; continue; }
+      if (ev.type === 'note') {
+        const instrument = articulate(wanted, ev.length);
+        if (instrument !== current) { out.push({ type: 'inst', instrument }); current = instrument; }
+      }
+      out.push(ev);
+    }
+    return out;
+  };
 
   const patterns = [];
   const voices = [[LEAD, LEAD_ORDER, 'lead'], [BASS, BASS_ORDER, 'bass'], [CHORD, CHORD_ORDER, 'chord']].map(([table, orderText, voice]) => {
     const index = {};
-    for (const [name, text] of Object.entries(table)) index[name] = patterns.push({ name: `${voice} ${name}`, events: parseNotes(text) }) - 1;
+    for (const [name, text] of Object.entries(table)) index[name] = patterns.push({ name: `${voice} ${name}`, events: played(parseNotes(text)) }) - 1;
     const entries = orderText.trim().split(/\s+/).map((name) => ({ pattern: index[name], transpose: 0 }));
     return [...entries, { stop: true }];
   });

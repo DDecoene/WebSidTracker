@@ -330,6 +330,8 @@ export function previewSong(instrumentIndex, pitch, speed = 4, length = 16) {
 // Chords per bar: Am F C G. Voice 1 bass, voice 2 lead, voice 3 drums.
 // Reuse: the same bass and chord patterns are played on every chord by changing only the
 // order-list transpose; the whole tune loops.
+// This small version stays as it is: the tests use it as a known song. The Demos menu plays the
+// worked-out version of the tune (demos/original.js).
 export function demoProject() {
   const n = (name) => parseNoteName(name);
   const note = (name, length) => ({ type: 'note', pitch: n(name), length });

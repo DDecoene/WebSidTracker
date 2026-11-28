@@ -12,24 +12,36 @@
 // In a thick passage of the fugue, where more notes sound than three voices can play, the notes
 // between the lowest and the highest of voice 2 are left out.
 //
-// Time: speed 1, so one tick is one frame (20 ms). Every note and rest has the length of the
-// score, scaled by one fixed number in each section, because the piece changes tempo. The
-// lengths in the score are in 1/1536 of a bar (a thirty-second note is 48 of them):
-//   bars 1-3      Adagio            12 per tick  (a thirty-second note is 4 ticks)
-//   bars 4-27     Prestissimo       16 per tick  (a triplet sixteenth is 4 ticks)
+// Time, in two steps. First the notes below are written in *score ticks*: the length of the
+// score, scaled by one fixed number in each section. The lengths in the score are in 1/1536 of
+// a bar (a thirty-second note is 48 of them):
+//   bars 1-3      Adagio            12 per score tick  (a thirty-second note is 4)
+//   bars 4-27     Prestissimo       16 per score tick  (a triplet sixteenth is 4)
 //   bars 28-129   chords, fugue,
-//                 recitative        12 per tick  (a sixteenth note is 8 ticks: 94 quarters a minute)
-//   bars 130-132  Adagissimo         8 per tick
-//   bars 133-140  Presto, Adagio    12 per tick
-//   bars 141-143  Molto adagio       8 per tick
-// The fermatas are held a little longer, as extra ticks: the three As of the opening and the
-// rests after the first two phrases, the pauses in bars 5 and 7, bar 12, the chords of bars 127
-// and 133, and the last chord. The mordent on the three As of the opening is written out (A G A).
-// The one place where a note does not fit on a whole tick: the two sixty-fourth notes of bar 19
-// (1.5 ticks each) get 1 and 2 ticks, joined with a legato marker.
+//                 recitative        12 per score tick  (a sixteenth note is 8)
+//   bars 130-132  Adagissimo         8 per score tick
+//   bars 133-140  Presto, Adagio    12 per score tick
+//   bars 141-143  Molto adagio       8 per score tick
+// The fermatas are held a little longer, as extra score ticks: the three As of the opening and
+// the rests after the first two phrases, the pauses in bars 5 and 7, bar 12, the chords of bars
+// 127 and 133, and the last chord. The mordent on the three As of the opening is written out
+// (A G A, joined with legato markers so that it is one organ note that changes pitch). The ends
+// of the opening phrases (the Ds, and the D chord of bar 3) and the As before the pauses of bars
+// 5 and 7 ring on into the rest, the way an organ does in a church; the score has short notes and
+// long rests there.
+// The two sixty-fourth notes of bar 19 (1.5 score ticks each) get 1 and 2, joined with a legato
+// marker.
 //
-// Notes are written as "A5:1" = note A5, 1 tick long; "r:8" = a rest of 8 ticks; "i2" = switch to
-// instrument 2; "l" = legato marker. Octaves follow noteName(): A4 = 440 Hz. One bar per line.
+// Then TEMPO (below) turns score ticks into played ticks: the speed is 1, so a played tick is
+// one frame (20 ms). That is where the playing tempo lives: a slow, free Adagio, the runs a
+// little slower than the score ticks, a broader fugue, ritardandos at the ends of the big
+// sections. Every voice goes through the same TEMPO and every start and end is rounded to the
+// nearest whole tick, so the voices stay together and a run keeps an even pulse where the
+// factor makes its note value a whole number of ticks.
+//
+// Notes are written as "A5:1" = note A5, 1 score tick long (a fraction is allowed: TEMPO rounds
+// it); "r:8" = a rest of 8 score ticks; "i2" = switch to instrument 2; "l" = legato marker.
+// Octaves follow noteName(): A4 = 440 Hz. One bar per line.
 //
 // Part of the WebSidTracker web app, GPL version 3 or later (see ../../LICENSE).
 
@@ -39,7 +51,7 @@ export const info = {
   id: 'toccata',
   title: 'Toccata in D minor',
   composer: 'J. S. Bach (attributed), arranged for SID',
-  note: 'The whole organ piece, bar for bar: the famous opening, the runs and chords, the fugue and the closing recitative, with the fermatas held. Pulse organ in two voices, an arpeggio instrument for held chords, pedal bass.',
+  note: 'The whole organ piece, bar for bar: the famous opening, the runs and chords, the fugue and the closing recitative, with the fermatas held. Two sweeping pulse organ voices with a late vibrato, soft arpeggio chords, a pedal that flutters with its octave.',
   source: 'Score: Toccata and Fugue in D Minor, BWV 565, from the Bach-Gesellschaft Ausgabe (1867), typeset for the Mutopia Project (piece 1780, www.mutopiaproject.org), public domain.',
 };
 
@@ -49,22 +61,38 @@ const SPEED = 1;
 // instruments (instrument 3 + k flutters between the note and the note + ARP_OFFSETS[k]).
 const LEAD = 0, MID = 1, PEDAL = 2, ARP_FIRST = 3;
 const ARP_OFFSETS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+// The chords whose two notes get the octave of the lower note as a third note (arp2 = 12): the
+// thirds, fourths, fifths and sixths. The seconds, the tritone and the sevenths stay two notes,
+// and so does the octave itself.
+const CHORD_WITH_OCTAVE = new Set([3, 4, 5, 7, 8, 9]);
 
 function instruments() {
   const base = defaultInstrument();
-  // Organ: a pulse wave at full sustain with a short attack. The width moves slowly around 50
-  // percent so that two voices on the same note do not simply add up; no vibrato, an organ has none.
-  const organ = (name, pw, pwStep, pwMin, pwMax) => ({
-    ...base, name, wave: 0x40, ad: 0x10, sr: 0xF0, pw, pwStep, pwMin, pwMax, release: 1,
-  });
+  // Every instrument has decay 0: then the player needs only one frame to close a note
+  // (release 1), and a run of 4- and 5-frame notes stays legato. (With a decay above 0 the
+  // player takes two frames, and half of every short note would be silence.)
+  // The sound is in what moves while a note plays: the pulse width sweeps wide (the fat sound),
+  // a held note gets a gentle vibrato after half a second, the pedal flutters with its octave.
+  const pulse = (name, fields) => ({ ...base, name, wave: 0x40, ad: 0x10, sr: 0xF0, release: 1, ...fields });
   const list = [];
-  list[LEAD] = organ('Organ lead', 0x0800, 3, 0x60, 0xA0);
-  list[MID] = organ('Organ second voice', 0x0600, -3, 0x50, 0x90);
-  list[PEDAL] = { // a narrow pulse: the low notes keep their edge
-    ...base, name: 'Pedal', wave: 0x40, ad: 0x10, sr: 0xF0, pw: 0x0500, pwStep: 0, pwMin: 0x20, pwMax: 0xE0, release: 1,
-  };
+  // Lead: the width sweeps between 19 and 69 percent, one way in about 1.3 seconds.
+  list[LEAD] = pulse('Organ lead', {
+    pw: 0x0400, pwStep: 32, pwMin: 0x30, pwMax: 0xB0, vibDelay: 25, vibDepth: 3, vibSpeed: 4,
+  });
+  // Second voice: the other way round and at another rate, with a vibrato of another speed, so
+  // that the octaves of the opening float against the lead instead of adding up to one wave.
+  list[MID] = pulse('Organ second voice', {
+    pw: 0x0A00, pwStep: -23, pwMin: 0x28, pwMax: 0xC0, vibDelay: 30, vibDepth: 2, vibSpeed: 6,
+  });
+  // Pedal: a narrow pulse that sweeps slowly, fluttering with its octave above (arp 12): the
+  // sound of a 16-foot and an 8-foot stop together, and the classic C64 bass.
+  list[PEDAL] = pulse('Pedal', { pw: 0x0300, pwStep: 10, pwMin: 0x18, pwMax: 0x70, arp: 12 });
+  // Chords: softer than the lines (sustain 10 of 15), so that the shimmer stays behind the tune.
   ARP_OFFSETS.forEach((semitones, k) => {
-    list[ARP_FIRST + k] = { ...organ(`Chord +${semitones}`, 0x0600, -3, 0x50, 0x90), arp: semitones };
+    list[ARP_FIRST + k] = pulse(`Chord +${semitones}`, {
+      sr: 0xA0, pw: 0x0600, pwStep: -17, pwMin: 0x30, pwMax: 0xA0,
+      arp: semitones, arp2: CHORD_WITH_OCTAVE.has(semitones) ? 12 : 0,
+    });
   });
   return list;
 }
@@ -88,14 +116,14 @@ function events(text) {
 const VOICES = [
   [
     `
-      i0 A5:2 G5:2 A5:36 r:4 G5:2 F5:2 E5:2 D5:2 C#5:4 D5:8 r:54 A4:2 G4:2 A4:36 r:4 E4:4 F4:4 C#4:4 D4:8 r:54
-      A3:2 G3:2 A3:36 r:4 G3:2 F3:2 E3:2 D3:2 C#3:4 D3:8 r:80 E4:64 D4:32 r:56 C#4:8
+      i0 A5:1.6 l G5:1.6 l A5:36.8 r:4 G5:2 F5:2 E5:2 D5:2 C#5:4 D5:24 r:38 A4:1.6 l G4:1.6 l A4:36.8 r:4 E4:4 F4:4 C#4:4 D4:24 r:38
+      A3:1.6 l G3:1.6 l A3:36.8 r:4 G3:2 F3:2 E3:2 D3:2 C#3:4 D3:24 r:64 E4:64 D4:56 r:32 C#4:8
       D4:4 E4:4 C#4:4 D4:4 E4:4 C#4:4 D4:4 E4:4 C#4:4 D4:6 E4:6 F4:4 G4:4 E4:4 F4:4 G4:4 E4:4 F4:4 G4:4 E4:4 F4:6 G4:6
-      A4:4 A#4:4 G4:4 A4:4 A#4:4 G4:4 A4:4 A#4:4 G4:4 A4:6 r:98 C#5:6
+      A4:4 A#4:4 G4:4 A4:4 A#4:4 G4:4 A4:4 A#4:4 G4:4 A4:24 r:80 C#5:6
     `,
     `
       i0 D5:4 E5:4 C#5:4 D5:4 E5:4 C#5:4 D5:4 E5:4 C#5:4 D5:6 E5:6 F5:4 G5:4 E5:4 F5:4 G5:4 E5:4 F5:4 G5:4 E5:4 F5:6 G5:6
-      A5:4 A#5:4 G5:4 A5:4 A#5:4 G5:4 A5:4 A#5:4 G5:4 A5:6 r:98 A5:6
+      A5:4 A#5:4 G5:4 A5:4 A#5:4 G5:4 A5:4 A#5:4 G5:4 A5:24 r:80 A5:6
       G5:4 A#5:4 E5:4 G5:4 A#5:4 E5:4 F5:4 A5:4 D5:4 F5:4 A5:4 D5:4 E5:4 G5:4 C5:4 E5:4 G5:4 C5:4 D5:4 F5:4 A#4:4 D5:4 F5:4 A#4:4
       C5:4 E5:4 A4:4 C5:4 E5:4 A4:4 A#4:4 D5:4 G4:4 A#4:4 D5:4 G4:4 A4:4 C5:4 F4:4 A4:4 C5:4 F4:4 G4:4 A#4:4 E4:4 G4:4 A#4:4 E4:4
     `,
@@ -274,14 +302,14 @@ const VOICES = [
   ],
   [
     `
-      i1 A4:2 G4:2 A4:36 r:4 G4:2 F4:2 E4:2 D4:2 C#4:4 D4:8 r:54 A3:2 G3:2 A3:36 r:4 E3:4 F3:4 C#3:4 D3:8 r:54
-      A2:2 G2:2 A2:36 r:4 G2:2 F2:2 E2:2 D2:2 C#2:4 D2:8 r:80 i14 C#3:64 i9 D3:8 D3:8 D3:16 r:56 i1 C#3:8
+      i1 A4:1.6 l G4:1.6 l A4:36.8 r:4 G4:2 F4:2 E4:2 D4:2 C#4:4 D4:24 r:38 A3:1.6 l G3:1.6 l A3:36.8 r:4 E3:4 F3:4 C#3:4 D3:24 r:38
+      A2:1.6 l G2:1.6 l A2:36.8 r:4 G2:2 F2:2 E2:2 D2:2 C#2:4 D2:24 r:64 i14 C#3:64 i9 D3:8 D3:8 D3:40 r:32 i1 C#3:8
       D3:4 E3:4 C#3:4 D3:4 E3:4 C#3:4 D3:4 E3:4 C#3:4 D3:6 E3:6 F3:4 G3:4 E3:4 F3:4 G3:4 E3:4 F3:4 G3:4 E3:4 F3:6 G3:6
-      A3:4 A#3:4 G3:4 A3:4 A#3:4 G3:4 A3:4 A#3:4 G3:4 A3:6 r:98 C#4:6
+      A3:4 A#3:4 G3:4 A3:4 A#3:4 G3:4 A3:4 A#3:4 G3:4 A3:24 r:80 C#4:6
     `,
     `
       i1 D4:4 E4:4 C#4:4 D4:4 E4:4 C#4:4 D4:4 E4:4 C#4:4 D4:6 E4:6 F4:4 G4:4 E4:4 F4:4 G4:4 E4:4 F4:4 G4:4 E4:4 F4:6 G4:6
-      A4:4 A#4:4 G4:4 A4:4 A#4:4 G4:4 A4:4 A#4:4 G4:4 A4:6 r:98 A4:6
+      A4:4 A#4:4 G4:4 A4:4 A#4:4 G4:4 A4:4 A#4:4 G4:4 A4:24 r:80 A4:6
       G4:4 A#4:4 E4:4 G4:4 A#4:4 E4:4 F4:4 A4:4 D4:4 F4:4 A4:4 D4:4 E4:4 G4:4 C4:4 E4:4 G4:4 C4:4 D4:4 F4:4 A#3:4 D4:4 F4:4 A#3:4
       C4:4 E4:4 A3:4 C4:4 E4:4 A3:4 A#3:4 D4:4 G3:4 A#3:4 D4:4 G3:4 A3:4 C4:4 F3:4 A3:4 C4:4 F3:4 G3:4 A#3:4 E3:4 G3:4 A#3:4 E3:4
     `,
@@ -482,11 +510,97 @@ const VOICES = [
   ],
 ];
 
+// Where bar n starts, in score ticks. Each section has its own bar length, and the bars with a
+// fermata are longer by the extra ticks given to it.
+const SECTIONS = [[1, 128], [4, 96], [28, 128], [130, 192], [133, 128], [141, 192]];   // [first bar, score ticks per bar]
+const FERMATA_EXTRA = { 1: 108, 2: 48, 5: 50, 7: 50, 12: 30, 127: 30, 133: 30, 143: 60 };
+export function barStart(n) {
+  let tick = 0;
+  for (let bar = 1; bar < n; bar++) {
+    tick += SECTIONS.filter(([first]) => first <= bar).at(-1)[1] + (FERMATA_EXTRA[bar] ?? 0);
+  }
+  return tick;
+}
+
+// The playing tempo: how many played ticks (frames) one score tick lasts, from a point in the
+// score on. { at, factor } holds the factor from that point; { at, factor, ramp: true } moves it
+// evenly from the factor before to this one, arriving at this point (a ritardando when it grows).
+// The factors are picked so that the main note value of a passage is a whole number of ticks.
+const TEMPO = [
+  { at: barStart(1), factor: 2.5 },                     // Adagio: a thirty-second note 10 ticks, the held As 2 seconds
+  { at: barStart(4), factor: 1.25 },                    // Prestissimo: a triplet sixteenth 5 ticks (100 ms)
+  { at: barStart(11), factor: 4 / 3 },                  // the thirty-second runs: 4 ticks each, a sixteenth 8
+  { at: barStart(22), factor: 1.25 },                   // triplet sixteenths again: 5 ticks
+  { at: barStart(29), factor: 1.25 },
+  { at: barStart(30), factor: 1.75, ramp: true },       // a ritardando into the fugue
+  { at: barStart(30), factor: 1.25 },                   // the fugue: a sixteenth 10 ticks, a quarter 75 a minute
+  { at: barStart(126), factor: 1.25 },
+  { at: barStart(127), factor: 1.75, ramp: true },      // a ritardando into the big chord of bar 127
+  { at: barStart(127) + 94, factor: 1 },                // Recitativo: the thirty-second runs free and fast, 4 ticks
+  { at: barStart(130), factor: 1.5 },                   // Adagissimo
+  { at: barStart(133), factor: 1.75 },                  // the chord of bar 133
+  { at: barStart(133) + 94, factor: 1 },                // Presto
+  { at: barStart(136) + 96, factor: 1.25 },             // Adagio: a sixteenth 20 ticks
+  { at: barStart(140), factor: 1.25 },
+  { at: barStart(141), factor: 1.5, ramp: true },
+  { at: barStart(141), factor: 1.5 },                   // Molto adagio
+  { at: barStart(143), factor: 1.5 },
+  { at: barStart(144), factor: 2, ramp: true },         // the last chord broadens
+];
+
+// The played tick of a score position (not rounded).
+export function warp(position) {
+  let played = 0;
+  for (let k = 0; k < TEMPO.length; k++) {
+    const from = TEMPO[k].at;
+    if (position <= from) break;
+    const next = TEMPO[k + 1];
+    const to = Math.min(position, next ? next.at : Infinity);
+    if (next && next.ramp) {
+      const slope = (next.factor - TEMPO[k].factor) / (next.at - from);
+      const end = TEMPO[k].factor + slope * (to - from);
+      played += (TEMPO[k].factor + end) / 2 * (to - from);
+    } else {
+      played += TEMPO[k].factor * (to - from);
+    }
+  }
+  return played;
+}
+
+// The events of one pattern with their lengths in played ticks. `at` is the score position the
+// pattern starts at; returns the events and the score position after them. A note or rest longer
+// than the pattern format allows (255) is split: a note into tied notes with legato markers.
+function played(list, at) {
+  const merged = [];   // rests in a row become one rest first, so that splitting them again costs fewer events
+  for (const e of list) {
+    if (e.type === 'rest' && merged.at(-1)?.type === 'rest') merged.at(-1).length += e.length;
+    else merged.push({ ...e });
+  }
+  const out = [];
+  for (const e of merged) {
+    if (e.type !== 'note' && e.type !== 'rest') { out.push(e); continue; }
+    const start = Math.round(warp(at));
+    at += e.length;
+    let length = Math.round(warp(at)) - start;
+    if (length < 1) throw new Error(`toccata: a ${e.type} at score tick ${at - e.length} is shorter than one tick`);
+    while (length > 255) {
+      out.push({ ...e, length: 255 });
+      if (e.type === 'note') out.push({ type: 'legato' });
+      length -= 255;
+    }
+    out.push({ ...e, length });
+  }
+  return { events: out, at };
+}
+
 export function build() {
   const patterns = [];
   const orders = VOICES.map((list, voice) => {
+    let at = 0;
     const order = list.map((text, k) => {
-      patterns.push({ name: `voice ${voice + 1} part ${k + 1}`, events: events(text) });
+      const part = played(events(text), at);
+      at = part.at;
+      patterns.push({ name: `voice ${voice + 1} part ${k + 1}`, events: part.events });
       return { pattern: patterns.length - 1, transpose: 0 };
     });
     order.push({ stop: true });

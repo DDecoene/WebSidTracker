@@ -11,10 +11,11 @@
 // Speed 5 (5 frames per tick, 30 frames per quarter) gives exactly 100 quarters per minute.
 //
 // The four parts of the score are soprano (the tune), alto, tenor and bass. Voices:
-//   1  the tune (soprano), a bright pulse with a late vibrato on long notes
+//   1  the tune (soprano), a pulse with a wide sweep and a late vibrato on long notes; in round 2 an
+//      octave up, with a quicker sweep and a deeper vibrato
 //   2  the inner harmony: round 1 the alto line, round 2 the tenor and alto in alternation (an eighth
 //      note each), a broken-chord figure that keeps the harmony of both inner parts
-//   3  the bass line, a triangle
+//   3  the bass line, a triangle; in round 2 a pulse that flutters with its octave
 // There are no drums: the tune is the point, and three voices are all there is.
 //
 // Form: round 1 (16 bars = 384 ticks = 38.4 s), round 2 with the tune an octave higher and the inner
@@ -32,7 +33,7 @@ export const info = {
   id: 'ode-to-joy',
   title: 'Ode to Joy',
   composer: 'L. van Beethoven (public domain), arranged for SID',
-  note: 'The famous theme from the end of the Ninth Symphony in G major, at the score tempo of 100: a bright lead, the inner parts as harmony (in the second round as broken chords) and a triangle bass.',
+  note: 'The famous theme from the end of the Ninth Symphony in G major, at the score tempo of 100, in two rounds: a sweeping pulse lead, the inner parts and a triangle bass; then the tune an octave up over broken chords and an octave-fluttering bass.',
   source: {
     url: 'https://www.mutopiaproject.org/cgibin/piece-info.cgi?id=528',
     files: 'https://www.mutopiaproject.org/ftp/BeethovenLv/ode/ode.ly',
@@ -75,18 +76,26 @@ export const SLOT = 3;   // an eighth note: the step of the broken-chord figure 
 
 // ---------------------------------------------------------------- instruments
 
-const [BASS_INST, LEAD, INNER] = [0, 1, 2];
+const [BASS_INST, LEAD, INNER, LEAD_HIGH, BASS_HIGH] = [0, 1, 2, 3, 4];
 
 function instruments() {
   const make = (fields) => ({ ...defaultInstrument(), ...fields });
   return [
     // Triangle bass: attack 0 is safe on a triangle (the oscillator restarts at zero), a short decay settles to sustain 12.
     make({ name: 'Bass', wave: 0x10, ad: 0x08, sr: 0xC0, release: 2 }),
-    // Lead: pulse around 50 percent (40 to 60) with a slow sweep, loudest sustain (14), vibrato only after 16 frames.
-    make({ name: 'Lead', wave: 0x40, ad: 0x18, sr: 0xE0, pw: 0x0800, pwStep: 4, pwMin: 0x68, pwMax: 0x98,
+    // Lead: a pulse whose width sweeps between 25 and 75 percent (about a second each way), the loudest
+    // sustain (14), vibrato only after 16 frames, so only the half notes and the dotted quarters get it.
+    make({ name: 'Lead', wave: 0x40, ad: 0x18, sr: 0xE0, pw: 0x0600, pwStep: 16, pwMin: 0x40, pwMax: 0xC0,
       vibDelay: 16, vibDepth: 5, vibSpeed: 6, release: 2 }),
-    // Inner parts: a thinner pulse (about 25 percent), clearly softer (sustain 7) so the tune stays on top.
-    make({ name: 'Inner', wave: 0x40, ad: 0x19, sr: 0x70, pw: 0x0400, pwStep: 3, pwMin: 0x30, pwMax: 0x58, release: 2 }),
+    // Inner parts: a thinner pulse (about 25 percent) with its own slow sweep, clearly softer (sustain 7)
+    // so the tune stays on top.
+    make({ name: 'Inner', wave: 0x40, ad: 0x19, sr: 0x70, pw: 0x0400, pwStep: -6, pwMin: 0x28, pwMax: 0x70, release: 2 }),
+    // Round 2, the lead an octave up: a quicker, wider sweep and a deeper vibrato that comes in sooner.
+    make({ name: 'Lead, round 2', wave: 0x40, ad: 0x18, sr: 0xE0, pw: 0x0400, pwStep: 30, pwMin: 0x30, pwMax: 0xD0,
+      vibDelay: 12, vibDepth: 7, vibSpeed: 4, release: 2 }),
+    // Round 2, the bass: a narrow pulse that flutters with its octave above (arp 12), fuller than the
+    // triangle, under the broken chords.
+    make({ name: 'Bass, round 2', wave: 0x40, ad: 0x08, sr: 0xA0, pw: 0x0300, pwStep: 8, pwMin: 0x18, pwMax: 0x60, arp: 12, release: 2 }),
   ];
 }
 
@@ -140,15 +149,17 @@ export function build() {
   const entry = (pattern, transpose = 0) => ({ pattern, transpose });
 
   const tune = phrases('tune', LEAD, SOPRANO);
+  const tuneHigh = phrases('tune round 2', LEAD_HIGH, SOPRANO);
   const alto = phrases('inner', INNER, ALTO);
   const chords = [0, 1, 2, 3].map((i) => add(`inner chords ${i + 1}`, INNER, brokenChords(TENOR[i], ALTO[i])));
   const bass = phrases('bass', BASS_INST, BASS);
+  const bassHigh = phrases('bass round 2', BASS_HIGH, BASS);
 
   const round = (ids, transpose = 0) => ids.map((id) => entry(id, transpose));
   const orders = [
-    [...round(tune), ...round(tune, 12), { loop: 0 }],
+    [...round(tune), ...round(tuneHigh, 12), { loop: 0 }],
     [...round(alto), ...round(chords), { loop: 0 }],
-    [...round(bass), ...round(bass), { loop: 0 }],
+    [...round(bass), ...round(bassHigh), { loop: 0 }],
   ];
 
   return {
