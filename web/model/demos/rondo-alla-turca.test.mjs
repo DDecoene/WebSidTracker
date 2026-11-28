@@ -81,7 +81,10 @@ test('the project is valid, has no warnings and fits the player', () => {
     assert.ok(bytes <= LIMITS.maxPatternBytes, `pattern ${n} is ${bytes} bytes`);
   }
   for (const list of song.orders) assert.ok(list.length <= LIMITS.maxEntries);
-  for (const inst of instruments) assert.ok(inst.release >= 1 && inst.release <= 2, `${inst.name}: release ${inst.release}`);
+  for (const inst of instruments) {
+    assert.ok(inst.release >= 1 && inst.release <= 4, `${inst.name}: release ${inst.release}`);
+    if (inst.release === 1) assert.equal(inst.ad & 0x0F, 0, `${inst.name}: a release of 1 frame needs decay 0`);
+  }
   assert.ok(serialiseSong(song, LIMITS.songBase).size < 8000);
   assert.equal(song.speed, 1, 'one tick per frame: a quarter note is 24 frames, 125 per minute');
 });
@@ -163,15 +166,16 @@ test('the notes and rhythm of every voice are those of the source (checksum of s
   assert.deepEqual([0, 1, 2].map(sum), ['8498145d3a96', 'eb91e04ae9e9', 'b487e7b25ea4']);
 });
 
-test('sound design: the lead is the loudest, pulse widths and vibrato are in range, arpeggios only in chords', () => {
+test('sound design: the lead is the loudest, its pulse sweeps wide, vibrato only late, arpeggios only in chords', () => {
   const lead = instruments[voices[0].notes[0].instrument];
   assert.equal(lead.wave, 0x40);
-  assert.ok(lead.pw >= 0x666 && lead.pw <= 0x999, 'start width 40 to 60 percent');
-  assert.ok(lead.pwMin * 16 >= 0x666 && lead.pwMax * 16 <= 0x999, 'the sweep stays in 40 to 60 percent');
+  assert.ok(lead.pw >= 0x300 && lead.pw <= 0xD00, 'start width 20 to 80 percent');
+  assert.ok(lead.pwStep !== 0 && lead.pwMin * 16 >= 0x300 && lead.pwMax * 16 <= 0xD00, 'the sweep moves and stays in 20 to 80 percent');
   assert.ok(lead.vibDelay >= 10, 'vibrato only on long notes');
-  assert.equal(lead.sr >> 4, 15);
   const used = (voice) => new Set(voices[voice].notes.map((n) => n.instrument));
-  assert.deepEqual([...used(0)], [0]);
+  for (const i of used(1)) assert.ok(instruments[i].sr >> 4 < lead.sr >> 4, 'the bass is softer than the lead');
+  for (const i of used(2)) assert.ok(instruments[i].sr >> 4 < lead.sr >> 4, 'the chords are softer than the lead');
+  assert.deepEqual([...used(0)].sort((a, b) => a - b), [0, 10]);    // the lead, and its short variant for the turns
   for (const i of used(1)) { assert.equal(instruments[i].arp, 0); assert.equal(instruments[i].vibDepth, 0); assert.ok(instruments[i].sr >> 4 < 15); }
   for (const i of used(2)) { assert.ok(instruments[i].arp > 0); assert.ok(instruments[i].sr >> 4 < 15); }
   for (const inst of instruments) assert.equal(inst.drumNoise, 0, 'no drums');
