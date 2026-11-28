@@ -1,6 +1,7 @@
 // Checks the Für Elise demo against the notes of the score it was made from (see info.source):
 // the project is valid and fits, it survives the byte format, the notes of every voice are the notes
-// of the source in the same order and at the same tick, and the real player plays them on the right frame.
+// of the source in the same order and at the same tick (score()), and the real player plays the song
+// as it is played (build(), the score at its playing tempo) on the right frame.
 //
 // The expected values below come from the machine-readable files of the source edition (the MIDI file
 // and the LilyPond text of the same piece agree on every pitch), not from this module. Times are in
@@ -16,16 +17,17 @@ import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 
 import { Cpu6502 } from '../../cpu/cpu6502.js';
-import { info, build, events, SPEED, BAR, DYADS } from './fur-elise.js';
+import { info, build, score, events, sixteenthFrames, SPEED, BAR, DYADS } from './fur-elise.js';
 import { LIMITS, lint, noteName, songSizeInfo, validate } from '../project.js';
 import { INSTRUMENT_TABLES, parseSong, serialiseInstruments, serialiseSong } from '../serialise.js';
 
-const project = build();
+const project = score();          // the notes as written, in score ticks
 const { song } = project;
+const playing = build();          // the song as it plays, in frames
 const name = (pitch) => noteName(pitch).replace('-', '');
 
 // What a voice plays in one pass: [{ start, length, pitch, instrument }] in ticks, the loop entry ends it.
-function expand(voice) {
+function expand(voice, song = project.song) {
   const notes = [];
   let tick = 0;
   for (const entry of song.orders[voice]) {
@@ -93,7 +95,7 @@ test('serialise and parse give the same song', () => {
   assert.deepEqual(back, unnamed);
 });
 
-test('timing: every voice has the same length, section by section', () => {
+test('timing of the score: every voice has the same length, section by section', () => {
   assert.equal(SPEED, 2);
   assert.equal(song.speed, SPEED);
   assert.equal(BAR, 36);
@@ -104,6 +106,27 @@ test('timing: every voice has the same length, section by section', () => {
   for (const order of song.orders) assert.deepEqual(order.at(-1), { loop: 0 });
   // every note starts on the grid of the shortest note value (a thirty-second note is 3 ticks, a triplet note 4)
   for (const v of voices) for (const n of v.notes) assert.ok(n.length >= 2 && Number.isInteger(n.start));
+});
+
+test('the played song: speed 1, a sixteenth of 10 frames, the voices together, ritardandos at the ends', () => {
+  assert.equal(playing.song.speed, 1);
+  const out = [0, 1, 2].map((v) => expand(v, playing.song));
+  assert.equal(out[1].ticks, out[0].ticks);
+  assert.equal(out[2].ticks, out[0].ticks);
+  const seconds = out[0].ticks / 50;
+  assert.ok(seconds > 145 && seconds < 165, `${seconds} seconds`);
+  // the theme: E D# E D# E B D C, a sixteenth of 10 frames each
+  assert.deepEqual(out[0].notes.slice(0, 8).map((n) => n.length), [10, 10, 10, 10, 10, 10, 10, 10]);
+  assert.deepEqual(out[0].notes.slice(0, 9).map((n) => n.start), [0, 10, 20, 30, 40, 50, 60, 70, 80]);
+  assert.deepEqual(sixteenthFrames('C28'), [12, 12]);        // the triplet arpeggio: 8 frames a note
+  assert.ok(sixteenthFrames('C40')[1] > sixteenthFrames('C40')[0]);
+  // every note starts at the same moment in the played song as in the score, scaled by the tempo:
+  // so the three voices that start together in the score still start together
+  const startsScore = new Set(voices[0].notes.map((n) => n.start));
+  const together = voices[1].notes.filter((n) => startsScore.has(n.start)).length;
+  const playedLead = new Set(out[0].notes.map((n) => n.start));
+  const togetherPlayed = out[1].notes.filter((n) => playedLead.has(n.start)).length;
+  assert.equal(togetherPlayed, together);
 });
 
 test('the opening phrases are the notes of the score', () => {
@@ -131,15 +154,27 @@ test('the voices keep their roles: lead above the left hand, no drums, lead has 
   assert.deepEqual([...used].sort((a, b) => a - b), [...DYADS]);
 });
 
-test('vibrato is only on the lead and starts late; pulse width stays between 40 and 60 percent', () => {
+test('vibrato is only on the lead and starts late; the lead pulse sweeps wide but stays away from the edges', () => {
   const lead = project.instruments[0];
   assert.ok(lead.vibDelay >= 10 && lead.vibDepth > 0);
-  assert.ok(lead.pwMin * 16 / 4096 >= 0.39 && lead.pwMax * 16 / 4096 <= 0.61);
+  assert.ok(lead.pwStep !== 0);
+  assert.ok(lead.pwMin * 16 / 4096 >= 0.2 && lead.pwMax * 16 / 4096 <= 0.8);
   project.instruments.slice(1).forEach((inst) => assert.equal(inst.vibDepth, 0));
 });
 
+test('like a piano, every note strikes at once and dies away (attack 0, a decay, a lower sustain)', () => {
+  for (const inst of project.instruments.slice(0, 4 + DYADS.length)) {
+    assert.equal(inst.ad >> 4 <= 2, true, inst.name);
+    assert.ok((inst.ad & 0x0F) >= 8, inst.name);
+    assert.ok((inst.sr >> 4) < 12, inst.name);
+  }
+});
+
 // ---- the real player: every note starts on the frame of its tick, with the right pitch and length
-test('the real player plays every note on the right frame', () => {
+test('the real player plays every note of the played song on the right frame', () => {
+  const project = playing;
+  const { song } = playing;
+  const voices = [0, 1, 2].map((v) => expand(v, song));
   const root = new URL('../../player/', import.meta.url);
   const prg = new Uint8Array(readFileSync(new URL('player.prg', root)));
   const symbols = JSON.parse(readFileSync(new URL('symbols.json', root), 'utf8'));
@@ -168,7 +203,7 @@ test('the real player plays every note on the right frame', () => {
   cpu.a = LIMITS.songBase & 255;
   cpu.x = LIMITS.songBase >> 8;
   cpu.call(symbols.music_init, 100000);
-  for (frame = 0; frame < TOTAL_TICKS * SPEED; frame++) {
+  for (frame = 0; frame < voices[0].ticks; frame++) {
     cpu.call(symbols.music_play, 100000);
     played.forEach((list, v) => { if (list.length && list.at(-1).on === frame) list.at(-1).pitch = ram[symbols.st_pitch + v]; });
   }
@@ -176,7 +211,8 @@ test('the real player plays every note on the right frame', () => {
     assert.equal(played[v].length, voice.notes.length, `voice ${v + 1}: number of notes`);
     voice.notes.forEach((n, i) => {
       const got = played[v][i];
-      const want = { on: n.start * SPEED, off: (n.start + n.length) * SPEED - 2, pitch: n.pitch };   // the gate closes release (2) frames early
+      const release = project.instruments[n.instrument].release;
+      const want = { on: n.start, off: n.start + n.length - release, pitch: n.pitch };   // the gate closes release frames early
       assert.deepEqual(got, want, `voice ${v + 1} note ${i}`);
     });
   });
