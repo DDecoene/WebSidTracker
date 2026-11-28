@@ -11,9 +11,10 @@ import { DEMOS, findDemo, demoLabel } from './index.js';
 import { lint, songSizeInfo, validate } from '../project.js';
 import { parseSong, serialiseSong } from '../serialise.js';
 
-test('seven demos, the original tune first, ids unique', () => {
-  assert.equal(DEMOS.length, 7);
-  assert.equal(DEMOS[0].id, 'original');
+test('eight demos, Pulse Drive first (a first visit starts with it), then the original tune, ids unique', () => {
+  assert.equal(DEMOS.length, 8);
+  assert.equal(DEMOS[0].id, 'pulse-drive');
+  assert.equal(DEMOS[1].id, 'original');
   assert.equal(new Set(DEMOS.map((d) => d.id)).size, DEMOS.length);
   assert.equal(findDemo('original').title, 'Original demo tune');
   assert.equal(findDemo('nope'), undefined);

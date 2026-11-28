@@ -6,9 +6,11 @@
 //
 // Time: the piece is in 3/8. One tick is a sixth of a sixteenth note, the smallest unit in which every
 // duration of the piece is a whole number: a sixteenth is 6 ticks, an eighth 12, a bar 36, a thirty-second
-// note 3, and the sixteenth-note triplets of the big arpeggio 4 ticks per note. Speed 2 means two frames
-// per tick: a quarter note (24 ticks) lasts 0.96 seconds, about 62 to the minute (the score says 72, "poco
-// moto"; with whole frames only this and the double speed are possible, and the double speed is far too fast).
+// note 3, and the sixteenth-note triplets of the big arpeggio 4 ticks per note. The patterns below are
+// in those score ticks (score() gives them as a song at speed 2). build() plays them at speed 1 (a tick
+// is a frame) through a tempo per section (sixteenthFrames): a sixteenth of 10 frames, a quarter of 75
+// (the score says 72, "poco moto"), the big triplet arpeggio a little broader so that its notes are a
+// whole 8 frames, and ritardandos where a section ends. Every start and end is rounded to a frame.
 //
 // Voices (the three SID voices mix equally, so the melody has the highest sustain level):
 //   1  the right hand: the melody, the top note of every right-hand chord, a pulse with a slow sweep and a
@@ -40,7 +42,7 @@ export const info = {
   id: 'fur-elise',
   title: 'Für Elise',
   composer: 'L. van Beethoven (public domain), arranged for SID',
-  note: 'The whole bagatelle in three voices: the rondo theme on a pulse lead, the left hand on a triangle, the inner voices as arpeggio chords, with every repeat written out.',
+  note: 'The whole bagatelle in three voices, every repeat written out: the rondo theme on a breathing pulse lead, the left hand on a triangle, the inner voices as arpeggio chords, all dying away like piano strings.',
   source: 'Score: Mutopia Project, piano edition of Fur Elise WoO 59 from Breitkopf & Haertel 1888, typeset in LilyPond by Stelios Samelis, '
     + 'https://www.mutopiaproject.org/cgibin/piece-info.cgi?id=931 (licence: Public Domain). Music: Beethoven, public domain. The SID arrangement is original work.',
 };
@@ -58,7 +60,7 @@ export function events(text) {
   });
 }
 
-export const SPEED = 2;          // frames per tick
+export const SPEED = 2;          // frames per tick of score(); build() plays at speed 1
 export const BAR = 36;           // ticks per bar
 
 // ---------------------------------------------------------------- instruments
@@ -67,22 +69,31 @@ const [LEAD, LEFT, INNER, PEDAL] = [0, 1, 2, 3];
 
 // Arpeggio offsets (semitones) of the inner-voice dyads that occur, instrument 4 and up in this order.
 export const DYADS = [2, 3, 4, 6];
+// The short lead for grace notes comes after the dyad instruments.
+const LEAD_SHORT = 4 + DYADS.length;
 
 function instruments() {
   const make = (fields) => ({ ...defaultInstrument(), ...fields });
+  // A piano note does not hold its level: it strikes and dies away. So every instrument starts at
+  // once (attack 0) and decays towards a lower sustain while it is held; a long note fades, a quick
+  // run stays bright. The pulse width moves while the note sounds (the C64 "breathing" pulse).
   return [
-    // pulse near 50 percent, the width drifts slowly between 40 and 60 percent; the vibrato starts after
-    // 14 frames, so notes shorter than 7 ticks stay clean; highest sustain of the three voices
-    make({ name: 'Lead', wave: 0x40, ad: 0x15, sr: 0xE0, pw: 0x0800, pwStep: 3, pwMin: 0x66, pwMax: 0x99,
-      vibDelay: 14, vibDepth: 4, vibSpeed: 4, release: 2 }),
-    // round triangle, softer than the lead and below its range
-    make({ name: 'Left hand', wave: 0x10, ad: 0x14, sr: 0xC0, release: 2 }),
-    // a thinner pulse for the inner notes, a little lower in level
-    make({ name: 'Inner voice', wave: 0x40, ad: 0x15, sr: 0x90, pw: 0x0700, pwStep: 2, pwMin: 0x50, pwMax: 0xA0, release: 2 }),
-    // the pedal: fades in softly, held under the next figure
-    make({ name: 'Pedal', wave: 0x40, ad: 0x45, sr: 0x70, pw: 0x0800, release: 2 }),
+    // the melody: the width sweeps between 25 and 75 percent, a late vibrato that only the long notes
+    // reach; it falls to sustain 9 in about 0.75 s, the highest level of the three voices
+    make({ name: 'Lead', wave: 0x40, ad: 0x09, sr: 0x90, pw: 0x0600, pwStep: 14, pwMin: 0x40, pwMax: 0xC0,
+      vibDelay: 18, vibDepth: 4, vibSpeed: 4, release: 2 }),
+    // round triangle for the left hand, dying away a little quicker than the lead
+    make({ name: 'Left hand', wave: 0x10, ad: 0x08, sr: 0x60, release: 2 }),
+    // a thinner pulse for the inner notes, a little lower in level, its own slower sweep
+    make({ name: 'Inner voice', wave: 0x40, ad: 0x08, sr: 0x50, pw: 0x0500, pwStep: -9, pwMin: 0x30, pwMax: 0xA0, release: 2 }),
+    // the pedal: the bass note ringing on under the figure, as the piano's pedal keeps it; it comes in
+    // softly and dies away slowly
+    make({ name: 'Pedal', wave: 0x40, ad: 0x2A, sr: 0x30, pw: 0x0800, pwStep: 5, pwMin: 0x50, pwMax: 0xB0, release: 2 }),
     // dyads: the inner pulse flips between the note and the note plus the offset
-    ...DYADS.map((arp) => make({ name: `Inner dyad +${arp}`, wave: 0x40, ad: 0x15, sr: 0x90, pw: 0x0700, pwStep: 2, pwMin: 0x50, pwMax: 0xA0, arp, release: 2 })),
+    ...DYADS.map((arp) => make({ name: `Inner dyad +${arp}`, wave: 0x40, ad: 0x08, sr: 0x50, pw: 0x0500, pwStep: -9, pwMin: 0x30, pwMax: 0xA0, arp, release: 2 })),
+    // the lead for grace notes (4 frames or less): decay 0, so the player closes it in 1 frame and
+    // it sounds for the rest (with a decay it would need 2, and a 3-frame note would sound for 1)
+    make({ name: 'Lead short', wave: 0x40, ad: 0x00, sr: 0xA0, pw: 0x0600, release: 1 }),
   ];
 }
 
@@ -531,7 +542,9 @@ const ORDERS = {
 
 // ---------------------------------------------------------------- the project
 
-export function build() {
+// The score as written: patterns in score ticks (a sixteenth is 6) at speed 2, the way the notes were
+// read from the edition. The tests check the notes against the source with this.
+export function score() {
   const names = Object.keys(PATTERNS);
   const patterns = names.map((name) => ({ name, events: events(PATTERNS[name]) }));
   const order = (list) => [...list.map((name) => ({ pattern: names.indexOf(name), transpose: 0 })), { loop: 0 }];
@@ -544,4 +557,56 @@ export function build() {
       orders: [order(ORDERS.lead), order(ORDERS.left), order(ORDERS.inner)],
     },
   };
+}
+
+// ---------------------------------------------------------------- the playing tempo
+
+// Frames per sixteenth note, per section of the order list (the three voices have the same sections
+// at the same places, so they stay together). [from, to] moves evenly from one to the other through
+// the section: a ritardando. A sixteenth of 10 frames is a quarter of 75 (the score says 72, "poco
+// moto"); the big triplet arpeggio broadens to 12, so that its notes are a whole 8 frames.
+export function sixteenthFrames(section) {
+  if (['C28', 'C29', 'C30'].includes(section)) return [12, 12];
+  if (section === 'B ending 2') return [10, 13];   // a breath before the second section
+  if (section === 'C27') return [10, 12];          // the minor section winds down into the arpeggio
+  if (section === 'C40') return [10, 15];          // the last phrase slows to the end
+  return [10, 10];
+}
+
+// The played song: speed 1, one tick is a frame. Every start and end is rounded to the nearest frame.
+export function build() {
+  const source = score();
+  const sections = ORDERS.lead.map((name) => name.replace(/^lead /, ''));
+  const patterns = [];
+  const known = new Map();
+  const orders = source.song.orders.map((order) => {
+    let base = 0;      // frames before this section (not rounded)
+    const out = [];
+    order.forEach((entry, k) => {
+      if (entry.pattern === undefined) { out.push(entry); return; }
+      const pattern = source.song.patterns[entry.pattern];
+      const length = pattern.events.reduce((sum, ev) => sum + (ev.length || 0), 0);
+      const [s0, s1] = sixteenthFrames(sections[k]);
+      // frames from the start of the section to a position in it (in score ticks)
+      const at = (pos) => base + (s0 * pos + (s1 - s0) * pos * pos / (2 * length)) / 6;
+      const played = [];
+      let pos = 0, instrument = -1;
+      for (const ev of pattern.events) {
+        if (ev.type === 'inst') instrument = ev.instrument;
+        if (ev.type !== 'note' && ev.type !== 'rest') { played.push(ev); continue; }
+        const start = Math.round(at(pos));
+        pos += ev.length;
+        const note = { ...ev, length: Math.round(at(pos)) - start };
+        if (ev.type === 'note' && instrument === LEAD && note.length <= 4) {
+          played.push({ type: 'inst', instrument: LEAD_SHORT }, note, { type: 'inst', instrument: LEAD });
+        } else played.push(note);
+      }
+      base = at(length);
+      const key = JSON.stringify(played);
+      if (!known.has(key)) { known.set(key, patterns.length); patterns.push({ name: pattern.name, events: played }); }
+      out.push({ pattern: known.get(key), transpose: entry.transpose });
+    });
+    return out;
+  });
+  return { instruments: source.instruments, song: { ...source.song, speed: 1, patterns, orders } };
 }

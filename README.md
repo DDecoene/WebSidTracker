@@ -2,7 +2,7 @@
 
 Sweeping pulses, late vibrato, drums on the bass: now with a tracker. WebSidTracker brings the per-frame tricks Rob Hubbard made famous on the C64 (pulses that sweep, vibrato that comes in late, chords from one voice, drums that share the bass channel) to a tracker in your browser, with a small clean-room player you can drop into your own Commodore 64 game. Not affiliated with Rob Hubbard; none of his code or music is used.
 
-> **Status: working, not finished (alpha, release 0.2.6).** The C64 player is built and measured, the browser tracker runs it live: a 6502 core, reSIDfp as WebAssembly, the song model with export, the pattern and order editor and the instrument editor all exist. Try it at <https://ddecoene.github.io/WebSidTracker/>. What is still open is listed in the [roadmap](#roadmap). How to use the tracker: [docs/tracker-guide.md](docs/tracker-guide.md).
+> **Status: working, not finished (alpha, release 0.2.7).** The C64 player is built and measured, the browser tracker runs it live: a 6502 core, reSIDfp as WebAssembly, the song model with export, the pattern and order editor and the instrument editor all exist. Try it at <https://ddecoene.github.io/WebSidTracker/>. What is still open is listed in the [roadmap](#roadmap). How to use the tracker: [docs/tracker-guide.md](docs/tracker-guide.md).
 
 ## How it started
 
@@ -75,7 +75,7 @@ python3 -m http.server 8010
 
 Then open <http://127.0.0.1:8010/>. Audio starts at your first click or key press.
 
-The **Demos** menu in the header loads one of six songs (an original demo tune, what a first visit starts with, Ode to Joy, Für Elise, Rondo alla Turca, Toccata in D minor, and In the Hall of the Mountain King) or a set of sound effects over the original tune (open the Effects tab). Open one, press Play and change things while it plays. There is no build step for the web app; `web/sid/sid.wasm` and `web/player/player.prg` are committed. The older sound test page is at `/sound-test.html`.
+The **Demos** menu in the header loads one of seven songs (two original tunes: Pulse Drive, what a first visit starts with, and the Original demo tune; Ode to Joy, Für Elise, Rondo alla Turca, Toccata in D minor, and In the Hall of the Mountain King) or a set of sound effects over the original tune (open the Effects tab). Open one, press Play and change things while it plays. There is no build step for the web app; `web/sid/sid.wasm` and `web/player/player.prg` are committed. The older sound test page is at `/sound-test.html`.
 
 ## Building the C64 side
 
